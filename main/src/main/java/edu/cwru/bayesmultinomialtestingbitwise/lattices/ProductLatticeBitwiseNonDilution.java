@@ -1,0 +1,159 @@
+package edu.cwru.bayesmultinomialtestingbitwise.lattices;
+
+public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase {
+
+	public ProductLatticeBitwiseNonDilution() {
+		super();
+	}
+
+	/**
+	 * Default constructor serves as generating all required information of a
+	 * lattice
+	 * model. It's a costly process to construct a lattice instance but can greatly
+	 * benefit many computation-intensive member methods.
+	 * 
+	 * @param atoms
+	 * @param pi0
+	 */
+	public ProductLatticeBitwiseNonDilution(int atoms, int variants, double[] pi0) {
+		super(atoms, variants, pi0);
+	}
+
+	/**
+	 * Phatom constructor
+	 * 
+	 * @param atoms
+	 * @param pi0
+	 * @param i
+	 */
+	public ProductLatticeBitwiseNonDilution(int atoms, int variants, int i) {
+		super(atoms, variants, i);
+	}
+
+	/**
+	 * Copy constructor with different options used in different scenarios.
+	 * i = 0: Used for Spark broadcast variables that gets shared with all computing
+	 * nodes. i = 1: Used for constructing simulation trees in IS. i = 2: Used for
+	 * constructing simulation trees in RS, KS.
+	 * 
+	 * @param model
+	 * @param i
+	 */
+	public ProductLatticeBitwiseNonDilution(ProductLatticeBitwiseNonDilution model, int i) {
+		super(model, i);
+	}
+
+	@Override
+	public void updatePosteriorProbability(int experiment, int response, double upsetThresholdUp,
+			double upsetThresholdLo) {
+		posteriorProbabilityMap = calculatePosteriorProbabilities(experiment, response);
+		updateClassifiedAtomsAndClassifiedState(upsetThresholdUp, upsetThresholdLo);
+		testCounter++;
+	}
+
+	/**
+	 * Calculate the posterior probability for each lattice.
+	 * 
+	 * @param S
+	 * @param i = 1 : current experiment S are all negative
+	 * @param i = 0 : current experiment S contains at least one positive case.
+	 * @return Hash map contains all posterior probability for each lattice
+	 */
+	public double[] calculatePosteriorProbabilities(int experiment, int response) {
+		double[] ret = new double[totalStates()];
+
+		int[] partitionMap = new int[totalStates()];
+		for (int j = 0; j < totalStates(); j++) {
+			partitionMap[j] = 0;
+		}
+
+		// borrowed from find halving state function
+		// tricky: for each state, check each variant of actively
+		// pooled subjects to see whether they are all 1.
+		int stateIter;
+		boolean isComplement = false;
+		for (stateIter = 0; stateIter < totalStates(); stateIter++) {
+			for (int variant = 0; variant < variants; variant++) {
+				for (int l = 0; l < atoms; l++) {
+					if ((experiment & (1 << l)) != 0 && (stateIter & 1 << (l * variants + variant)) == 0) {
+						isComplement = true;
+						break;
+					}
+				}
+				partitionMap[stateIter] |= (isComplement ? 0 : (1 << variant));
+				isComplement = false; // reset flag
+			}
+		}
+
+		double denominator = 0.0;
+		for (int i = 0; i < totalStates(); i++) {
+			if (partitionMap[i] == response)
+				ret[i] = posteriorProbabilityMap[i] * 0.985;
+			else
+				ret[i] = posteriorProbabilityMap[i] * 0.005;
+			denominator += ret[i];
+		}
+
+		for (int i = 0; i < totalStates(); i++) {
+			ret[i] /= denominator;
+		}
+
+		return ret;
+	}
+
+	@Override
+	public double computeResponseProbabilityUsingTrueState(int experiment, int response,
+			int trueState) {
+		int trueStateResponse = 0;
+		int subjectCount = Long.bitCount(experiment);
+
+		for (int i = 0; i < variants; i++) {
+			int temp = 0;
+			for (int j = 0; j < atoms; j++) {
+				if ((experiment & (1 << j)) == 0)
+					continue;
+				if ((trueState & (1 << (j * variants + i))) != 0)
+					temp++;
+			}
+			if (temp == subjectCount)
+				trueStateResponse += (1 << i);
+		}
+		return trueStateResponse == response ? 0.985 : 0.005;
+	}
+
+	public static void showArray(double[] array) {
+		for (int i = 0; i < array.length; i++) {
+			System.out.print(array[i] + " ");
+		}
+		System.out.println();
+	}
+
+	public static void showArray(int[] array) {
+		for (int i = 0; i < array.length; i++) {
+			System.out.print(array[i] + " ");
+		}
+		System.out.println();
+	}
+
+	public static void main(String[] args) {
+		int atoms = 2;
+		int variants = 2;
+		double[] pi0 = new double[atoms * variants];
+		for (int i = 0; i < atoms * variants; i++) {
+			pi0[i] = 0.02;
+		}
+		ProductLatticeBitwiseBase p = new ProductLatticeBitwiseNonDilution(atoms, variants, pi0);
+		System.out.println(p.getUpSetProbabilityMass(1));
+		showArray(p.posteriorProbabilityMap);
+		showArray(p.getClassificationStat());
+		System.out.println(p.isClassified());
+		p.updatePosteriorProbability(3, 3, 0.01, 0.01);
+		p.updatePosteriorProbability(3, 3, 0.01, 0.01);
+		p.updatePosteriorProbability(3, 3, 0.01, 0.01);
+		System.out.println();
+		showArray(p.posteriorProbabilityMap);
+		showArray(p.getClassificationStat());
+		System.out.println(p.isClassified());
+
+	}
+}
