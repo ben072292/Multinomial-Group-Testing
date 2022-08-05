@@ -5,11 +5,11 @@ import java.util.stream.IntStream;
 
 import com.google.common.util.concurrent.AtomicDouble;
 
-public abstract class ProductLatticeBitwiseBase {
+public abstract class ProductLatticeBitwiseBase implements ProductLatticeBitwise {
 	protected int atoms;
 	protected int variants;
-	protected double[] posteriorProbabilityMap; // keyset memory allocated by E
-	protected int testCounter = 0;
+	protected double[] posteriorProbabilities;
+	protected int testCount = 0;
 	protected int[] classificationStat;
 
 	public ProductLatticeBitwiseBase() {
@@ -25,9 +25,9 @@ public abstract class ProductLatticeBitwiseBase {
 	 * @param pi0
 	 */
 	public ProductLatticeBitwiseBase(int atoms, int variants, double[] pi0) {
-		this.atoms = atoms;
-		this.variants = variants;
-		this.posteriorProbabilityMap = generatePriorProbabilityMap(pi0);
+		setAtoms(atoms);
+		setVariants(variants);
+		this.posteriorProbabilities = generatePriorProbabilities(pi0);
 		classificationStat = new int[nominalPoolSize()];
 	}
 
@@ -39,8 +39,8 @@ public abstract class ProductLatticeBitwiseBase {
 	 * @param i
 	 */
 	public ProductLatticeBitwiseBase(int atoms, int variants, int flag) {
-		this.atoms = atoms;
-		this.variants = variants;
+		setAtoms(atoms);
+		setVariants(variants);
 	}
 
 	/**
@@ -52,23 +52,19 @@ public abstract class ProductLatticeBitwiseBase {
 	 * @param model
 	 * @param i
 	 */
-	public ProductLatticeBitwiseBase(ProductLatticeBitwiseBase model, int i) {
-		this.testCounter = model.testCounter;
+	public ProductLatticeBitwiseBase(ProductLatticeBitwise model, int i) {
+		setTestCount(model.getTestCount());
+		setAtoms(model.getAtoms());
+		setVariants(model.getVariants());
 		if (i == 0) { // essential copy for broadcast variables
-			this.atoms = model.atoms;
-			this.variants = model.variants;
-			this.classificationStat = model.classificationStat.clone();
-			this.posteriorProbabilityMap = model.posteriorProbabilityMap;
+			copyClassificationStat(model.getClassificationStat());
+			setPosteriorProbabilities(model.getPosteriorProbabilities());
 		} else if (i == 1) { // simulation
-			this.atoms = model.atoms;
-			this.variants = model.variants;
-			this.posteriorProbabilityMap = model.posteriorProbabilityMap;
-			this.classificationStat = model.classificationStat.clone();
+			setPosteriorProbabilities(model.getPosteriorProbabilities());
+			copyClassificationStat(model.getClassificationStat());
 
 		} else if (i == 2) { // tree internal copy
-			this.atoms = model.atoms;
-			this.variants = model.variants;
-			this.classificationStat = null;
+			setClassificationStat(null);
 		}
 	}
 
@@ -76,20 +72,48 @@ public abstract class ProductLatticeBitwiseBase {
 		return this.atoms;
 	}
 
+	public void setAtoms(int atoms) {
+		this.atoms = atoms;
+	}
+
 	public int getVariants() {
 		return this.variants;
+	}
+
+	public void setVariants(int variants) {
+		this.variants = variants;
 	}
 
 	public int[] getClassificationStat() {
 		return this.classificationStat;
 	}
 
-	public double[] getPosteriorProbabilityMap() {
-		return this.posteriorProbabilityMap;
+	public void setClassificationStat(int[] classificationStat) {
+		this.classificationStat = classificationStat;
 	}
 
-	public int getTestCounter() {
-		return this.testCounter;
+	public void copyClassificationStat(int[] classificationStat) {
+		this.classificationStat = classificationStat.clone();
+	}
+
+	public double[] getPosteriorProbabilities() {
+		return this.posteriorProbabilities;
+	}
+
+	public void setPosteriorProbabilities(double[] posteriorProbabilities) {
+		this.posteriorProbabilities = posteriorProbabilities;
+	}
+
+	public void copyPosteriorProbabilities(double[] posteriorProbabilities) {
+		this.posteriorProbabilities = posteriorProbabilities.clone();
+	}
+
+	public int getTestCount() {
+		return this.testCount;
+	}
+
+	public void setTestCount(int testCount) {
+		this.testCount = testCount;
 	}
 
 	public int totalStates() {
@@ -139,7 +163,7 @@ public abstract class ProductLatticeBitwiseBase {
 		return ret;
 	}
 
-	public double[] generatePriorProbabilityMap(double[] pi0) {
+	public double[] generatePriorProbabilities(double[] pi0) {
 		double[] ret = new double[totalStates()];
 		for (int i = 0; i < totalStates(); i++) {
 			ret[i] = generatePriorProbability(i, pi0);
@@ -158,12 +182,18 @@ public abstract class ProductLatticeBitwiseBase {
 		return prob;
 	}
 
-	public void resetTestCounter() {
-		this.testCounter = 0;
+	public void resetTestCount() {
+		this.testCount = 0;
 	}
 
-	public abstract void updatePosteriorProbability(int experiment, int response, double upsetThresholdUp,
-			double upsetThresholdLo);
+	public void updatePosteriorProbabilities(int experiment, int response, double upsetThresholdUp,
+			double upsetThresholdLo) {
+		posteriorProbabilities = calculatePosteriorProbabilities(experiment, response);
+		updateClassifiedAtomsAndClassifiedState(upsetThresholdUp, upsetThresholdLo);
+		testCount++;
+	}
+
+	public abstract double[] calculatePosteriorProbabilities(int experiment, int response);
 
 	public void updateClassifiedAtomsAndClassifiedState(double upsetThresholdUp, double upsetThresholdLo) {
 
@@ -183,7 +213,7 @@ public abstract class ProductLatticeBitwiseBase {
 	public double getUpSetProbabilityMass(int state) {
 		double upProbability = 0.0;
 		for (int i : getUpSet(state))
-			upProbability += posteriorProbabilityMap[i];
+			upProbability += posteriorProbabilities[i];
 		return upProbability;
 	}
 
@@ -194,7 +224,7 @@ public abstract class ProductLatticeBitwiseBase {
 		return true;
 	}
 
-	public int findHalvingState(double prob) {
+	public int findHalvingStates(double prob) {
 		int candidate = 0;
 		int stateIter;
 		int experiment;
@@ -228,7 +258,7 @@ public abstract class ProductLatticeBitwiseBase {
 
 			double[] partitionProbMass = new double[(1 << variants)];
 			for (stateIter = 0; stateIter < totalStates(); stateIter++) {
-				partitionProbMass[partitionMap[stateIter]] += posteriorProbabilityMap[stateIter];
+				partitionProbMass[partitionMap[stateIter]] += posteriorProbabilities[stateIter];
 			}
 			double temp = 0.0;
 			for (double d : partitionProbMass) {
@@ -249,7 +279,13 @@ public abstract class ProductLatticeBitwiseBase {
 
 	}
 
-	public int findHalvingStateParallel(double prob) {
+	/**
+	 * Multithreading halving algorithm for local acceleration
+	 * 
+	 * @param prob
+	 * @return
+	 */
+	public int findHalvingStatesParallel(double prob) {
 		AtomicInteger candidate = new AtomicInteger(0);
 		AtomicDouble min = new AtomicDouble(Double.MAX_VALUE);
 		IntStream.range(0, 1 << atoms).parallel().forEach(experiment -> {
@@ -281,7 +317,7 @@ public abstract class ProductLatticeBitwiseBase {
 
 			double[] partitionProbMass = new double[(1 << variants)];
 			for (int stateIter = 0; stateIter < totalStates(); stateIter++) {
-				partitionProbMass[partitionMap[stateIter]] += posteriorProbabilityMap[stateIter];
+				partitionProbMass[partitionMap[stateIter]] += posteriorProbabilities[stateIter];
 			}
 			double temp = 0.0;
 			for (double d : partitionProbMass) {
@@ -300,5 +336,5 @@ public abstract class ProductLatticeBitwiseBase {
 
 	}
 
-	public abstract double computeResponseProbabilityUsingTrueState(int experiment, int response, int trueState);
+	public abstract double responseProbability(int experiment, int response, int trueState);
 }

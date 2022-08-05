@@ -1,5 +1,7 @@
 package edu.cwru.bayesmultinomialtestingbitwise.lattices;
 
+import edu.cwru.bayesmultinomialtestingbitwise.tool.Debug;
+
 public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase {
 
 	public ProductLatticeBitwiseNonDilution() {
@@ -39,16 +41,8 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 	 * @param model
 	 * @param i
 	 */
-	public ProductLatticeBitwiseNonDilution(ProductLatticeBitwiseNonDilution model, int i) {
+	public ProductLatticeBitwiseNonDilution(ProductLatticeBitwise model, int i) {
 		super(model, i);
-	}
-
-	@Override
-	public void updatePosteriorProbability(int experiment, int response, double upsetThresholdUp,
-			double upsetThresholdLo) {
-		posteriorProbabilityMap = calculatePosteriorProbabilities(experiment, response);
-		updateClassifiedAtomsAndClassifiedState(upsetThresholdUp, upsetThresholdLo);
-		testCounter++;
 	}
 
 	/**
@@ -59,6 +53,7 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 	 * @param i = 0 : current experiment S contains at least one positive case.
 	 * @return Hash map contains all posterior probability for each lattice
 	 */
+	@Override
 	public double[] calculatePosteriorProbabilities(int experiment, int response) {
 		double[] ret = new double[totalStates()];
 
@@ -88,9 +83,9 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 		double denominator = 0.0;
 		for (int i = 0; i < totalStates(); i++) {
 			if (partitionMap[i] == response)
-				ret[i] = posteriorProbabilityMap[i] * 0.985;
+				ret[i] = posteriorProbabilities[i] * 0.985;
 			else
-				ret[i] = posteriorProbabilityMap[i] * 0.005;
+				ret[i] = posteriorProbabilities[i] * 0.005;
 			denominator += ret[i];
 		}
 
@@ -102,7 +97,7 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 	}
 
 	@Override
-	public double computeResponseProbabilityUsingTrueState(int experiment, int response,
+	public double responseProbability(int experiment, int response,
 			int trueState) {
 		int trueStateResponse = 0;
 		int subjectCount = Long.bitCount(experiment);
@@ -121,20 +116,6 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 		return trueStateResponse == response ? 0.985 : 0.005;
 	}
 
-	public static void showArray(double[] array) {
-		for (int i = 0; i < array.length; i++) {
-			System.out.print(array[i] + " ");
-		}
-		System.out.println();
-	}
-
-	public static void showArray(int[] array) {
-		for (int i = 0; i < array.length; i++) {
-			System.out.print(array[i] + " ");
-		}
-		System.out.println();
-	}
-
 	public static void main(String[] args) {
 		int atoms = 2;
 		int variants = 2;
@@ -144,15 +125,15 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 		}
 		ProductLatticeBitwiseBase p = new ProductLatticeBitwiseNonDilution(atoms, variants, pi0);
 		System.out.println(p.getUpSetProbabilityMass(1));
-		showArray(p.posteriorProbabilityMap);
-		showArray(p.getClassificationStat());
+		Debug.showArray(p.posteriorProbabilities);
+		Debug.showArray(p.getClassificationStat());
 		System.out.println(p.isClassified());
-		p.updatePosteriorProbability(3, 3, 0.01, 0.01);
-		p.updatePosteriorProbability(3, 3, 0.01, 0.01);
-		p.updatePosteriorProbability(3, 3, 0.01, 0.01);
+		p.updatePosteriorProbabilities(3, 3, 0.01, 0.01);
+		p.updatePosteriorProbabilities(3, 3, 0.01, 0.01);
+		p.updatePosteriorProbabilities(3, 3, 0.01, 0.01);
 		System.out.println();
-		showArray(p.posteriorProbabilityMap);
-		showArray(p.getClassificationStat());
+		Debug.showArray(p.posteriorProbabilities);
+		Debug.showArray(p.getClassificationStat());
 		System.out.println(p.isClassified());
 
 	}

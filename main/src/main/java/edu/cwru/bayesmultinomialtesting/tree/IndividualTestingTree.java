@@ -39,7 +39,7 @@ public class IndividualTestingTree {
 		this.classifiedAsPositive = lattice.getClassifiedAsPositive();
 		this.experiments = experiments;
 		this.experimentsResults = experimentsResults;
-		this.experimentSize = lattice.getTestCounter();
+		this.experimentSize = lattice.getTestCount();
 		this.currentDepth = currentDepth;
 	}
 
@@ -167,7 +167,7 @@ public class IndividualTestingTree {
 	}
 
 	public int getExperimentSize() {
-		return this.lattice.getTestCounter();
+		return this.lattice.getTestCount();
 	}
 
 	public ArrayList<IndividualTestingTree> getChildren() {

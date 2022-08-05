@@ -9,7 +9,7 @@ public class SingleTree {
 	protected ProductLatticeNonDilution lattice;
 	protected String experiments;
 	protected String experimentsResults;
-	protected int experimentSize;
+	protected int testCount;
 	protected double selfProb = 1.0;
 	protected ArrayList<SingleTree> children = null;
 	protected int currentDepth;
@@ -39,7 +39,7 @@ public class SingleTree {
 		this.classifiedAsPositive = lattice.getClassifiedAsPositive();
 		this.experiments = experiments;
 		this.experimentsResults = experimentsResults;
-		this.experimentSize = lattice.getTestCounter();
+		this.testCount = lattice.getTestCount();
 		this.currentDepth = currentDepth;
 	}
 
@@ -87,7 +87,7 @@ public class SingleTree {
 	public SingleTree(SingleTree old) {
 		if (old.getLattice() != null)
 			this.lattice = new ProductLatticeNonDilution(old.getLattice(), 2); // use light constructor
-		this.experimentSize = old.getExperimentSize();
+		this.testCount = old.getExperimentSize();
 		this.isClassified = old.isClassified();
 		this.classifiedAsPositive = new ArrayList<>(old.getClassifiedAsPositive());
 		this.latticeSize = old.getLatticeSize(); // dramatically reduce time
@@ -140,7 +140,7 @@ public class SingleTree {
 	}
 
 	public int getExperimentSize() {
-		return this.experimentSize;
+		return this.testCount;
 	}
 
 	public ArrayList<SingleTree> getChildren() {

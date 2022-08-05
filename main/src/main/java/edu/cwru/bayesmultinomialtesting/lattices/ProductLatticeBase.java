@@ -159,7 +159,7 @@ public abstract class ProductLatticeBase {
 		return this.posteriorProbabilityMap;
 	}
 
-	public int getTestCounter() {
+	public int getTestCount() {
 		return this.testCounter;
 	}
 

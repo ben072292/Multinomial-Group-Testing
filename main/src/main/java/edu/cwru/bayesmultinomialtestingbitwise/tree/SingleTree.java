@@ -1,16 +1,17 @@
 package edu.cwru.bayesmultinomialtestingbitwise.tree;
 
+import edu.cwru.bayesmultinomialtestingbitwise.lattices.ProductLatticeBitwise;
 import edu.cwru.bayesmultinomialtestingbitwise.lattices.ProductLatticeBitwiseNonDilution;
 import edu.cwru.bayesmultinomialtestingbitwise.tree.util.TreeStat;
 
 import java.util.ArrayList;
 
 public class SingleTree {
-	protected ProductLatticeBitwiseNonDilution lattice;
+	protected ProductLatticeBitwise lattice;
 	protected int experiments = -1;
 	protected int experimentsResponses = -1;
-	protected int experimentSize;
-	protected double selfProb = 1.0;
+	protected int testCount;
+	protected double branchProb = 1.0;
 	protected ArrayList<SingleTree> children = null;
 	protected int currentDepth;
 	protected boolean isClassified = false;
@@ -31,7 +32,7 @@ public class SingleTree {
 	 * @param experiments
 	 * @param experimentsResults
 	 */
-	public SingleTree(ProductLatticeBitwiseNonDilution lattice, int experiments, int experimentsResults,
+	public SingleTree(ProductLatticeBitwise lattice, int experiments, int experimentsResults,
 			int currentDepth) {
 		this.lattice = lattice;
 		this.latticeSize = lattice.getAtoms();
@@ -39,7 +40,7 @@ public class SingleTree {
 		this.classificationStat = lattice.getClassificationStat();
 		this.experiments = experiments;
 		this.experimentsResponses = experimentsResults;
-		this.experimentSize = lattice.getTestCounter();
+		this.testCount = lattice.getTestCount();
 		this.currentDepth = currentDepth;
 	}
 
@@ -55,15 +56,15 @@ public class SingleTree {
 	 * @param upsetThresholdLo
 	 * @param searchDepth
 	 */
-	public SingleTree(ProductLatticeBitwiseNonDilution lattice, int experiments, int experimentsResults, int k,
+	public SingleTree(ProductLatticeBitwise lattice, int experiments, int experimentsResults, int k,
 			int step, double upsetThresholdUp, double upsetThresholdLo, int searchDepth) {
 		this(lattice, experiments, experimentsResults, step);
 		if (!lattice.isClassified() && step < searchDepth) {
 			this.children = new ArrayList<SingleTree>();
-			int childExperiments = this.lattice.findHalvingStateParallel(1.0 / (1 << lattice.getVariants()));
+			int childExperiments = this.lattice.findHalvingStatesParallel(1.0 / (1 << lattice.getVariants()));
 			for (int i = 0; i < (1 << lattice.getVariants()); i++) {
-				ProductLatticeBitwiseNonDilution p = new ProductLatticeBitwiseNonDilution(lattice, 1);
-				p.updatePosteriorProbability(childExperiments, i, upsetThresholdUp, upsetThresholdLo);
+				ProductLatticeBitwise p = new ProductLatticeBitwiseNonDilution(lattice, 1);
+				p.updatePosteriorProbabilities(childExperiments, i, upsetThresholdUp, upsetThresholdLo);
 				this.addChild(new SingleTree(p, childExperiments, i, k, step + 1, upsetThresholdUp, upsetThresholdLo,
 						searchDepth));
 
@@ -80,13 +81,13 @@ public class SingleTree {
 	public SingleTree(SingleTree old) {
 		if (old.getLattice() != null)
 			this.lattice = new ProductLatticeBitwiseNonDilution(old.getLattice(), 2); // use light constructor
-		this.experimentSize = old.getExperimentSize();
+		this.testCount = old.getExperimentSize();
 		this.isClassified = old.isClassified();
 		this.classificationStat = old.getClassifiedAtoms().clone();
 		this.latticeSize = old.getLatticeSize(); // dramatically reduce time
 		this.experiments = old.getExperiments();
 		this.experimentsResponses = old.getExperimentResponses();
-		this.selfProb = old.getSelfProb();
+		this.branchProb = old.getBranchProb();
 		this.currentDepth = old.getCurrentDepth();
 
 	}
@@ -109,11 +110,11 @@ public class SingleTree {
 		}
 	}
 
-	public double getSelfProb() {
-		return this.selfProb;
+	public double getBranchProb() {
+		return this.branchProb;
 	}
 
-	public ProductLatticeBitwiseNonDilution getLattice() {
+	public ProductLatticeBitwise getLattice() {
 		return this.lattice;
 	}
 
@@ -130,7 +131,7 @@ public class SingleTree {
 	}
 
 	public int getExperimentSize() {
-		return this.experimentSize;
+		return this.testCount;
 	}
 
 	public ArrayList<SingleTree> getChildren() {
@@ -157,7 +158,7 @@ public class SingleTree {
 		this.children = children;
 	}
 
-	public void setLattice(ProductLatticeBitwiseNonDilution lattice) {
+	public void setLattice(ProductLatticeBitwise lattice) {
 		this.lattice = lattice;
 	}
 
@@ -165,7 +166,7 @@ public class SingleTree {
 		this.lattice = null;
 	}
 
-	public TreeStat parse(int trueState, ProductLatticeBitwiseNonDilution originalLattice,
+	public TreeStat parse(int trueState, ProductLatticeBitwise originalLattice,
 			double selfProbabilityThreshold,
 			int k, int searchDepth, double[] pi0, double symmetryCoef) {
 		TreeStat ret = new TreeStat();
@@ -192,28 +193,28 @@ public class SingleTree {
 		for (int i = 0; i < size; i++) {
 			SingleTree leaf = leaves.get(i);
 			if (leaf.isClassified() && leaf.isCorrectClassification(trueState)) {
-				correctProb[leaf.getExperimentSize()] += leaf.getSelfProb() * coef;
+				correctProb[leaf.getExperimentSize()] += leaf.getBranchProb() * coef;
 			} else if (leaf.isClassified() && !leaf.isCorrectClassification(trueState)) {
 				// System.out.println(leaf.getSelfProb() * 100);
-				incorrectProb[leaf.getExperimentSize()] += leaf.getSelfProb() * coef;
+				incorrectProb[leaf.getExperimentSize()] += leaf.getBranchProb() * coef;
 				falsePositiveProb[leaf.getExperimentSize()] += leaf.falsePositive(trueState) * coef
-						* leaf.getSelfProb();
+						* leaf.getBranchProb();
 				falseNegativeProb[leaf.getExperimentSize()] += leaf.falseNegative(trueState) * coef
-						* leaf.getSelfProb();
+						* leaf.getBranchProb();
 			} else if (!leaf.isClassified()) {
-				unclassifiedLeavesTotalProbability += leaves.get(i).getSelfProb() * coef;
+				unclassifiedLeavesTotalProbability += leaves.get(i).getBranchProb() * coef;
 			}
 			testLength[i] = leaf.getExperimentSize();
 			stageLength[i] = Math.ceil((double) testLength[i] / (double) k);
-			expectedStages += stageLength[i] * leaf.getSelfProb();
-			expectedTests += testLength[i] * leaf.getSelfProb();
+			expectedStages += stageLength[i] * leaf.getBranchProb();
+			expectedTests += testLength[i] * leaf.getBranchProb();
 		}
 
 		for (int i = 0; i < size; i++) {
 			SingleTree leaf = leaves.get(i);
 			stagesSD += Math.pow((Math.ceil((double) testLength[i] / (double) k) - expectedStages), 2)
-					* leaf.getSelfProb();
-			testsSD += Math.pow((leaf.getExperimentSize() - expectedTests), 2) * leaf.getSelfProb();
+					* leaf.getBranchProb();
+			testsSD += Math.pow((leaf.getExperimentSize() - expectedTests), 2) * leaf.getBranchProb();
 		}
 		stagesSD = Math.sqrt(stagesSD) * coef;
 		testsSD = Math.sqrt(testsSD) * coef;
@@ -269,7 +270,7 @@ public class SingleTree {
 	}
 
 	public void setSelfProb(double prob) {
-		this.selfProb = prob;
+		this.branchProb = prob;
 	}
 
 	/**
@@ -332,7 +333,7 @@ public class SingleTree {
 		}
 	}
 
-	public SingleTree applyTrueState(ProductLatticeBitwiseNonDilution originalLattice, int trueState,
+	public SingleTree applyTrueState(ProductLatticeBitwise originalLattice, int trueState,
 			double selfProbabilityThreshold) {
 		SingleTree newTree = new SingleTree(this, false);
 		applyTrueStateHelper(originalLattice, newTree, this, trueState, 1.0, selfProbabilityThreshold);
@@ -348,7 +349,7 @@ public class SingleTree {
 	 * @param branchProbability
 	 * @param branchProbabilityThreshold
 	 */
-	public static void applyTrueStateHelper(ProductLatticeBitwiseNonDilution originalLattice, SingleTree ret,
+	public static void applyTrueStateHelper(ProductLatticeBitwise originalLattice, SingleTree ret,
 			SingleTree node, int trueState, double branchProbability, double branchProbabilityThreshold) {
 		if (node == null)
 			return;
@@ -357,9 +358,11 @@ public class SingleTree {
 			for (int i = 0; i < node.getChildren().size(); i++) {
 				if (ret.getChildren() == null)
 					ret.setChildren(new ArrayList<>());
-				double childProbability = ret.getSelfProb() * originalLattice.computeResponseProbabilityUsingTrueState(
-						node.getChildren().get(i).getExperiments(), node.getChildren().get(i).getExperimentResponses(),
-						trueState);
+				double childProbability = ret.getBranchProb()
+						* originalLattice.responseProbability(
+								node.getChildren().get(i).getExperiments(),
+								node.getChildren().get(i).getExperimentResponses(),
+								trueState);
 
 				ret.getChildren().add(new SingleTree(node.getChildren().get(i), false));
 				if (childProbability > branchProbabilityThreshold) {
