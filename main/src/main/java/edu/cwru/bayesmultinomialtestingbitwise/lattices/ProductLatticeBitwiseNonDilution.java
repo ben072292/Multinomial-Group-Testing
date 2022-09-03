@@ -56,18 +56,51 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 	@Override
 	public double[] calculatePosteriorProbabilities(int experiment, int response) {
 		double[] ret = new double[totalStates()];
+		int partition = 0;
 
-		int[] partitionMap = new int[totalStates()];
-		for (int j = 0; j < totalStates(); j++) {
-			partitionMap[j] = 0;
+		// borrowed from find halving state function
+		// tricky: for each state, check each variant of actively
+		// pooled subjects to see whether they are all 1.
+		int stateIter;
+		double denominator = 0.0;
+		boolean isComplement = false;
+		for (stateIter = 0; stateIter < totalStates(); stateIter++) {
+			partition = 0;
+			for (int variant = 0; variant < variants; variant++) {
+				isComplement = false;
+				for (int l = 0; l < atoms; l++) {
+					if ((experiment & (1 << l)) != 0 && (stateIter & 1 << (l * variants + variant)) == 0) {
+						isComplement = true;
+						break;
+					}
+				}
+				partition |= (isComplement ? 0 : (1 << variant));
+			}
+
+			if (partition == response)
+				ret[stateIter] = posteriorProbabilities[stateIter] * 0.985;
+			else
+				ret[stateIter] = posteriorProbabilities[stateIter] * 0.005;
+			denominator += ret[stateIter];
 		}
+		for (int i = 0; i < totalStates(); i++) {
+			ret[i] /= denominator;
+		}
+		return ret;
+	}
+
+	public void calculatePosteriorProbabilitiesInPlace(int experiment, int response) {
+		int partition = 0;
 
 		// borrowed from find halving state function
 		// tricky: for each state, check each variant of actively
 		// pooled subjects to see whether they are all 1.
 		int stateIter;
 		boolean isComplement = false;
+		double denominator = 0.0;
 		for (stateIter = 0; stateIter < totalStates(); stateIter++) {
+			isComplement = false;
+			partition = 0;
 			for (int variant = 0; variant < variants; variant++) {
 				for (int l = 0; l < atoms; l++) {
 					if ((experiment & (1 << l)) != 0 && (stateIter & 1 << (l * variants + variant)) == 0) {
@@ -75,25 +108,19 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 						break;
 					}
 				}
-				partitionMap[stateIter] |= (isComplement ? 0 : (1 << variant));
+				partition |= (isComplement ? 0 : (1 << variant));
 				isComplement = false; // reset flag
 			}
-		}
 
-		double denominator = 0.0;
-		for (int i = 0; i < totalStates(); i++) {
-			if (partitionMap[i] == response)
-				ret[i] = posteriorProbabilities[i] * 0.985;
+			if (partition == response)
+				posteriorProbabilities[stateIter] *= 0.985;
 			else
-				ret[i] = posteriorProbabilities[i] * 0.005;
-			denominator += ret[i];
+				posteriorProbabilities[stateIter] *= 0.005;
+			denominator += posteriorProbabilities[stateIter];
 		}
-
 		for (int i = 0; i < totalStates(); i++) {
-			ret[i] /= denominator;
+			posteriorProbabilities[i] /= denominator;
 		}
-
-		return ret;
 	}
 
 	@Override

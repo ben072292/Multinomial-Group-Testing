@@ -56,8 +56,8 @@ public class SingleTree {
 	 * @param upsetThresholdLo
 	 * @param searchDepth
 	 */
-	public SingleTree(ProductLatticeBitwise lattice, int experiments, int experimentsResults, int k,
-			int step, double upsetThresholdUp, double upsetThresholdLo, int searchDepth) {
+	public SingleTree(ProductLatticeBitwise lattice, int experiments, int experimentsResults, int k, int step,
+			double upsetThresholdUp, double upsetThresholdLo, int searchDepth) {
 		this(lattice, experiments, experimentsResults, step);
 		if (!lattice.isClassified() && step < searchDepth) {
 			this.children = new ArrayList<SingleTree>();
@@ -68,6 +68,30 @@ public class SingleTree {
 				this.addChild(new SingleTree(p, childExperiments, i, k, step + 1, upsetThresholdUp, upsetThresholdLo,
 						searchDepth));
 
+			}
+		}
+	}
+
+	public void increaseDepth(int k, double upsetThresholdUp, double upsetThresholdLo, int searchDepth) {
+		ArrayList<SingleTree> trees = new ArrayList<>();
+		findClassified(this, trees);
+		for (SingleTree tree : trees) {
+			tree.setLattice(null);
+		}
+		trees.clear();
+		findUnclassified(this, trees);
+		for (SingleTree tree : trees) {
+			if (tree.getCurrentDepth() < searchDepth) {
+				tree.setChildren(new ArrayList<SingleTree>());
+				int childExperiments = tree.getLattice()
+						.findHalvingStatesParallel(1.0 / (1 << tree.getLattice().getVariants()));
+				for (int i = 0; i < (1 << tree.getLattice().getVariants()); i++) {
+					ProductLatticeBitwise p = new ProductLatticeBitwiseNonDilution(tree.getLattice(), 1);
+					p.updatePosteriorProbabilities(childExperiments, i, upsetThresholdUp, upsetThresholdLo);
+					tree.addChild(new SingleTree(p, childExperiments, i, tree.getCurrentDepth() + 1));
+				}
+				tree.setLattice(null);
+				System.gc();
 			}
 		}
 	}

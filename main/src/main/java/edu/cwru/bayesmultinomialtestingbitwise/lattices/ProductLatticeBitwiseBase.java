@@ -16,10 +16,7 @@ public abstract class ProductLatticeBitwiseBase implements ProductLatticeBitwise
 	}
 
 	/**
-	 * Default constructor serves as generating all required information of a
-	 * lattice
-	 * model. It's a costly process to construct a lattice instance but can greatly
-	 * benefit many computation-intensive member methods.
+	 * Constructor
 	 * 
 	 * @param atoms
 	 * @param pi0
@@ -230,12 +227,12 @@ public abstract class ProductLatticeBitwiseBase implements ProductLatticeBitwise
 		int experiment;
 		boolean isComplement = false;
 		double min = Double.MAX_VALUE;
-		int[] partitionMap = new int[totalStates()];
+		int partitionID = 0;
+		double[] partitionProbMass = new double[(1 << variants)];
 		for (experiment = 0; experiment < (1 << atoms); experiment++) {
-			for (stateIter = 0; stateIter < totalStates(); stateIter++) {
-				partitionMap[stateIter] = 0;
-			}
-
+			// reset partitionProbMass
+			for (int i = 0; i < (1 << variants); i++)
+				partitionProbMass[i] = 0.0;
 			// tricky: for each state, check each variant of actively
 			// pooled subjects to see whether they are all 1.
 			for (stateIter = 0; stateIter < totalStates(); stateIter++) {
@@ -246,9 +243,11 @@ public abstract class ProductLatticeBitwiseBase implements ProductLatticeBitwise
 							break;
 						}
 					}
-					partitionMap[stateIter] |= (isComplement ? 0 : (1 << variant));
+					partitionID |= (isComplement ? 0 : (1 << variant));
 					isComplement = false; // reset flag
 				}
+				partitionProbMass[partitionID] += posteriorProbabilities[stateIter];
+				partitionID = 0;
 			}
 
 			// for (int i = 0; i < totalStates(); i++) {
@@ -256,10 +255,6 @@ public abstract class ProductLatticeBitwiseBase implements ProductLatticeBitwise
 			// }
 			// System.out.println();
 
-			double[] partitionProbMass = new double[(1 << variants)];
-			for (stateIter = 0; stateIter < totalStates(); stateIter++) {
-				partitionProbMass[partitionMap[stateIter]] += posteriorProbabilities[stateIter];
-			}
 			double temp = 0.0;
 			for (double d : partitionProbMass) {
 				temp += Math.abs(d - prob);
@@ -268,10 +263,6 @@ public abstract class ProductLatticeBitwiseBase implements ProductLatticeBitwise
 				min = temp;
 				candidate = experiment;
 			}
-
-			// reset partitionMap
-			for (int i = 0; i < totalStates(); i++)
-				partitionMap[i] = 0;
 
 		}
 
@@ -289,15 +280,13 @@ public abstract class ProductLatticeBitwiseBase implements ProductLatticeBitwise
 		AtomicInteger candidate = new AtomicInteger(0);
 		AtomicDouble min = new AtomicDouble(Double.MAX_VALUE);
 		IntStream.range(0, 1 << atoms).parallel().forEach(experiment -> {
-			int[] partitionMap = new int[totalStates()];
+			int partitionID = 0;
 			boolean isComplement = false;
-			for (int stateIter = 0; stateIter < totalStates(); stateIter++) {
-				partitionMap[stateIter] = 0;
-			}
-
+			double[] partitionProbMass = new double[(1 << variants)];
 			// tricky: for each state, check each variant of actively
 			// pooled subjects to see whether they are all 1.
 			for (int stateIter = 0; stateIter < totalStates(); stateIter++) {
+				partitionID = 0;
 				for (int variant = 0; variant < variants; variant++) {
 					for (int l = 0; l < atoms; l++) {
 						if ((experiment & (1 << l)) != 0 && (stateIter & (1 << (l * variants + variant))) == 0) {
@@ -305,20 +294,12 @@ public abstract class ProductLatticeBitwiseBase implements ProductLatticeBitwise
 							break;
 						}
 					}
-					partitionMap[stateIter] |= (isComplement ? 0 : (1 << variant));
+					partitionID |= (isComplement ? 0 : (1 << variant));
 					isComplement = false; // reset flag
 				}
+				partitionProbMass[partitionID] += posteriorProbabilities[stateIter];
 			}
 
-			// for (int i = 0; i < totalStates(); i++) {
-			// System.out.print(partitionMap[i] + " ");
-			// }
-			// System.out.println();
-
-			double[] partitionProbMass = new double[(1 << variants)];
-			for (int stateIter = 0; stateIter < totalStates(); stateIter++) {
-				partitionProbMass[partitionMap[stateIter]] += posteriorProbabilities[stateIter];
-			}
 			double temp = 0.0;
 			for (double d : partitionProbMass) {
 				temp += Math.abs(d - prob);
@@ -327,8 +308,6 @@ public abstract class ProductLatticeBitwiseBase implements ProductLatticeBitwise
 				min.set(temp);
 				candidate.set(experiment);
 			}
-
-			partitionMap = null;
 
 		});
 

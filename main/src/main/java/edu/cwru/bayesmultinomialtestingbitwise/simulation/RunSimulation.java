@@ -3,6 +3,7 @@ package edu.cwru.bayesmultinomialtestingbitwise.simulation;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
+import java.util.ArrayList;
 
 import edu.cwru.bayesmultinomialtestingbitwise.tree.util.TreeStat;
 import edu.cwru.bayesmultinomialtestingbitwise.lattices.ProductLatticeBitwiseNonDilution;
@@ -31,8 +32,20 @@ public class RunSimulation {
 
         int searchDepth = 5;
 
-        SingleTree tree = new SingleTree(p, -1, -1, 1, 0, 0.01, 0.01, searchDepth);
+        // SingleTree tree = new SingleTree(p, -1, -1, 1, 0, 0.01, 0.01, searchDepth);
+        // DFS
 
+        SingleTree tree = new SingleTree(p, -1, -1, 1, 0, 0.01, 0.01, 0); // BFS
+        tree.increaseDepth(1, 0.01, 0.01, searchDepth);
+        tree.increaseDepth(1, 0.01, 0.01, searchDepth);
+        tree.increaseDepth(1, 0.01, 0.01, searchDepth);
+        tree.increaseDepth(1, 0.01, 0.01, searchDepth);
+        tree.increaseDepth(1, 0.01, 0.01, searchDepth);
+        ArrayList<SingleTree> leaves = new ArrayList<>();
+        SingleTree.findAll(tree, leaves);
+        for (SingleTree leaf : leaves) {
+            leaf.setLattice(null);
+        }
         SingleTree st = tree.applyTrueState(p, 0, 0.001);
 
         TreeStat ret = st.parse(0, new ProductLatticeBitwiseNonDilution(p, 0), 0.001,
