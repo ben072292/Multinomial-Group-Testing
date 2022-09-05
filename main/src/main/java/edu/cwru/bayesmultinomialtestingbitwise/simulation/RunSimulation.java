@@ -30,17 +30,19 @@ public class RunSimulation {
 
         ProductLatticeBitwiseNonDilution p = new ProductLatticeBitwiseNonDilution(atoms, variants, pi0);
 
-        int searchDepth = 5;
+        int searchDepth = 7;
 
         // SingleTree tree = new SingleTree(p, -1, -1, 1, 0, 0.01, 0.01, searchDepth);
         // DFS
 
-        SingleTree tree = new SingleTree(p, -1, -1, 1, 0, 0.01, 0.01, 0); // BFS
-        tree.increaseDepth(1, 0.01, 0.01, searchDepth);
-        tree.increaseDepth(1, 0.01, 0.01, searchDepth);
-        tree.increaseDepth(1, 0.01, 0.01, searchDepth);
-        tree.increaseDepth(1, 0.01, 0.01, searchDepth);
-        tree.increaseDepth(1, 0.01, 0.01, searchDepth);
+        SingleTree tree = new SingleTree(p, -1, -1, 0, true); // BFS
+        tree.increaseStage(1, 0.01, 0.01, searchDepth);
+        tree.increaseStage(1, 0.01, 0.01, searchDepth);
+        tree.increaseStage(1, 0.01, 0.01, searchDepth);
+        tree.increaseStage(1, 0.01, 0.01, searchDepth);
+        tree.increaseStage(1, 0.01, 0.01, searchDepth);
+        tree.increaseStage(1, 0.01, 0.01, searchDepth);
+        tree.increaseStage(1, 0.01, 0.01, searchDepth);
         ArrayList<SingleTree> leaves = new ArrayList<>();
         SingleTree.findAll(tree, leaves);
         for (SingleTree leaf : leaves) {
