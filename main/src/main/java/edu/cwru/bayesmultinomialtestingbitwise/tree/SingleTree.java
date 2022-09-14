@@ -60,12 +60,11 @@ public class SingleTree {
 		this(lattice, experiments, experimentsResults, currStage, false);
 		if (!lattice.isClassified() && currStage < stage) {
 			this.children = new ArrayList<SingleTree>();
-			int ex = this.lattice.findHalvingStatesParallel(1.0 / (1 << lattice.getVariants()));
+			int ex = lattice.findHalvingStatesParallel(1.0 / (1 << lattice.getVariants()));
 			for (int res = 0; res < (1 << lattice.getVariants()); res++) {
 				ProductLatticeBitwise p = new ProductLatticeBitwiseNonDilution(lattice, 1);
 				p.updatePosteriorProbabilities(ex, res, upsetThresholdUp, upsetThresholdLo);
-				this.addChild(new SingleTree(p, ex, res, k, currStage + 1, upsetThresholdUp, upsetThresholdLo,
-						stage));
+				this.addChild(new SingleTree(p, ex, res, k, currStage + 1, upsetThresholdUp, upsetThresholdLo, stage));
 
 			}
 		}
@@ -107,12 +106,12 @@ public class SingleTree {
 	public SingleTree(SingleTree old) {
 		if (old.getLattice() != null)
 			this.lattice = new ProductLatticeBitwiseNonDilution(old.getLattice(), 2); // use light constructor
-		this.exCount = old.getExperimentSize();
+		this.exCount = old.getExCount();
 		this.isClassified = old.isClassified();
 		this.classificationStat = old.getClassifiedAtoms().clone();
 		this.latticeSize = old.getLatticeSize(); // dramatically reduce time
-		this.ex = old.getExperiments();
-		this.res = old.getExperimentResponses();
+		this.ex = old.getEx();
+		this.res = old.getRes();
 		this.branchProb = old.getBranchProb();
 		this.curStage = old.getCurrStage();
 
@@ -148,15 +147,15 @@ public class SingleTree {
 		return this.curStage;
 	}
 
-	public int getExperiments() {
+	public int getEx() {
 		return this.ex;
 	}
 
-	public int getExperimentResponses() {
+	public int getRes() {
 		return this.res;
 	}
 
-	public int getExperimentSize() {
+	public int getExCount() {
 		return this.exCount;
 	}
 
@@ -219,18 +218,18 @@ public class SingleTree {
 		for (int i = 0; i < size; i++) {
 			SingleTree leaf = leaves.get(i);
 			if (leaf.isClassified() && leaf.isCorrectClassification(trueState)) {
-				correctProb[leaf.getExperimentSize()] += leaf.getBranchProb() * coef;
+				correctProb[leaf.getExCount()] += leaf.getBranchProb() * coef;
 			} else if (leaf.isClassified() && !leaf.isCorrectClassification(trueState)) {
 				// System.out.println(leaf.getSelfProb() * 100);
-				incorrectProb[leaf.getExperimentSize()] += leaf.getBranchProb() * coef;
-				falsePositiveProb[leaf.getExperimentSize()] += leaf.falsePositive(trueState) * coef
+				incorrectProb[leaf.getExCount()] += leaf.getBranchProb() * coef;
+				falsePositiveProb[leaf.getExCount()] += leaf.falsePositive(trueState) * coef
 						* leaf.getBranchProb();
-				falseNegativeProb[leaf.getExperimentSize()] += leaf.falseNegative(trueState) * coef
+				falseNegativeProb[leaf.getExCount()] += leaf.falseNegative(trueState) * coef
 						* leaf.getBranchProb();
 			} else if (!leaf.isClassified()) {
 				unclassifiedLeavesTotalProbability += leaves.get(i).getBranchProb() * coef;
 			}
-			testLength[i] = leaf.getExperimentSize();
+			testLength[i] = leaf.getExCount();
 			stageLength[i] = Math.ceil((double) testLength[i] / (double) k);
 			expectedStages += stageLength[i] * leaf.getBranchProb();
 			expectedTests += testLength[i] * leaf.getBranchProb();
@@ -240,7 +239,7 @@ public class SingleTree {
 			SingleTree leaf = leaves.get(i);
 			stagesSD += Math.pow((Math.ceil((double) testLength[i] / (double) k) - expectedStages), 2)
 					* leaf.getBranchProb();
-			testsSD += Math.pow((leaf.getExperimentSize() - expectedTests), 2) * leaf.getBranchProb();
+			testsSD += Math.pow((leaf.getExCount() - expectedTests), 2) * leaf.getBranchProb();
 		}
 		stagesSD = Math.sqrt(stagesSD) * coef;
 		testsSD = Math.sqrt(testsSD) * coef;
@@ -386,8 +385,8 @@ public class SingleTree {
 					ret.setChildren(new ArrayList<>());
 				double childProbability = ret.getBranchProb()
 						* originalLattice.responseProbability(
-								node.getChildren().get(i).getExperiments(),
-								node.getChildren().get(i).getExperimentResponses(),
+								node.getChildren().get(i).getEx(),
+								node.getChildren().get(i).getRes(),
 								trueState);
 
 				ret.getChildren().add(new SingleTree(node.getChildren().get(i), false));

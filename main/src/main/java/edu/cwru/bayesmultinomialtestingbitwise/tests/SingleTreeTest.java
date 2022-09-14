@@ -1,4 +1,4 @@
-package edu.cwru.bayesmultinomialtestingbitwise.simulation;
+package edu.cwru.bayesmultinomialtestingbitwise.tests;
 
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -9,16 +9,19 @@ import edu.cwru.bayesmultinomialtestingbitwise.tree.util.TreeStat;
 import edu.cwru.bayesmultinomialtestingbitwise.lattices.ProductLatticeBitwiseNonDilution;
 import edu.cwru.bayesmultinomialtestingbitwise.tree.SingleTree;
 
-public class RunSimulation {
+public class SingleTreeTest {
     public static void main(String[] args) {
         int atoms = Integer.parseInt(args[0]);
         int variants = Integer.parseInt(args[1]);
         double prior = Double.parseDouble(args[2]);
+        double classificationThresholdUp = 0.005;
+        double classificationThresholdLo = 0.005;
+        int searchDepth = 6;
 
         PrintStream out;
         try {
             out = new PrintStream(
-                    new FileOutputStream("output_bitwise_N=" + atoms + "_k=" + variants + "_prior=" + prior + ".csv"));
+                    new FileOutputStream("single_tree_analysis_bitwise_N=" + atoms + "_k=" + variants + "_prior=" + prior + "_depth=" + searchDepth + ".csv"));
             System.setOut(out);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
@@ -30,24 +33,20 @@ public class RunSimulation {
 
         ProductLatticeBitwiseNonDilution p = new ProductLatticeBitwiseNonDilution(atoms, variants, pi0);
 
-        int searchDepth = 7;
-
-        // SingleTree tree = new SingleTree(p, -1, -1, 1, 0, 0.01, 0.01, searchDepth);
         // DFS
+        SingleTree tree = new SingleTree(p, -1, -1, 1, 0, classificationThresholdUp, classificationThresholdLo, searchDepth);
 
-        SingleTree tree = new SingleTree(p, -1, -1, 0, true); // BFS
-        tree.increaseStage(1, 0.01, 0.01, searchDepth);
-        tree.increaseStage(1, 0.01, 0.01, searchDepth);
-        tree.increaseStage(1, 0.01, 0.01, searchDepth);
-        tree.increaseStage(1, 0.01, 0.01, searchDepth);
-        tree.increaseStage(1, 0.01, 0.01, searchDepth);
-        tree.increaseStage(1, 0.01, 0.01, searchDepth);
-        tree.increaseStage(1, 0.01, 0.01, searchDepth);
-        ArrayList<SingleTree> leaves = new ArrayList<>();
-        SingleTree.findAll(tree, leaves);
-        for (SingleTree leaf : leaves) {
-            leaf.setLattice(null);
-        }
+        // BFS
+        // SingleTree tree = new SingleTree(p, -1, -1, 0, true); // BFS
+        // for(int i = 0; i < searchDepth; i++){
+        //     tree.increaseStage(1, 0.01, 0.01, searchDepth);
+        // }
+        // ArrayList<SingleTree> leaves = new ArrayList<>();
+        // SingleTree.findAll(tree, leaves);
+        // for (SingleTree leaf : leaves) {
+        //     leaf.setLattice(null);
+        // }
+        
         SingleTree st = tree.applyTrueState(p, 0, 0.001);
 
         TreeStat ret = st.parse(0, new ProductLatticeBitwiseNonDilution(p, 0), 0.001,
@@ -65,7 +64,7 @@ public class RunSimulation {
             System.out.print(pi0[i] + ", ");
         }
         System.out.println();
-        ret.outputStat("haha", searchDepth, 1, atoms, false);
+        ret.outputStat("statistics", searchDepth, 1, atoms, false);
 
     }
 }

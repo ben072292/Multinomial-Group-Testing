@@ -39,6 +39,8 @@ public interface ProductLatticeBitwise {
 
     void updatePosteriorProbabilities(int experiment, int response, double upsetThresholdUp, double upsetThresholdLo);
 
+    void updatePosteriorProbabilitiesInPlace(int experiment, int response, double upsetThresholdUp, double upsetThresholdLo);
+
     double[] calculatePosteriorProbabilities(int experiment, int response);
 
     void updateClassifiedAtomsAndClassifiedState(double upsetThresholdUp, double upsetThresholdLo);

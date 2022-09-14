@@ -1,5 +1,8 @@
 package edu.cwru.bayesmultinomialtestingbitwise.lattices;
 
+import java.util.Arrays;
+import java.util.stream.IntStream;
+
 import edu.cwru.bayesmultinomialtestingbitwise.tool.Debug;
 
 public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase {
@@ -86,6 +89,41 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 		for (int i = 0; i < totalStates(); i++) {
 			ret[i] /= denominator;
 		}
+		return ret;
+	}
+
+	public double[] calculatePosteriorProbabilitiesParallel(int experiment, int response) {
+		double[] ret = new double[totalStates()];
+
+		// borrowed from find halving state function
+		// tricky: for each state, check each variant of actively
+		// pooled subjects to see whether they are all 1.
+		IntStream.range(0, totalStates()).parallel().forEach(stateIter -> {
+			int partition = 0;
+			boolean isComplement = false;
+			for (int variant = 0; variant < variants; variant++) {
+				isComplement = false;
+				for (int l = 0; l < atoms; l++) {
+					if ((experiment & (1 << l)) != 0 && (stateIter & 1 << (l * variants + variant)) == 0) {
+						isComplement = true;
+						break;
+					}
+				}
+				partition |= (isComplement ? 0 : (1 << variant));
+			}
+
+			if (partition == response)
+				ret[stateIter] = posteriorProbabilities[stateIter] * 0.985;
+			else
+				ret[stateIter] = posteriorProbabilities[stateIter] * 0.005;
+		});
+
+		double denominator = Arrays.stream(ret).parallel().reduce(0.0, Double::sum);
+
+		IntStream.range(0, totalStates()).parallel().forEach(stateIter -> {
+			ret[stateIter] /= denominator;
+		});
+		
 		return ret;
 	}
 

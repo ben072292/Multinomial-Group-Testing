@@ -190,7 +190,16 @@ public abstract class ProductLatticeBitwiseBase implements ProductLatticeBitwise
 		testCount++;
 	}
 
+	public void updatePosteriorProbabilitiesInPlace(int experiment, int response, double upsetThresholdUp,
+			double upsetThresholdLo) {
+		calculatePosteriorProbabilitiesInPlace(experiment, response);
+		updateClassifiedAtomsAndClassifiedState(upsetThresholdUp, upsetThresholdLo);
+		testCount++;
+	}
+
 	public abstract double[] calculatePosteriorProbabilities(int experiment, int response);
+
+	public abstract void calculatePosteriorProbabilitiesInPlace(int experiment, int response);
 
 	public void updateClassifiedAtomsAndClassifiedState(double upsetThresholdUp, double upsetThresholdLo) {
 
