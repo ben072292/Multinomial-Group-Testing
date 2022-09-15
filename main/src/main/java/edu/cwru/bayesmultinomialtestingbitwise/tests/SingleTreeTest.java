@@ -16,7 +16,7 @@ public class SingleTreeTest {
         double prior = Double.parseDouble(args[2]);
         double classificationThresholdUp = 0.005;
         double classificationThresholdLo = 0.005;
-        int searchDepth = 6;
+        int searchDepth = 5;
 
         PrintStream out;
         try {
@@ -46,7 +46,7 @@ public class SingleTreeTest {
         // for (SingleTree leaf : leaves) {
         //     leaf.setLattice(null);
         // }
-        
+
         SingleTree st = tree.applyTrueState(p, 0, 0.001);
 
         TreeStat ret = st.parse(0, new ProductLatticeBitwiseNonDilution(p, 0), 0.001,

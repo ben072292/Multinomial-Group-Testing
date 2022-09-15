@@ -190,6 +190,13 @@ public abstract class ProductLatticeBitwiseBase implements ProductLatticeBitwise
 		testCount++;
 	}
 
+	public void updatePosteriorProbabilitiesParallel(int experiment, int response, double upsetThresholdUp,
+			double upsetThresholdLo) {
+		posteriorProbabilities = calculatePosteriorProbabilitiesParallel(experiment, response);
+		updateClassifiedAtomsAndClassifiedState(upsetThresholdUp, upsetThresholdLo);
+		testCount++;
+	}
+
 	public void updatePosteriorProbabilitiesInPlace(int experiment, int response, double upsetThresholdUp,
 			double upsetThresholdLo) {
 		calculatePosteriorProbabilitiesInPlace(experiment, response);
@@ -198,6 +205,8 @@ public abstract class ProductLatticeBitwiseBase implements ProductLatticeBitwise
 	}
 
 	public abstract double[] calculatePosteriorProbabilities(int experiment, int response);
+
+	public abstract double[] calculatePosteriorProbabilitiesParallel(int experiment, int response);
 
 	public abstract void calculatePosteriorProbabilitiesInPlace(int experiment, int response);
 

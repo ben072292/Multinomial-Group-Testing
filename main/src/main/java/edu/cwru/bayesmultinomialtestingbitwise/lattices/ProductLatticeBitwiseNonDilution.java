@@ -193,9 +193,9 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 		Debug.showArray(p.posteriorProbabilities);
 		Debug.showArray(p.getClassificationStat());
 		System.out.println(p.isClassified());
-		p.updatePosteriorProbabilities(3, 3, 0.01, 0.01);
-		p.updatePosteriorProbabilities(3, 3, 0.01, 0.01);
-		p.updatePosteriorProbabilities(3, 3, 0.01, 0.01);
+		p.updatePosteriorProbabilitiesInPlace(3, 3, 0.01, 0.01);
+		p.updatePosteriorProbabilitiesInPlace(3, 3, 0.01, 0.01);
+		p.updatePosteriorProbabilitiesInPlace(3, 3, 0.01, 0.01);
 		System.out.println();
 		Debug.showArray(p.posteriorProbabilities);
 		Debug.showArray(p.getClassificationStat());
