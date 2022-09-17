@@ -360,8 +360,9 @@ public class SingleTree {
 
 	public SingleTree applyTrueState(ProductLatticeBitwise originalLattice, int trueState,
 			double selfProbabilityThreshold) {
+		double[][] dilutionMatrix = originalLattice.generateDilutionMatrix(0.99, 0.005);
 		SingleTree newTree = new SingleTree(this, false);
-		applyTrueStateHelper(originalLattice, newTree, this, trueState, 1.0, selfProbabilityThreshold);
+		applyTrueStateHelper(originalLattice, newTree, this, trueState, 1.0, selfProbabilityThreshold, dilutionMatrix);
 		return newTree;
 	}
 
@@ -375,7 +376,7 @@ public class SingleTree {
 	 * @param branchProbabilityThreshold
 	 */
 	public static void applyTrueStateHelper(ProductLatticeBitwise originalLattice, SingleTree ret,
-			SingleTree node, int trueState, double branchProbability, double branchProbabilityThreshold) {
+			SingleTree node, int trueState, double branchProbability, double branchProbabilityThreshold, double[][] dilutionMatrix ) {
 		if (node == null)
 			return;
 		ret.setSelfProb(branchProbability);
@@ -387,13 +388,13 @@ public class SingleTree {
 						* originalLattice.responseProbability(
 								node.getChildren().get(i).getEx(),
 								node.getChildren().get(i).getRes(),
-								trueState);
+								trueState, dilutionMatrix);
 
 				ret.getChildren().add(new SingleTree(node.getChildren().get(i), false));
 				if (childProbability > branchProbabilityThreshold) {
 					applyTrueStateHelper(originalLattice, ret.getChildren().get(i), node.getChildren().get(i),
 							trueState, childProbability,
-							branchProbabilityThreshold);
+							branchProbabilityThreshold, dilutionMatrix );
 				} else {
 					ret.getChildren().set(i, null);
 				}

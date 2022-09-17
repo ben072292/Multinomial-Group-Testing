@@ -56,5 +56,7 @@ public interface ProductLatticeBitwise {
 
     int findHalvingStatesParallel(double prob);
 
-    double responseProbability(int experiment, int response, int trueState);
+    double responseProbability(int experiment, int response, int trueState, double[][] dilutionMatrix);
+
+    double[][] generateDilutionMatrix(double alpha, double h);
 }

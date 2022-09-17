@@ -68,6 +68,7 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 		double denominator = 0.0;
 		boolean isComplement = false;
 		for (stateIter = 0; stateIter < totalStates(); stateIter++) {
+			ret[stateIter] = posteriorProbabilities[stateIter];
 			partition = 0;
 			for (int variant = 0; variant < variants; variant++) {
 				isComplement = false;
@@ -80,10 +81,12 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 				partition |= (isComplement ? 0 : (1 << variant));
 			}
 
-			if (partition == response)
-				ret[stateIter] = posteriorProbabilities[stateIter] * 0.985;
-			else
-				ret[stateIter] = posteriorProbabilities[stateIter] * 0.005;
+			for(int i = 0; i < Long.bitCount(partition ^ response); i++){
+				ret[stateIter] *= 0.005;
+			}
+			for(int i = 0; i < variants - Long.bitCount(partition ^ response); i++){
+				ret[stateIter] *= 0.985;
+			}
 			denominator += ret[stateIter];
 		}
 		for (int i = 0; i < totalStates(); i++) {
@@ -99,6 +102,7 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 		// tricky: for each state, check each variant of actively
 		// pooled subjects to see whether they are all 1.
 		IntStream.range(0, totalStates()).parallel().forEach(stateIter -> {
+			ret[stateIter] = posteriorProbabilities[stateIter];
 			int partition = 0;
 			boolean isComplement = false;
 			for (int variant = 0; variant < variants; variant++) {
@@ -112,10 +116,12 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 				partition |= (isComplement ? 0 : (1 << variant));
 			}
 
-			if (partition == response)
-				ret[stateIter] = posteriorProbabilities[stateIter] * 0.985;
-			else
-				ret[stateIter] = posteriorProbabilities[stateIter] * 0.005;
+			for(int i = 0; i < Long.bitCount(partition ^ response); i++){
+				ret[stateIter] *= 0.005;
+			}
+			for(int i = 0; i < variants - Long.bitCount(partition ^ response); i++){
+				ret[stateIter] *= 0.985;
+			}
 		});
 
 		double denominator = Arrays.stream(ret).parallel().reduce(0.0, Double::sum);
@@ -150,10 +156,12 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 				isComplement = false; // reset flag
 			}
 
-			if (partition == response)
-				posteriorProbabilities[stateIter] *= 0.985;
-			else
+			for(int i = 0; i < Long.bitCount(partition ^ response); i++){
 				posteriorProbabilities[stateIter] *= 0.005;
+			}
+			for(int i = 0; i < variants - Long.bitCount(partition ^ response); i++){
+				posteriorProbabilities[stateIter] *= 0.985;
+			}
 			denominator += posteriorProbabilities[stateIter];
 		}
 		for (int i = 0; i < totalStates(); i++) {
@@ -162,8 +170,8 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 	}
 
 	@Override
-	public double responseProbability(int experiment, int response,
-			int trueState) {
+	public double responseProbability(int experiment, int response, int trueState, double[][] dilutionMatrix) {
+		double ret = 1.0;
 		int trueStateResponse = 0;
 		int subjectCount = Long.bitCount(experiment);
 
@@ -178,7 +186,16 @@ public class ProductLatticeBitwiseNonDilution extends ProductLatticeBitwiseBase 
 			if (temp == subjectCount)
 				trueStateResponse += (1 << i);
 		}
-		return trueStateResponse == response ? 0.985 : 0.005;
+
+		int error = Long.bitCount(trueStateResponse ^ response);
+		int correct = variants - error;
+		
+		for(int i = 0; i < error; i++) ret *= 0.005;
+		for(int i = 0; i < correct; i++) ret *= 0.985;
+		return ret;
+		
+
+		
 	}
 
 	public static void main(String[] args) {

@@ -333,5 +333,20 @@ public abstract class ProductLatticeBitwiseBase implements ProductLatticeBitwise
 
 	}
 
-	public abstract double responseProbability(int experiment, int response, int trueState);
+	public abstract double responseProbability(int experiment, int response, int trueState, double[][] dilutionMatrix);
+
+	
+	public double[][] generateDilutionMatrix(double alpha, double h) {
+		double[][] ret = new double[atoms][];
+		int k;
+		for (int rk = 1; rk <= atoms; rk++) {
+			ret[rk - 1] = new double[rk + 1];
+			ret[rk - 1][0] = alpha;
+			for (int r = 1; r <= rk; r++) {
+				k = rk - r;
+				ret[rk - 1][r] = 1 - alpha * r / (k * h + r);
+			}
+		}
+		return ret;
+	}
 }
