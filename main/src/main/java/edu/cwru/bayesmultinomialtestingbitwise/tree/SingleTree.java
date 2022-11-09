@@ -2,6 +2,7 @@ package edu.cwru.bayesmultinomialtestingbitwise.tree;
 
 import edu.cwru.bayesmultinomialtestingbitwise.lattices.ProductLatticeBitwise;
 import edu.cwru.bayesmultinomialtestingbitwise.lattices.ProductLatticeBitwiseNonDilution;
+import edu.cwru.bayesmultinomialtestingbitwise.lattices.ProductLatticeBitwiseDilution;
 import edu.cwru.bayesmultinomialtestingbitwise.tree.util.TreeStat;
 
 import java.util.ArrayList;
@@ -62,7 +63,7 @@ public class SingleTree {
 			this.children = new ArrayList<SingleTree>();
 			int ex = lattice.findHalvingStatesParallel(1.0 / (1 << lattice.getVariants()));
 			for (int res = 0; res < (1 << lattice.getVariants()); res++) {
-				ProductLatticeBitwise p = new ProductLatticeBitwiseNonDilution(lattice, 1);
+				ProductLatticeBitwise p = new ProductLatticeBitwiseDilution(lattice, 1);
 				p.updatePosteriorProbabilities(ex, res, upsetThresholdUp, upsetThresholdLo);
 				this.addChild(new SingleTree(p, ex, res, k, currStage + 1, upsetThresholdUp, upsetThresholdLo, stage));
 
@@ -84,7 +85,7 @@ public class SingleTree {
 				int childExperiments = tree.getLattice()
 						.findHalvingStatesParallel(1.0 / (1 << tree.getLattice().getVariants()));
 				for (int i = 0; i < (1 << tree.getLattice().getVariants()); i++) {
-					ProductLatticeBitwise p = new ProductLatticeBitwiseNonDilution(tree.getLattice(), 1);
+					ProductLatticeBitwise p = new ProductLatticeBitwiseDilution(tree.getLattice(), 1);
 					p.updatePosteriorProbabilities(childExperiments, i, upsetThresholdUp, upsetThresholdLo);
 					if(tree.curStage < stage-1)
 						tree.addChild(new SingleTree(p, childExperiments, i, tree.getCurrStage() + 1, true));
@@ -105,7 +106,7 @@ public class SingleTree {
 	 */
 	public SingleTree(SingleTree old) {
 		if (old.getLattice() != null)
-			this.lattice = new ProductLatticeBitwiseNonDilution(old.getLattice(), 2); // use light constructor
+			this.lattice = new ProductLatticeBitwiseDilution(old.getLattice(), 2); // use light constructor
 		this.exCount = old.getExCount();
 		this.isClassified = old.isClassified();
 		this.classificationStat = old.getClassifiedAtoms().clone();

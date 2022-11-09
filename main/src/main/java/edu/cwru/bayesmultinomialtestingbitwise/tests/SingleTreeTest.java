@@ -6,6 +6,7 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 
 import edu.cwru.bayesmultinomialtestingbitwise.tree.util.TreeStat;
+import edu.cwru.bayesmultinomialtestingbitwise.lattices.ProductLatticeBitwiseBase;
 import edu.cwru.bayesmultinomialtestingbitwise.lattices.ProductLatticeBitwiseDilution;
 import edu.cwru.bayesmultinomialtestingbitwise.lattices.ProductLatticeBitwiseNonDilution;
 import edu.cwru.bayesmultinomialtestingbitwise.tree.SingleTree;
@@ -17,7 +18,7 @@ public class SingleTreeTest {
         double prior = Double.parseDouble(args[2]);
         double classificationThresholdUp = 0.005;
         double classificationThresholdLo = 0.005;
-        int searchDepth = 5;
+        int searchDepth = 6;
 
         PrintStream out;
         try {
@@ -32,7 +33,7 @@ public class SingleTreeTest {
         for (int i = 0; i < atoms * variants; i++)
             pi0[i] = prior;
 
-        ProductLatticeBitwiseDilution p = new ProductLatticeBitwiseDilution(atoms, variants, pi0);
+        ProductLatticeBitwiseBase p = new ProductLatticeBitwiseDilution(atoms, variants, pi0);
 
         // DFS
         SingleTree tree = new SingleTree(p, -1, -1, 1, 0, classificationThresholdUp, classificationThresholdLo, searchDepth);
