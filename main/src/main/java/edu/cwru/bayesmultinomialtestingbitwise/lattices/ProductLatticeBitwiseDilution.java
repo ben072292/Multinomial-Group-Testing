@@ -58,27 +58,10 @@ public class ProductLatticeBitwiseDilution extends ProductLatticeBitwiseBase {
 	public double[] calculatePosteriorProbabilities(int experiment, int response) {
         final double[][] dilutionMatrix = generateDilutionMatrix(0.99, 0.005);
 		double[] ret = new double[totalStates()];
-
-		// borrowed from find halving state function
-		// tricky: for each state, check each variant of actively
-		// pooled subjects to see whether they are all 1.
 		int stateIter;
 		double denominator = 0.0;
-		int complement = 0;
-		for (stateIter = 1; stateIter < totalStates(); stateIter++) {
-            ret[stateIter] = posteriorProbabilities[stateIter];
-			for (int variant = 0; variant < variants; variant++) {
-				complement = 0;
-				for (int l = 0; l < atoms; l++) {
-					if ((experiment & (1 << l)) != 0 && (stateIter & 1 << (l * variants + variant)) == 0) {
-						complement++;
-					}
-				}
-                if((response & (1 << variant)) == 1)
-				    ret[stateIter] *= dilutionMatrix[Long.bitCount(stateIter)-1][complement];
-                else
-                    ret[stateIter] *= (1 - dilutionMatrix[Long.bitCount(stateIter)-1][complement]);
-			}
+		for (stateIter = 0; stateIter < totalStates(); stateIter++) {
+            ret[stateIter] = posteriorProbabilities[stateIter] * responseProbability(experiment, response, stateIter, dilutionMatrix);
 			denominator += ret[stateIter];
 		}
 		for (int i = 0; i < totalStates(); i++) {
