@@ -227,7 +227,7 @@ public class SingleTree {
 				falseNegativeProb[leaf.getExCount()] += leaf.falseNegative(trueState) * coef
 						* leaf.getBranchProb();
 			} else if (!leaf.isClassified()) {
-				unclassifiedLeavesTotalProbability += leaves.get(i).getBranchProb() * coef;
+				unclassifiedLeavesTotalProbability += leaf.getBranchProb() * coef;
 			}
 			testLength[i] = leaf.getExCount();
 			stageLength[i] = Math.ceil((double) testLength[i] / (double) k);
