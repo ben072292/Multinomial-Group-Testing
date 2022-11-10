@@ -2,6 +2,7 @@
 #include <cmath>
 
 Single_tree::Single_tree(Product_lattice* lattice, int ex, int res, int cur_stage, bool prev_lattice){
+    lattice_ = nullptr;
     if(prev_lattice) lattice_ = lattice;
     atom_ = lattice->atom();
     variant_ = lattice->variant();
@@ -11,16 +12,17 @@ Single_tree::Single_tree(Product_lattice* lattice, int ex, int res, int cur_stag
     res_ = res;
     ex_count_ = lattice->test_count();
     cur_stage_ = cur_stage;
+    children_ = nullptr;
 }
 
-Single_tree::Single_tree(Product_lattice* lattice, int ex, int res, int k, int cur_stage, double thres_up, double thres_lo, int stage) : Single_tree(lattice, ex, res, cur_stage, false){
+Single_tree::Single_tree(Product_lattice* lattice, int ex, int res, int k, int cur_stage, double thres_up, double thres_lo, int stage, double** dilution) : Single_tree(lattice, ex, res, cur_stage, false){
     if (!lattice->is_classified() && cur_stage < stage) {
         children_ = new Single_tree*[1 << lattice->variant()];
         int halving = lattice->halving(1.0 / (1 << lattice->variant()));
         for(int re = 0; re < (1 << lattice->variant()); re++){
             Product_lattice* p = lattice->clone(1);
-            p->update_probs(halving, re, thres_up, thres_lo);
-            children_[re] = new Single_tree(p, halving, re, k, cur_stage_+1, thres_up, thres_lo, stage);
+            p->update_probs(halving, re, thres_up, thres_lo, dilution);
+            children_[re] = new Single_tree(p, halving, re, k, cur_stage_+1, thres_up, thres_lo, stage, dilution);
         } 
     }
 }
@@ -48,7 +50,6 @@ Single_tree::Single_tree(const Single_tree &other, bool deep){
 
 Single_tree::~Single_tree(){
     delete lattice_;
-    delete[] clas_stat_;
 }
 
 void Single_tree::parse(int true_state, Product_lattice* org_lattice, double* pi0, double sym_coef, Tree_stat* stat) const {

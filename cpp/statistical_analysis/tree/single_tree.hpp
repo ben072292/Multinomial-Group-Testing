@@ -16,7 +16,7 @@ class Single_tree {
 
     public:
     Single_tree(Product_lattice* lattice, int ex, int res, int cur_stage, bool prev_lattice);
-    Single_tree(Product_lattice* lattice, int ex, int res, int k, int cur_stage, double thres_up, double thres_lo, int stage);
+    Single_tree(Product_lattice* lattice, int ex, int res, int k, int cur_stage, double thres_up, double thres_lo, int stage, double** dilution);
     Single_tree(const Single_tree &other, bool deep);
     ~Single_tree();
     void increase_stage(int k, double thres_up, double thres_lo, int stage);

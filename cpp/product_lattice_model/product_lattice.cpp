@@ -9,7 +9,7 @@ void Product_lattice::copy_classification_stat(int* clas_stat){
 }
 
 void Product_lattice::copy_posterior_probs(double* post_probs){
-    for(int i = 0; i < total_state(); i++){
+    for(int i = 0; i < total_st_; i++){
         post_probs_[i] = post_probs[i];
     }
 }
@@ -48,7 +48,7 @@ int* Product_lattice::generate_power_set_adder(int* add_index, int state, int* r
 }
 
 void Product_lattice::prior_probs(double* pi0){
-	for (int i = 0; i < total_state(); i++) {
+	for (int i = 0; i < total_st_; i++) {
 		post_probs_[i] = prior_prob(i, pi0);
 	}
 }
@@ -63,8 +63,8 @@ double Product_lattice::prior_prob(int state, double* pi0){
 	return prob;
 }
 
-void Product_lattice::update_probs(int experiment, int response, double thres_up, double thres_lo){
-    post_probs_ = calc_probs(experiment, response);
+void Product_lattice::update_probs(int experiment, int response, double thres_up, double thres_lo, double** dilution){
+	post_probs_ = calc_probs(experiment, response, dilution);
     update_metadata(thres_up, thres_lo);
     test_ct_++;
 }
@@ -136,7 +136,7 @@ int Product_lattice::halving(double prob) const{
 			partition_mass[i] = 0.0;
 		// tricky: for each state, check each variant of actively
 		// pooled subjects to see whether they are all 1.
-		for (s_iter = 0; s_iter < total_state(); s_iter++) {
+		for (s_iter = 0; s_iter < total_st_; s_iter++) {
 			for (int variant = 0; variant < variant_; variant++) {
 				for (int l = 0; l < atom_; l++) {
 					if ((experiment & (1 << l)) != 0 && (s_iter & (1 << (l * variant_ + variant))) == 0) {
@@ -156,7 +156,7 @@ int Product_lattice::halving(double prob) const{
 		// System.out.println();
 		double temp = 0.0;
 		for (int i = 0; i < (1 << variant_); i++) {
-			temp += abs(partition_mass[i] - prob);
+			temp += std::abs(partition_mass[i] - prob);
 		}
 		if (temp < min) {
 			min = temp;

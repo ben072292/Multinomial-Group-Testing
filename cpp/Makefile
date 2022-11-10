@@ -1,4 +1,4 @@
-GCC = g++-12
+GCC = g++
 OUT = a.out
 all: $(OUT)
 ANALYSIS = statistical_analysis
@@ -7,7 +7,7 @@ UTIL = util
 LATTICE = product_lattice_model
 
 $(OUT): $(ANALYSIS)/start.cpp $(ANALYSIS)/$(TREE)/single_tree.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp 	
-	$(GCC) -O3 -pg -std=c++11 -Wall $(ANALYSIS)/start.cpp $(ANALYSIS)/$(TREE)/single_tree.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp -o $(OUT)
+	$(GCC) -std=c++11 -Wall -g $(ANALYSIS)/start.cpp $(ANALYSIS)/$(TREE)/single_tree.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp -o $(OUT)
 
 clean:
 	rm $(OUT)
