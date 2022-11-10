@@ -2,8 +2,8 @@
 #include <iostream>
 
 
-double* Product_lattice_non_dilution::calc_probs(int experiment, int response){
-    double* ret = new double[total_state()];
+double* Product_lattice_non_dilution::calc_probs(int experiment, int response, double** dilution){
+    double* ret = new double[total_st_];
 	int partition = 0;
 	// borrowed from find halving state function
 	// tricky: for each state, check each variant of actively
@@ -11,7 +11,7 @@ double* Product_lattice_non_dilution::calc_probs(int experiment, int response){
 	int state_iter;
 	double denominator = 0.0;
 	bool is_complement = false;
-	for (state_iter = 0; state_iter < total_state(); state_iter++) {
+	for (state_iter = 0; state_iter < total_st_; state_iter++) {
 		ret[state_iter] = post_probs_[state_iter];
 		partition = 0;
 		for (int variant = 0; variant < variant_; variant++) {
@@ -32,7 +32,7 @@ double* Product_lattice_non_dilution::calc_probs(int experiment, int response){
 		}
 		denominator += ret[state_iter];
 	}
-	for (int i = 0; i < total_state(); i++) {
+	for (int i = 0; i < total_st_; i++) {
 		ret[i] /= denominator;
 	}
 	return ret;
