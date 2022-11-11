@@ -26,16 +26,20 @@ int main(int argc, char* argv[]){
     // Single_tree::find_all(tree, leaves);
     // std::cout << leaves->size() << std::endl;
     
-    Single_tree* st = tree->apply_true_state(p, 0, 0.001);
+    Single_tree* st = tree->apply_true_state(p, 0, 0.001, dilution);
 
     Tree_stat* prim = new Tree_stat(search_depth, 1);
     Tree_stat* temp = new Tree_stat(search_depth, 1);
-    st->parse(0, p->clone(0), pi0, 1.0, prim);
+    st->parse(0, p, pi0, 1.0, prim);
+    st->prep_destroy_stat_tree();
+    delete st;
 
     int total_st = p->total_state();
     for(int i = 0; i < total_st; i++){
-        st = tree->apply_true_state(p, i, 0.001);
+        st = tree->apply_true_state(p, i, 0.001, dilution);
         st->parse(i, p, pi0, 1.0, temp);
+        st->prep_destroy_stat_tree();
+        delete st;
         prim->merge(temp);
     }
 
@@ -51,25 +55,10 @@ int main(int argc, char* argv[]){
     delete prim;
     delete temp;
 
-    std::vector<const Single_tree*> *leaves = new std::vector<const Single_tree*>;
-    Single_tree::find_all(tree, leaves);
-    for(size_t i = 0; i < leaves->size(); i++){
-        delete (*leaves)[i];
-    }
-
-    // leaves->clear();
-    // Single_tree::find_all(st, leaves);
-    // for(size_t i = 0; i < leaves->size(); i++){
-    //     delete (*leaves)[i];
-    // }
-    // leaves->clear();
-
-    delete leaves;
-
     for(int i = 0; i < atom; i++){
         delete[] dilution[i];
     }
     delete[] dilution;
 
-    // delete p;
+    delete tree;
 }

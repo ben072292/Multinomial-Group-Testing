@@ -52,7 +52,7 @@ void Product_lattice::prior_probs(double* pi0){
 		post_probs_[i] = prior_prob(i, pi0);
 	}
 }
-double Product_lattice::prior_prob(int state, double* pi0){
+double Product_lattice::prior_prob(int state, double* pi0) const{
     double prob = 1.0;
 	for (int i = 0; i < nominal_pool_size(); i++) {
 		if ((state & (1 << i)) == 0)
