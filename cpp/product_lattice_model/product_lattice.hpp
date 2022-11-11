@@ -12,7 +12,10 @@ class Product_lattice{
 	int total_st_;
 
 	public:
-	// product_lattice(); // default constructor
+	// Product_lattice(){
+	// 	post_probs_ = nullptr;
+	// 	clas_stat_ = nullptr;
+	// }
 	Product_lattice(int n_atom, int n_variant, double* pi0) : atom_(n_atom), variant_(n_variant){
 		total_st_ = 1 << (atom_ * variant_);
 		clas_stat_ = new int[nominal_pool_size()]();
@@ -37,13 +40,14 @@ class Product_lattice{
             posterior_probs(other.post_probs_);
         }
         else if (assert == 2){ // tree internal copy
-            // do nithing
+			post_probs_ = nullptr;
+            classification_stat(other.clas_stat_);
         }
 	}
 
 	virtual ~Product_lattice(){
-		delete[] post_probs_;
-		delete[] clas_stat_;
+		if(post_probs_ != nullptr) delete[] post_probs_;
+		if(clas_stat_ != nullptr) delete[] clas_stat_;
 	}
 
 	virtual Product_lattice *create(int n_atom, int n_variant, double *pi9) const = 0;
@@ -65,7 +69,7 @@ class Product_lattice{
 	int* get_up_set (int state, int* ret) const;
 	int* generate_power_set_adder(int* add_index, int state, int* ret) const;
 	void prior_probs(double* pi0);
-	double prior_prob(int state, double* pi0);
+	double prior_prob(int state, double* pi0) const;
 	void reset_test_count(){test_ct_ = 0;};
 	void update_probs(int experiment, int response, double thres_up, double thres_lo, double** dilution);
 	// void update_probs_parallel(int experiment, int response, double thres_up, double thres_lo);
