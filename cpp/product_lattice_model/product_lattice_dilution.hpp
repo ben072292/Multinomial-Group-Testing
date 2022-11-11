@@ -13,6 +13,8 @@ class Product_lattice_dilution : public Product_lattice{
 
     double* calc_probs(int experiment, int response, double** dilution);
 
+    void calc_probs_in_place(int experiment, int response, double** dilution);
+
     double response_prob(int experiment, int response, int true_state, double** dilution) const;
 
     virtual void type(){std::cout << "Lattice Model Dilution" << std::endl;}
