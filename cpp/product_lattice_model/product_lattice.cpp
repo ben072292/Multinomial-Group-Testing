@@ -68,8 +68,14 @@ void Product_lattice::update_probs(int experiment, int response, double thres_up
     update_metadata(thres_up, thres_lo);
     test_ct_++;
 }
+
+void Product_lattice::update_probs_in_place(int experiment, int response, double thres_up, double thres_lo, double** dilution){
+	calc_probs_in_place(experiment, response, dilution);
+    update_metadata(thres_up, thres_lo);
+    test_ct_++;
+}
+
 // void product_lattice::update_probs_parallel(int experiment, int response, double thres_up, double thres_lo);
-// void product_lattice::update_probs_in_place(int experiment, int response, double thres_up, double thres_lo);
 
 void Product_lattice::update_metadata(double thres_up, double thres_lo){
     for (int i = 0; i < nominal_pool_size(); i++) {

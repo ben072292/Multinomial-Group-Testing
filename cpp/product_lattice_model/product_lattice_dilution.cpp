@@ -14,6 +14,17 @@ double* Product_lattice_dilution::calc_probs(int experiment, int response, doubl
 	return ret;
 }
 
+void Product_lattice_dilution::calc_probs_in_place(int experiment, int response, double** dilution){
+	double denominator = 0.0;
+	for (int iter = 0; iter < total_st_; iter++) {
+		post_probs_[iter] *= response_prob(experiment, response, iter, dilution);
+		denominator += post_probs_[iter];
+	}
+	for (int i = 0; i < total_st_; i++) {
+		post_probs_[i] /= denominator;
+	}
+}
+
 double Product_lattice_dilution::response_prob(int experiment, int response, int true_state, double** dilution) const{
     double ret = 1.0;
 	int true_state_per_variant = 0;

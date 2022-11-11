@@ -72,9 +72,11 @@ class Product_lattice{
 	double prior_prob(int state, double* pi0) const;
 	void reset_test_count(){test_ct_ = 0;};
 	void update_probs(int experiment, int response, double thres_up, double thres_lo, double** dilution);
+	void update_probs_in_place(int experiment, int response, double thres_up, double thres_lo, double** dilution);
 	// void update_probs_parallel(int experiment, int response, double thres_up, double thres_lo);
 	// void update_probs_in_place(int experiment, int response, double thres_up, double thres_lo);
 	virtual double* calc_probs(int experiment, int response, double** dilution) = 0;
+	virtual void calc_probs_in_place(int experiment, int response, double** dilution) = 0;
 	void update_metadata(double thres_up, double thres_lo);
 	double get_prob_mass(int state) const;
 	bool is_classified() const;

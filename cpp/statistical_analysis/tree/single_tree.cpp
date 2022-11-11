@@ -8,6 +8,7 @@ Single_tree::Single_tree(Product_lattice* lattice, int ex, int res, int cur_stag
     res_ = res;
     cur_stage_ = cur_stage;
     children_ = nullptr;
+    branch_prob_ = 0.0; // must be 0.0 so that stat tree can generate correct info
 }
 
 Single_tree::Single_tree(Product_lattice* lattice, int ex, int res, int k, int cur_stage, double thres_up, double thres_lo, int stage, double** dilution) : Single_tree(lattice, ex, res, cur_stage){
@@ -15,10 +16,22 @@ Single_tree::Single_tree(Product_lattice* lattice, int ex, int res, int k, int c
         children_ = new Single_tree*[1 << lattice->variant()];
         int halving = lattice->halving(1.0 / (1 << lattice->variant()));
         for(int re = 0; re < (1 << lattice->variant()); re++){
-            Product_lattice* p = lattice->clone(1);
-            p->update_probs(halving, re, thres_up, thres_lo, dilution);
-            children_[re] = new Single_tree(p, halving, re, k, cur_stage_+1, thres_up, thres_lo, stage, dilution);
+            if(re != (1 << lattice->variant())-1){
+                Product_lattice* p = lattice->clone(1);
+                p->update_probs(halving, re, thres_up, thres_lo, dilution);
+                children_[re] = new Single_tree(p, halving, re, k, cur_stage_+1, thres_up, thres_lo, stage, dilution);
+            }
+            else{ // reuse post_prob_ array in child to save memory
+                Product_lattice* p = lattice->clone(1);
+                lattice_->posterior_probs(nullptr); // detach post_prob_ from current lattice
+                p->update_probs_in_place(halving, re, thres_up, thres_lo, dilution);
+                children_[re] = new Single_tree(p, halving, re, k, cur_stage_+1, thres_up, thres_lo, stage, dilution);
+            }
         } 
+    }
+    else{ // clean in advance to save memory
+        delete[] lattice->posterior_probs();
+        lattice->posterior_probs(nullptr);
     }
 }
 
