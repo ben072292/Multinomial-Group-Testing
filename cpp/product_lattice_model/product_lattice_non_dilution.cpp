@@ -3,7 +3,8 @@
 
 
 double* Product_lattice_non_dilution::calc_probs(int experiment, int response, double** dilution){
-    double* ret = new double[total_st_];
+	int total_stat = 1 << (atom_ * variant_);
+    double* ret = new double[total_stat];
 	int partition = 0;
 	// borrowed from find halving state function
 	// tricky: for each state, check each variant of actively
@@ -11,7 +12,7 @@ double* Product_lattice_non_dilution::calc_probs(int experiment, int response, d
 	int state_iter;
 	double denominator = 0.0;
 	bool is_complement = false;
-	for (state_iter = 0; state_iter < total_st_; state_iter++) {
+	for (state_iter = 0; state_iter < total_stat; state_iter++) {
 		ret[state_iter] = post_probs_[state_iter];
 		partition = 0;
 		for (int variant = 0; variant < variant_; variant++) {
@@ -32,13 +33,14 @@ double* Product_lattice_non_dilution::calc_probs(int experiment, int response, d
 		}
 		denominator += ret[state_iter];
 	}
-	for (int i = 0; i < total_st_; i++) {
+	for (int i = 0; i < total_stat; i++) {
 		ret[i] /= denominator;
 	}
 	return ret;
 }
 
 void Product_lattice_non_dilution::calc_probs_in_place(int experiment, int response, double** dilution){
+	int total_stat = 1 << (atom_ * variant_);
 	int partition = 0;
 	// borrowed from find halving state function
 	// tricky: for each state, check each variant of actively
@@ -46,7 +48,7 @@ void Product_lattice_non_dilution::calc_probs_in_place(int experiment, int respo
 	int state_iter;
 	double denominator = 0.0;
 	bool is_complement = false;
-	for (state_iter = 0; state_iter < total_st_; state_iter++) {
+	for (state_iter = 0; state_iter < total_stat; state_iter++) {
 		partition = 0;
 		for (int variant = 0; variant < variant_; variant++) {
 			is_complement = false;
@@ -66,7 +68,7 @@ void Product_lattice_non_dilution::calc_probs_in_place(int experiment, int respo
 		}
 		denominator += post_probs_[state_iter];
 	}
-	for (int i = 0; i < total_st_; i++) {
+	for (int i = 0; i < total_stat; i++) {
 		post_probs_[i] /= denominator;
 	}
 }
