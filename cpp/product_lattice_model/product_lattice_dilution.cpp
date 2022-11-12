@@ -2,13 +2,14 @@
 #include <iostream>
 
 double* Product_lattice_dilution::calc_probs(int experiment, int response, double** dilution){
-	double* ret = new double[total_st_];
+	int total_stat = 1 << (atom_ * variant_);
+	double* ret = new double[total_stat];
 	double denominator = 0.0;
-	for (int iter = 0; iter < total_st_; iter++) {
+	for (int iter = 0; iter < total_stat; iter++) {
 		ret[iter] = post_probs_[iter] * response_prob(experiment, response, iter, dilution);
 		denominator += ret[iter];
 	}
-	for (int i = 0; i < total_st_; i++) {
+	for (int i = 0; i < total_stat; i++) {
 		ret[i] /= denominator;
 	}
 	return ret;
@@ -16,11 +17,12 @@ double* Product_lattice_dilution::calc_probs(int experiment, int response, doubl
 
 void Product_lattice_dilution::calc_probs_in_place(int experiment, int response, double** dilution){
 	double denominator = 0.0;
-	for (int iter = 0; iter < total_st_; iter++) {
+	int total_stat = 1 << (atom_ * variant_);
+	for (int iter = 0; iter < total_stat; iter++) {
 		post_probs_[iter] *= response_prob(experiment, response, iter, dilution);
 		denominator += post_probs_[iter];
 	}
-	for (int i = 0; i < total_st_; i++) {
+	for (int i = 0; i < total_stat; i++) {
 		post_probs_[i] /= denominator;
 	}
 }

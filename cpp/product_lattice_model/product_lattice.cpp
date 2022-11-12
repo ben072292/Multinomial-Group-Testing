@@ -2,14 +2,38 @@
 #include <cstdlib>
 #include <limits>
 
-void Product_lattice::copy_classification_stat(int* clas_stat){
-    for(int i = 0; i < nominal_pool_size(); i++){
-        clas_stat_[i] = clas_stat[i];
+Product_lattice::Product_lattice(int n_atom, int n_variant, double* pi0) : atom_(n_atom), variant_(n_variant){
+	pos_clas_ = 0;
+	neg_clas_ = 0;
+    post_probs_ = new double[(1 << (atom_ * variant_))];
+	prior_probs(pi0);
+	test_ct_ = 0;
+}
+
+Product_lattice::Product_lattice(const Product_lattice &other, int assert){
+    atom_ = other.atom_;
+	variant_ = other.variant_;
+	pos_clas_ = other.pos_clas_;
+	neg_clas_ = other.neg_clas_;
+	test_ct_ = other.test_ct_;
+	if(assert == 0){ // broadcast
+        posterior_probs(other.post_probs_);
+    }
+    else if (assert == 1){ // statistical analysis
+        posterior_probs(other.post_probs_);
+    }
+    else if (assert == 2){ // tree internal copy
+		post_probs_ = nullptr;
     }
 }
 
+Product_lattice::~Product_lattice(){
+	if(post_probs_ != nullptr) delete[] post_probs_;
+}
+
 void Product_lattice::copy_posterior_probs(double* post_probs){
-    for(int i = 0; i < total_st_; i++){
+    int index = total_state();
+	for(int i = 0; i < index; i++){
         post_probs_[i] = post_probs[i];
     }
 }
@@ -48,7 +72,8 @@ int* Product_lattice::generate_power_set_adder(int* add_index, int state, int* r
 }
 
 void Product_lattice::prior_probs(double* pi0){
-	for (int i = 0; i < total_st_; i++) {
+	int index = total_state();
+	for (int i = 0; i < index; i++) {
 		post_probs_[i] = prior_prob(i, pi0);
 	}
 }
@@ -79,15 +104,16 @@ void Product_lattice::update_probs_in_place(int experiment, int response, double
 
 void Product_lattice::update_metadata(double thres_up, double thres_lo){
     for (int i = 0; i < nominal_pool_size(); i++) {
-		if (clas_stat_[i] != 0)
+		int placement = (1 << i);
+		if (((pos_clas_ + neg_clas_) & placement) != 0)
 			continue; // skip checking since it's already classified as either positive or negative
 		int atom = 1 << i;
 		double probMass = get_prob_mass(atom);
 
 		if (probMass < thres_lo)
-			clas_stat_[i] = -1; // classified as positive
+			pos_clas_ += placement; // classified as positive
 		else if (probMass > (1 - thres_up))
-			clas_stat_[i] = 1; // classified as negative
+			neg_clas_ += placement; // classified as negative
 	}
 }
 double Product_lattice::get_prob_mass(int state) const{
@@ -121,12 +147,7 @@ double Product_lattice::get_prob_mass(int state) const{
 	
 }
 bool Product_lattice::is_classified() const{
-    for (int i = 0; i < nominal_pool_size(); i++){
-		if (clas_stat_[i] == 0){
-			return false;
-		}
-	}	
-	return true;
+	return __builtin_popcount(pos_clas_ + neg_clas_) == nominal_pool_size();
 }
 int Product_lattice::halving(double prob) const{
 	int candidate = 0;
@@ -142,7 +163,7 @@ int Product_lattice::halving(double prob) const{
 			partition_mass[i] = 0.0;
 		// tricky: for each state, check each variant of actively
 		// pooled subjects to see whether they are all 1.
-		for (s_iter = 0; s_iter < total_st_; s_iter++) {
+		for (s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
 			for (int variant = 0; variant < variant_; variant++) {
 				for (int l = 0; l < atom_; l++) {
 					if ((experiment & (1 << l)) != 0 && (s_iter & (1 << (l * variant_ + variant))) == 0) {

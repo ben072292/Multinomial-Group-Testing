@@ -19,7 +19,6 @@ class Single_tree {
     Single_tree(const Single_tree &other, bool deep);
     ~Single_tree();
     void increase_stage(int k, double thres_up, double thres_lo, int stage);
-
     Product_lattice* lattice() const {return lattice_;}
     void lattice(Product_lattice* lattice){lattice_ = lattice;}
     int ex() const {return ex_;}
@@ -31,7 +30,8 @@ class Single_tree {
     double branch_prob() const {return branch_prob_;}
     Single_tree **children() const {return children_;}
     bool is_classified() const {return is_clas_;}
-    int* classification_stat() const {return lattice_->classification_stat();}
+    int pos_clas() const {return lattice_->pos_clas();}
+    int neg_clas() const {return lattice_->neg_clas();}
     void parse(int true_state, const Product_lattice* org_lattice, double* pi0, double sym_coef, Tree_stat* ret) const;
     int actual_true_state() const;
     double total_positive() const;

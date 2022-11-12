@@ -106,8 +106,9 @@ void Single_tree::parse(int true_state, const Product_lattice* org_lattice, doub
 int Single_tree::actual_true_state() const{
     int actual = 0;
     int index = atom() * variant();
+    int neg_classification = neg_clas();
     for(int i = 0; i < index; i++){
-        if(classification_stat()[i] == 1) actual += (1 << i);
+        if((neg_classification & (1 << i)) != 0) actual += (1 << i);
     }
     return actual;
 }
@@ -202,7 +203,6 @@ void Single_tree::apply_true_state_helper(const Product_lattice* org_lattice, Si
 }
 
 void Single_tree::prep_destroy_stat_tree(){
-    lattice_->classification_stat(nullptr);
     if(children_ != nullptr){
         for(int i = 0; i < (1 << lattice_->variant()); i++){
             if(children_[i] != nullptr){
