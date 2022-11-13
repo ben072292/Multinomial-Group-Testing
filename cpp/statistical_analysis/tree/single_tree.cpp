@@ -66,11 +66,11 @@ Single_tree::~Single_tree(){
     }
 }
 
-void Single_tree::parse(int true_state, const Product_lattice* org_lattice, double* pi0, double sym_coef, Tree_stat* stat) const {
+void Single_tree::parse(int true_state, const Product_lattice* org_lattice, double* pi0, double thres_branch, double sym_coef, Tree_stat* stat) const {
     stat->clear();
     double coef = org_lattice->prior_prob(true_state, pi0) * sym_coef;
     std::vector<const Single_tree*> *leaves = new std::vector<const Single_tree*>;
-    find_all(this, leaves);
+    find_all_stat(this, leaves, thres_branch);
     int size = leaves->size(), k = stat->k();
 
     for(int i = 0; i < size; i++){
@@ -143,60 +143,59 @@ double Single_tree::fn(int true_state) const{
     return total_negative() == 0.0 ? 0.0 : __builtin_popcount((actual_true_state() ^ true_state) & (~true_state)) / total_negative();
 }
 
-void Single_tree::find_all(const Single_tree* node, std::vector<const Single_tree*>* leaves){
-    if(node == nullptr) return;
+void Single_tree::find_all_stat(const Single_tree* node, std::vector<const Single_tree*>* leaves, double thres_branch){
+    if(node == nullptr || node->branch_prob_ < thres_branch) return;
     if(node->children_ == nullptr){
         leaves->push_back(node);
     }
     else{
         for(int i = 0; i < (1 << node->variant()); i++){
-            find_all(node->children_[i], leaves);
+            find_all_stat(node->children_[i], leaves, thres_branch);
         }
     }
 }
 
-void Single_tree::find_clas(const Single_tree* node, std::vector<const Single_tree*>* leaves){
-    if(node == nullptr) return;
+void Single_tree::find_clas_stat(const Single_tree* node, std::vector<const Single_tree*>* leaves, double thres_branch){
+    if(node == nullptr || node->branch_prob_ < thres_branch) return;
     if(node->is_clas_){
         leaves->push_back(node);
     }
     else{
         if(node->children_ != nullptr){
             for(int i = 0; i < (1 << node->variant()); i++){
-                find_clas(node->children_[i], leaves);
+                find_clas_stat(node->children_[i], leaves, thres_branch);
         }
         }
     }
 }
 
-void Single_tree::find_unclas(const Single_tree* node, std::vector<const Single_tree*>* leaves){
-    if(node == nullptr || node->is_clas_) return;
+void Single_tree::find_unclas_stat(const Single_tree* node, std::vector<const Single_tree*>* leaves, double thres_branch){
+    if(node == nullptr || node->is_clas_ || node->branch_prob_ < thres_branch) return;
     if(node->children_ == nullptr && !node->is_clas_){
         leaves->push_back(node);
     }
     else if(node->children_ != nullptr && !node->is_clas_){
         for(int i = 0; i < (1 << node->variant()); i++){
-            find_unclas(node->children_[i], leaves);
+            find_unclas_stat(node->children_[i], leaves, thres_branch);
         }  
     }
 }
 
-Single_tree* Single_tree::apply_true_state(const Product_lattice* org_lattice, int true_state, double thres_branch, double** dilution) const{
-    Single_tree* new_tree = new Single_tree(*this, false);
-    apply_true_state_helper(org_lattice, new_tree, this, true_state, 1.0, thres_branch, dilution);
-    return new_tree;
+void Single_tree::apply_true_state(const Product_lattice* org_lattice, int true_state, double thres_branch, double** dilution){
+    apply_true_state_helper(org_lattice, this, true_state, 1.0, thres_branch, dilution);
 }
 
-void Single_tree::apply_true_state_helper(const Product_lattice* org_lattice, Single_tree* ret, const Single_tree* node, int true_state, double prob, double thres_branch, double** dilution){
+void Single_tree::apply_true_state_helper(const Product_lattice* org_lattice, Single_tree* node, int true_state, double prob, double thres_branch, double** dilution){
     if(node == nullptr) return;
-    ret->branch_prob_ = prob;
+    node->branch_prob_ = prob;
     if(node->children_ != nullptr){
         for(int i = 0; i < (1 << node->variant()); i++){
-            if(ret->children_ == nullptr) ret->children_ = new Single_tree*[1 << node->variant()];
-            double child_prob = ret->branch_prob_ * org_lattice->response_prob(node->children_[i]->ex_, node->children_[i]->res_, true_state, dilution);
-            ret->children_[i] = new Single_tree(*(node->children_[i]), false);
+            double child_prob = prob * org_lattice->response_prob(node->children_[i]->ex_, node->children_[i]->res_, true_state, dilution);
             if(child_prob > thres_branch){
-                apply_true_state_helper(org_lattice, ret->children_[i], node->children_[i], true_state, child_prob, thres_branch, dilution);
+                apply_true_state_helper(org_lattice, node->children_[i], true_state, child_prob, thres_branch, dilution);
+            }
+            else{
+                node->children_[i]->branch_prob_ = 0.0; // otherwise parsing stat tree will lead to incorrect result
             }
         }
     }
