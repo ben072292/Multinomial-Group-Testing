@@ -4,3 +4,4 @@
 target
 .vscode
 *.csv
+cpp/a.out

@@ -44,6 +44,5 @@ class Single_tree {
     static void find_unclas(const Single_tree* node, std::vector<const Single_tree*> *leaves);
     Single_tree *apply_true_state(const Product_lattice* org_lattice, int true_state, double thres_branch, double** dilution) const;
     static void apply_true_state_helper(const Product_lattice* org_lattice, Single_tree* ret, const Single_tree* node, int true_state, double prob, double thres_branch, double** dilution);
-    void prep_destroy_stat_tree();
 
 };

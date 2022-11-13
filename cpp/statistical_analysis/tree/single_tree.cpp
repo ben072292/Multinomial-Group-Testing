@@ -202,15 +202,5 @@ void Single_tree::apply_true_state_helper(const Product_lattice* org_lattice, Si
     }
 }
 
-void Single_tree::prep_destroy_stat_tree(){
-    if(children_ != nullptr){
-        for(int i = 0; i < (1 << lattice_->variant()); i++){
-            if(children_[i] != nullptr){
-                children_[i]->prep_destroy_stat_tree();
-            }
-        }
-    }
-}
-
 
 

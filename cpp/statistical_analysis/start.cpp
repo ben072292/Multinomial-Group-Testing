@@ -31,14 +31,12 @@ int main(int argc, char* argv[]){
     Tree_stat* prim = new Tree_stat(search_depth, 1);
     Tree_stat* temp = new Tree_stat(search_depth, 1);
     st->parse(0, p, pi0, 1.0, prim);
-    st->prep_destroy_stat_tree();
     delete st;
 
     int total_st = p->total_state();
     for(int i = 0; i < total_st; i++){
         st = tree->apply_true_state(p, i, 0.001, dilution);
         st->parse(i, p, pi0, 1.0, temp);
-        st->prep_destroy_stat_tree();
         delete st;
         prim->merge(temp);
     }
