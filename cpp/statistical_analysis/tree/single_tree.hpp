@@ -32,17 +32,17 @@ class Single_tree {
     bool is_classified() const {return is_clas_;}
     int pos_clas() const {return lattice_->pos_clas();}
     int neg_clas() const {return lattice_->neg_clas();}
-    void parse(int true_state, const Product_lattice* org_lattice, double* pi0, double sym_coef, Tree_stat* ret) const;
+    void parse(int true_state, const Product_lattice* org_lattice, double* pi0, double thres_branch, double sym_coef, Tree_stat* ret) const;
     int actual_true_state() const;
     double total_positive() const;
     double total_negative() const;
     bool is_correct_clas(int true_state) const;
     double fp(int true_state) const;
     double fn(int true_state) const;
-    static void find_all(const Single_tree* node, std::vector<const Single_tree*> *leaves);
-    static void find_clas(const Single_tree* node, std::vector<const Single_tree*> *leaves);
-    static void find_unclas(const Single_tree* node, std::vector<const Single_tree*> *leaves);
-    Single_tree *apply_true_state(const Product_lattice* org_lattice, int true_state, double thres_branch, double** dilution) const;
-    static void apply_true_state_helper(const Product_lattice* org_lattice, Single_tree* ret, const Single_tree* node, int true_state, double prob, double thres_branch, double** dilution);
+    static void find_all_stat(const Single_tree* node, std::vector<const Single_tree*> *leaves, double thres_branch);
+    static void find_clas_stat(const Single_tree* node, std::vector<const Single_tree*> *leaves, double thres_branch);
+    static void find_unclas_stat(const Single_tree* node, std::vector<const Single_tree*> *leaves, double thres_branch);
+    void apply_true_state(const Product_lattice* org_lattice, int true_state, double thres_branch, double** dilution);
+    static void apply_true_state_helper(const Product_lattice* org_lattice, Single_tree* node, int true_state, double prob, double thres_branch, double** dilution);
 
 };

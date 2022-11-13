@@ -9,6 +9,7 @@ int main(int argc, char* argv[]){
     double prior = std::atof(argv[3]);
     double thres_up = 0.005;
     double thres_lo = 0.005;
+    double thres_branch = 0.001;
     int search_depth = 5;
 
     double pi0[atom * variant];
@@ -26,18 +27,16 @@ int main(int argc, char* argv[]){
     // Single_tree::find_all(tree, leaves);
     // std::cout << leaves->size() << std::endl;
     
-    Single_tree* st = tree->apply_true_state(p, 0, 0.001, dilution);
+    tree->apply_true_state(p, 0, thres_branch, dilution);
 
     Tree_stat* prim = new Tree_stat(search_depth, 1);
     Tree_stat* temp = new Tree_stat(search_depth, 1);
-    st->parse(0, p, pi0, 1.0, prim);
-    delete st;
+    tree->parse(0, p, pi0, thres_branch, 1.0, prim);
 
     int total_st = p->total_state();
     for(int i = 0; i < total_st; i++){
-        st = tree->apply_true_state(p, i, 0.001, dilution);
-        st->parse(i, p, pi0, 1.0, temp);
-        delete st;
+        tree->apply_true_state(p, i, 0.001, dilution);
+        tree->parse(i, p, pi0, thres_branch, 1.0, temp);
         prim->merge(temp);
     }
 
