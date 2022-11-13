@@ -156,7 +156,7 @@ int Product_lattice::halving(double prob) const{
 	bool is_complement = false;
 	double min = 2.0;
 	int partition_id = 0;
-	double* partition_mass = new double[(1 << variant_)];
+	double partition_mass[(1 << variant_)];
 	for (experiment = 0; experiment < (1 << atom_); experiment++) {
 		// reset partition_mass
 		for (int i = 0; i < (1 << variant_); i++)
@@ -190,7 +190,6 @@ int Product_lattice::halving(double prob) const{
 			candidate = experiment;
 		}
 	}
-	delete[] partition_mass;
 	return candidate;
 }
 
