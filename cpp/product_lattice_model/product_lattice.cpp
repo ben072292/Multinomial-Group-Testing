@@ -149,11 +149,37 @@ double Product_lattice::get_prob_mass(int state) const{
 bool Product_lattice::is_classified() const{
 	return __builtin_popcount(pos_clas_ + neg_clas_) == nominal_pool_size();
 }
+
+double* Product_lattice::calc_probs(int experiment, int response, double** dilution){
+	int total_stat = 1 << (atom_ * variant_);
+	double* ret = new double[total_stat];
+	double denominator = 0.0;
+	for (int iter = 0; iter < total_stat; iter++) {
+		ret[iter] = post_probs_[iter] * response_prob(experiment, response, iter, dilution);
+		denominator += ret[iter];
+	}
+	for (int i = 0; i < total_stat; i++) {
+		ret[i] /= denominator;
+	}
+	return ret;
+}
+
+void Product_lattice::calc_probs_in_place(int experiment, int response, double** dilution){
+	double denominator = 0.0;
+	int total_stat = 1 << (atom_ * variant_);
+	for (int iter = 0; iter < total_stat; iter++) {
+		post_probs_[iter] *= response_prob(experiment, response, iter, dilution);
+		denominator += post_probs_[iter];
+	}
+	for (int i = 0; i < total_stat; i++) {
+		post_probs_[i] /= denominator;
+	}
+}
+
 int Product_lattice::halving(double prob) const{
 	int candidate = 0;
 	int s_iter;
 	int experiment;
-	bool is_complement = false;
 	double min = 2.0;
 	int partition_id = 0;
 	double partition_mass[(1 << variant_)];
@@ -165,14 +191,9 @@ int Product_lattice::halving(double prob) const{
 		// pooled subjects to see whether they are all 1.
 		for (s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
 			for (int variant = 0; variant < variant_; variant++) {
-				for (int l = 0; l < atom_; l++) {
-					if ((experiment & (1 << l)) != 0 && (s_iter & (1 << (l * variant_ + variant))) == 0) {
-						is_complement = true;
-						break;
-					}
+				if ((experiment & (s_iter >> (variant * atom_))) != experiment) {
+					partition_id |= (1 << variant);
 				}
-				partition_id |= (is_complement ? 0 : (1 << variant));
-				is_complement = false; // reset flag
 			}
 			partition_mass[partition_id] += post_probs_[s_iter];
 			partition_id = 0;

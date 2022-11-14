@@ -12,10 +12,6 @@ class Product_lattice_non_dilution : public Product_lattice{
 
     Product_lattice_non_dilution *clone(int assert) const {return new Product_lattice_non_dilution(*this, assert);}
 
-    double* calc_probs(int experiment, int response, double** dilution);
-
-    void calc_probs_in_place(int experiment, int response, double** dilution);
-
     double response_prob(int experiment, int response, int true_state, double** dilution) const;
 
     virtual void type(){std::cout << "Lattice Model Non Dilution" << std::endl;}
