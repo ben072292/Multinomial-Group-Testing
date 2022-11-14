@@ -20,18 +20,18 @@ class Single_tree {
     ~Single_tree();
     void increase_stage(int k, double thres_up, double thres_lo, int stage);
     Product_lattice* lattice() const {return lattice_;}
-    void lattice(Product_lattice* lattice){lattice_ = lattice;}
-    int ex() const {return ex_;}
-    int ex_res() const {return res_;}
-    int ex_count() const {return lattice_->test_count();}
-    int cur_stage() const {return cur_stage_;}
-    int atom() const {return lattice_->atom();}
-    int variant() const {return lattice_->variant();}
-    double branch_prob() const {return branch_prob_;}
-    Single_tree **children() const {return children_;}
-    bool is_classified() const {return is_clas_;}
-    int pos_clas() const {return lattice_->pos_clas();}
-    int neg_clas() const {return lattice_->neg_clas();}
+    inline void lattice(Product_lattice* lattice){lattice_ = lattice;}
+    inline int ex() const {return ex_;}
+    inline int ex_res() const {return res_;}
+    inline int ex_count() const {return lattice_->test_count();}
+    inline int cur_stage() const {return cur_stage_;}
+    inline int atom() const {return lattice_->atom();}
+    inline int variant() const {return lattice_->variant();}
+    inline double branch_prob() const {return branch_prob_;}
+    inline Single_tree **children() const {return children_;}
+    inline bool is_classified() const {return is_clas_;}
+    inline int pos_clas() const {return lattice_->pos_clas();}
+    inline int neg_clas() const {return lattice_->neg_clas();}
     void parse(int true_state, const Product_lattice* org_lattice, double* pi0, double thres_branch, double sym_coef, Tree_stat* ret) const;
     int actual_true_state() const;
     double total_positive() const;
