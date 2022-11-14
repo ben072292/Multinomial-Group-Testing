@@ -48,62 +48,31 @@ int main(int argc, char* argv[]){
         pi0[i] = prior;
     }
 
-    double run_time = 0.0 - MPI_Wtime();
-
     Product_lattice* p = new Product_lattice_dilution(atom, variant, pi0);
 
     double** dilution = p->generate_dilution(0.99, 0.005);
 
     // Single_tree* tree = new Single_tree(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
-    double halving_res[2];
-    Single_tree* tree = new Single_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, world_rank, world_size, &halving_op, halving_res);
 
-    // std::vector<const Single_tree*> *leaves = new std::vector<const Single_tree*>;
-    // Single_tree::find_all(tree, leaves);
-    // std::cout << leaves->size() << std::endl;
+    double run_time1 = 0.0 - MPI_Wtime();
+    double run_time2 = 0.0 - MPI_Wtime();
+
+    double * halving_res = new double[2];
+    halving_res = p->halving(0.25, world_rank, world_size);
+
+    run_time1 += MPI_Wtime();
+    std::cout << "Time Consumption: " << run_time1 << "s" << std::endl;
+
+    MPI_Allreduce(MPI_IN_PLACE, halving_res, 2, MPI_DOUBLE, halving_op, MPI_COMM_WORLD);
+
+    run_time2 += MPI_Wtime();
     
-    if(world_rank == 0){
-        tree->apply_true_state(p, 0, thres_branch, dilution);
-
-        Tree_stat* prim = new Tree_stat(search_depth, 1);
-        Tree_stat* temp = new Tree_stat(search_depth, 1);
-        tree->parse(0, p, pi0, thres_branch, 1.0, prim);
-
-        int total_st = p->total_state();
-        for(int i = 0; i < total_st; i++){
-            tree->apply_true_state(p, i, 0.001, dilution);
-            tree->parse(i, p, pi0, thres_branch, 1.0, temp);
-            prim->merge(temp);
-        }
-
-        std::cout << "N = " << atom << ", k = " << variant << std::endl;
-        std::cout << "Prior: ";
-        for (int i = 0; i < p->nominal_pool_size(); i++){
-            std::cout << pi0[i] << ", ";
-        }
-        std::cout << std::endl;
-        prim->output_detail(p->nominal_pool_size());
-
-        // clean up memory
-        delete prim;
-        delete temp;
-    }
-
-    for(int i = 0; i < atom; i++){
-        delete[] dilution[i];
-    }
-    delete[] dilution;
-
-    delete tree;
-
-    MPI_Barrier(MPI_COMM_WORLD);
-    run_time += MPI_Wtime();
 
     if(world_rank == 0){
-        std::cout << "Time Consumption: " << run_time << "s" << std::endl;
+        std::cout << "Overall Time Consumption: " << run_time2 << "s" << std::endl;
     }
 
-    MPI_Op_free(&halving_op);
+    // MPI_Op_free(&halving_op);
     // Finalize the MPI environment.
     MPI_Finalize();
 }

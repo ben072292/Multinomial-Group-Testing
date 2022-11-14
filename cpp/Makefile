@@ -15,5 +15,8 @@ debug:
 
 mpi:
 	mpicxx -std=c++11 -O3 -Wall $(ANALYSIS)/start_mpi.cpp $(ANALYSIS)/$(TREE)/single_tree.cpp $(ANALYSIS)/$(TREE)/single_tree_mpi.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp -o $(OUT)
+
+mpi_ts:
+	mpicxx -std=c++11 -O3 -Wall $(ANALYSIS)/test_selection_mpi.cpp $(ANALYSIS)/$(TREE)/single_tree.cpp $(ANALYSIS)/$(TREE)/single_tree_mpi.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp -o $(OUT)
 clean:
 	rm $(OUT)
