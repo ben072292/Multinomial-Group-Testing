@@ -1,6 +1,11 @@
 #pragma once
 
 #include <iostream>
+/*
+ * READ BEFORE USE:
+ * In this version of lattice model, state is represented using A0A1B0B1...
+ * The input of prior should also follow this pattern.
+ */
 class Product_lattice{
 
 	protected:
