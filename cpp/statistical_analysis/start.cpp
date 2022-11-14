@@ -1,7 +1,9 @@
 #include "tree/single_tree.hpp"
+#include "tree/single_tree_mpi.hpp"
 #include "../product_lattice_model/product_lattice.hpp"
 #include "../product_lattice_model/product_lattice_dilution.hpp"
 #include "../product_lattice_model/product_lattice_non_dilution.hpp"
+#include <chrono>
 
 int main(int argc, char* argv[]){
     int atom = std::atoi(argv[1]);
@@ -16,6 +18,8 @@ int main(int argc, char* argv[]){
     for(int i = 0; i < atom * variant; i++){
         pi0[i] = prior;
     }
+
+    auto start = std::chrono::high_resolution_clock::now();
 
     Product_lattice* p = new Product_lattice_dilution(atom, variant, pi0);
 
@@ -58,4 +62,8 @@ int main(int argc, char* argv[]){
     delete[] dilution;
 
     delete tree;
+
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+    std::cout << "\nTime Consumption: " << duration.count()/1e6 << " Second." << std::endl;
 }

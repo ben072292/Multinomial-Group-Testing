@@ -165,7 +165,7 @@ double* Product_lattice::calc_probs(int experiment, int response, double** dilut
 	return ret;
 }
 
-void Product_lattice::calc_probs_in_place(int experiment, int response, double** dilution){
+void Product_lattice::calc_probs_in_place(int experiment, int response, double **__restrict__ dilution){
 	double denominator = 0.0;
 	int total_stat = 1 << (atom_ * variant_);
 	for (int iter = 0; iter < total_stat; iter++) {
@@ -191,6 +191,7 @@ int Product_lattice::halving(double prob) const{
 		// tricky: for each state, check each variant of actively
 		// pooled subjects to see whether they are all 1.
 		for (s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
+			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
 			for (int variant = 0; variant < variant_; variant++) {
 				if ((experiment & (s_iter >> (variant * atom_))) != experiment) {
 					partition_id |= (1 << variant);
@@ -213,6 +214,50 @@ int Product_lattice::halving(double prob) const{
 		}
 	}
 	return candidate;
+}
+
+double* Product_lattice::halving(double prob, int rank, int world_size) const{
+    int candidate = 0;
+	int s_iter;
+	int experiment;
+	double min = 2.0;
+	int partition_id = 0;
+	double partition_mass[(1 << variant_)];
+    int start_experiment = (1 << atom_) / world_size * rank;
+    int stop_experiment = (1 << atom_) / world_size * (rank+1); 
+	for (experiment = start_experiment; experiment < stop_experiment; experiment++) {
+		// reset partition_mass
+		for (int i = 0; i < (1 << variant_); i++)
+			partition_mass[i] = 0.0;
+		// tricky: for each state, check each variant of actively
+		// pooled subjects to see whether they are all 1.
+		for (s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
+			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+			for (int variant = 0; variant < variant_; variant++) {
+				if ((experiment & (s_iter >> (variant * atom_))) != experiment) {
+					partition_id |= (1 << variant);
+				}
+			}
+			partition_mass[partition_id] += post_probs_[s_iter];
+			partition_id = 0;
+		}
+		// for (int i = 0; i < totalStates(); i++) {
+		// System.out.print(partitionMap[i] + " ");
+		// }
+		// System.out.println();
+		double temp = 0.0;
+		for (int i = 0; i < (1 << variant_); i++) {
+			temp += std::abs(partition_mass[i] - prob);
+		}
+		if (temp < min) {
+			min = temp;
+			candidate = experiment;
+		}
+	}
+	double* ret = new double[2];
+	ret[0] = min;
+	ret[1] = candidate;
+	return ret;
 }
 
 // int product_lattice::halving_parallel(double prob);

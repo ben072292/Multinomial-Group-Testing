@@ -17,7 +17,7 @@ class Single_tree {
     Single_tree(Product_lattice* lattice, int ex, int res, int cur_stage);
     Single_tree(Product_lattice* lattice, int ex, int res, int k, int cur_stage, double thres_up, double thres_lo, int stage, double** dilution);
     Single_tree(const Single_tree &other, bool deep);
-    ~Single_tree();
+    virtual ~Single_tree();
     void increase_stage(int k, double thres_up, double thres_lo, int stage);
     Product_lattice* lattice() const {return lattice_;}
     inline void lattice(Product_lattice* lattice){lattice_ = lattice;}
