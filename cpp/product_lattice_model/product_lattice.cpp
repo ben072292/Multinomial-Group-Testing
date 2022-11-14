@@ -63,7 +63,7 @@ int* Product_lattice::generate_power_set_adder(int* add_index, int state, int* r
 				 * set
 				 */
 				if ((i & (1 << j))) {
-					temp += add_index[j];
+					temp |= add_index[j];
 				}
 			}
 			ret[i] = temp;
@@ -77,6 +77,7 @@ void Product_lattice::prior_probs(double* pi0){
 		post_probs_[i] = prior_prob(i, pi0);
 	}
 }
+
 double Product_lattice::prior_prob(int state, double* pi0) const{
     double prob = 1.0;
 	for (int i = 0; i < nominal_pool_size(); i++) {
@@ -111,9 +112,9 @@ void Product_lattice::update_metadata(double thres_up, double thres_lo){
 		double probMass = get_prob_mass(atom);
 
 		if (probMass < thres_lo)
-			pos_clas_ += placement; // classified as positive
+			pos_clas_ |= placement; // classified as positive
 		else if (probMass > (1 - thres_up))
-			neg_clas_ += placement; // classified as negative
+			neg_clas_ |= placement; // classified as negative
 	}
 }
 double Product_lattice::get_prob_mass(int state) const{
@@ -136,7 +137,7 @@ double Product_lattice::get_prob_mass(int state) const{
 			 * set
 			 */
 			if ((i & (1 << j))) {
-				temp += add_index[j];
+				temp |= add_index[j];
 			}
 		}
 		ret += post_probs_[temp];
