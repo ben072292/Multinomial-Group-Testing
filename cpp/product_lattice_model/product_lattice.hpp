@@ -52,7 +52,7 @@ class Product_lattice{
 	double get_prob_mass(int state) const;
 	bool is_classified() const;
 	int halving(double prob) const;
-	int halving_parallel(double prob) const;
+	double* halving(double prob, int rank, int world_size) const; // for MPI split task
 	virtual double response_prob(int experiment, int response, int true_state, double** dilution) const = 0;
 	double** generate_dilution(double alpha, double h) const;
 	virtual void type(){std::cout << "Lattice Model" << std::endl;}

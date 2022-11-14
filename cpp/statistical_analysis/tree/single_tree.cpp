@@ -181,11 +181,11 @@ void Single_tree::find_unclas_stat(const Single_tree* node, std::vector<const Si
     }
 }
 
-void Single_tree::apply_true_state(const Product_lattice* org_lattice, int true_state, double thres_branch, double** dilution){
+void Single_tree::apply_true_state(const Product_lattice* org_lattice, int true_state, double thres_branch, double** __restrict__ dilution){
     apply_true_state_helper(org_lattice, this, true_state, 1.0, thres_branch, dilution);
 }
 
-void Single_tree::apply_true_state_helper(const Product_lattice* org_lattice, Single_tree* node, int true_state, double prob, double thres_branch, double** dilution){
+void Single_tree::apply_true_state_helper(const Product_lattice* __restrict__ org_lattice, Single_tree* __restrict__ node, int true_state, double prob, double thres_branch, double** __restrict__ dilution){
     if(node == nullptr) return;
     node->branch_prob_ = prob;
     if(node->children_ != nullptr){

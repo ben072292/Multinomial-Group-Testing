@@ -1,6 +1,6 @@
 #include "product_lattice_dilution.hpp"
 
-double Product_lattice_dilution::response_prob(int experiment, int response, int true_state, double** dilution) const{
+double Product_lattice_dilution::response_prob(int experiment, int response, int true_state, double** __restrict__ dilution) const{
     double ret = 1.0;
 	int experimentLength = __builtin_popcount(experiment);
     for (int variant = 0; variant < variant_; variant++) {
