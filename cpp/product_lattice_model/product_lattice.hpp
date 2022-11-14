@@ -3,7 +3,7 @@
 #include <iostream>
 /*
  * READ BEFORE USE:
- * In this version of lattice model, state is represented using A0A1B0B1...
+ * In this version of lattice model, state is represented using A0B0A1B1...
  * The input of prior should also follow this pattern.
  */
 class Product_lattice{
@@ -44,8 +44,8 @@ class Product_lattice{
 	void update_probs_in_place(int experiment, int response, double thres_up, double thres_lo, double** dilution);
 	// void update_probs_parallel(int experiment, int response, double thres_up, double thres_lo);
 	// void update_probs_in_place(int experiment, int response, double thres_up, double thres_lo);
-	virtual double* calc_probs(int experiment, int response, double** dilution) = 0;
-	virtual void calc_probs_in_place(int experiment, int response, double** dilution) = 0;
+	double* calc_probs(int experiment, int response, double** dilution);
+	void calc_probs_in_place(int experiment, int response, double** dilution);
 	void update_metadata(double thres_up, double thres_lo);
 	double get_prob_mass(int state) const;
 	bool is_classified() const;
