@@ -3,10 +3,9 @@
 Single_tree_mpi::Single_tree_mpi(Product_lattice* lattice, int ex, int res, int k, int cur_stage, double thres_up, double thres_lo, int stage, double** __restrict__ dilution, int rank, int world_size, MPI_Op* halving_op, double* __restrict__ halving_res) : Single_tree_mpi(lattice, ex, res, cur_stage){
     if (!lattice->is_classified() && cur_stage < stage) {
         children_ = new Single_tree*[1 << lattice->variant()];
-        halving_res = lattice->halving(1.0 / (1 << lattice->variant()), rank, world_size);
+        lattice->halving(1.0 / (1 << lattice->variant()), rank, world_size, halving_res);
         MPI_Allreduce(MPI_IN_PLACE, halving_res, 2, MPI_DOUBLE, *halving_op, MPI_COMM_WORLD);
         int halving = halving_res[1];
-        delete[] halving_res;
         for(int re = 0; re < (1 << lattice->variant()); re++){
             if(re != (1 << lattice->variant())-1){
                 Product_lattice* p = lattice->clone(1);
