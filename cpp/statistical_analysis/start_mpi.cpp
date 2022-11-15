@@ -4,7 +4,7 @@
 #include "../product_lattice_model/product_lattice_dilution.hpp"
 #include "../product_lattice_model/product_lattice_non_dilution.hpp"
 #include <chrono>
-#include "/opt/homebrew/Cellar/open-mpi/4.1.4_2/include/mpi.h"
+#include "mpi.h"
 
 void halving_reduce(double* in, double* inout, int* len, MPI_Datatype *dptr){
     if(in[0] < inout[0]){

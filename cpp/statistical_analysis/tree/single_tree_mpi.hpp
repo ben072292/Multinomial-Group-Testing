@@ -1,6 +1,6 @@
 #pragma once
 #include "single_tree.hpp"
-#include "/opt/homebrew/Cellar/open-mpi/4.1.4_2/include/mpi.h"
+#include "mpi.h"
 
 class Single_tree_mpi : public Single_tree{
     public:

@@ -216,15 +216,64 @@ int Product_lattice::halving(double prob) const{
 	return candidate;
 }
 
-double* Product_lattice::halving(double prob, int rank, int world_size) const{
-    int candidate = 0;
+void halving_min(double* __restrict__ a, double* __restrict__ b){
+	if(a[0] > b[0]){
+		a[0] = b[0];
+		a[1] = b[1];
+	}
+}
+
+int Product_lattice::halving_omp(double prob) const{
 	int s_iter;
 	int experiment;
-	double min = 2.0;
+	int partition_id = 0;
+	double* halving_res = new double[2];
+	halving_res[0] = 2.0;
+	#pragma omp declare reduction(Halving_Min : double* : halving_min(omp_out, omp_in)) initializer (omp_priv=omp_orig)
+
+	#pragma omp parallel for schedule(dynamic) reduction (Halving_Min : halving_res)
+	for (experiment = 0; experiment < (1 << atom_); experiment++) {
+		double partition_mass[(1 << variant_)];
+		// reset partition_mass
+		for (int i = 0; i < (1 << variant_); i++)
+			partition_mass[i] = 0.0;
+		// tricky: for each state, check each variant of actively
+		// pooled subjects to see whether they are all 1.
+		for (s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
+			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+			for (int variant = 0; variant < variant_; variant++) {
+				if ((experiment & (s_iter >> (variant * atom_))) != experiment) {
+					partition_id |= (1 << variant);
+				}
+			}
+			partition_mass[partition_id] += post_probs_[s_iter];
+			partition_id = 0;
+		}
+		// for (int i = 0; i < totalStates(); i++) {
+		// System.out.print(partitionMap[i] + " ");
+		// }
+		// System.out.println();
+		double temp = 0.0;
+		for (int i = 0; i < (1 << variant_); i++) {
+			temp += std::abs(partition_mass[i] - prob);
+		}
+		if (temp < halving_res[0]) {
+			halving_res[0] = temp;
+			halving_res[1] = experiment;
+		}
+	}
+	return halving_res[1];
+}
+
+void Product_lattice::halving(double prob, int rank, int world_size, double* halving_res) const{
+	int s_iter;
+	int experiment;
+	halving_res[0] = 2.0;
 	int partition_id = 0;
 	double partition_mass[(1 << variant_)];
     int start_experiment = (1 << atom_) / world_size * rank;
     int stop_experiment = (1 << atom_) / world_size * (rank+1); 
+
 	for (experiment = start_experiment; experiment < stop_experiment; experiment++) {
 		// reset partition_mass
 		for (int i = 0; i < (1 << variant_); i++)
@@ -249,15 +298,11 @@ double* Product_lattice::halving(double prob, int rank, int world_size) const{
 		for (int i = 0; i < (1 << variant_); i++) {
 			temp += std::abs(partition_mass[i] - prob);
 		}
-		if (temp < min) {
-			min = temp;
-			candidate = experiment;
+		if (temp < halving_res[0]) {
+			halving_res[0] = temp;
+			halving_res[1] = experiment;
 		}
 	}
-	double* ret = new double[2];
-	ret[0] = min;
-	ret[1] = candidate;
-	return ret;
 }
 
 // int product_lattice::halving_parallel(double prob);

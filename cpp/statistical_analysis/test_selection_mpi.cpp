@@ -4,7 +4,7 @@
 #include "../product_lattice_model/product_lattice_dilution.hpp"
 #include "../product_lattice_model/product_lattice_non_dilution.hpp"
 #include <chrono>
-#include "/opt/homebrew/Cellar/open-mpi/4.1.4_2/include/mpi.h"
+#include "mpi.h"
 
 void halving_reduce(double* in, double* inout, int* len, MPI_Datatype *dptr){
     if(in[0] < inout[0]){
@@ -58,7 +58,7 @@ int main(int argc, char* argv[]){
     double run_time2 = 0.0 - MPI_Wtime();
 
     double * halving_res = new double[2];
-    halving_res = p->halving(0.25, world_rank, world_size);
+    p->halving(0.25, world_rank, world_size, halving_res);
 
     run_time1 += MPI_Wtime();
     std::cout << "Time Consumption: " << run_time1 << "s" << std::endl;

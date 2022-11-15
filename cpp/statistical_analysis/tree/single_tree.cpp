@@ -15,6 +15,7 @@ Single_tree::Single_tree(Product_lattice* lattice, int ex, int res, int k, int c
     if (!lattice->is_classified() && cur_stage < stage) {
         children_ = new Single_tree*[1 << lattice->variant()];
         int halving = lattice->halving(1.0 / (1 << lattice->variant()));
+        // int halving = lattice->halving_omp(1.0 / (1 << lattice->variant())); // openmp
         for(int re = 0; re < (1 << lattice->variant()); re++){
             if(re != (1 << lattice->variant())-1){
                 Product_lattice* p = lattice->clone(1);
