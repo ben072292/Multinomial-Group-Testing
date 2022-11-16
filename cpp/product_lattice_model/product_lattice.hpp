@@ -1,5 +1,6 @@
 #pragma once
 
+#include "halving_res/halving_res.hpp"
 #include <iostream>
 /*
  * READ BEFORE USE:

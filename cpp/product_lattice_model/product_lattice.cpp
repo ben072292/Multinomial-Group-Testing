@@ -104,6 +104,7 @@ void Product_lattice::update_probs_in_place(int experiment, int response, double
 // void product_lattice::update_probs_parallel(int experiment, int response, double thres_up, double thres_lo);
 
 void Product_lattice::update_metadata(double thres_up, double thres_lo){
+	#pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < nominal_pool_size(); i++) {
 		int placement = (1 << i);
 		if (((pos_clas_ + neg_clas_) & placement) != 0)
@@ -111,10 +112,13 @@ void Product_lattice::update_metadata(double thres_up, double thres_lo){
 		int atom = 1 << i;
 		double probMass = get_prob_mass(atom);
 
+		#pragma omp critical
+        {
 		if (probMass < thres_lo)
 			pos_clas_ |= placement; // classified as positive
 		else if (probMass > (1 - thres_up))
 			neg_clas_ |= placement; // classified as negative
+		}
 	}
 }
 double Product_lattice::get_prob_mass(int state) const{
@@ -216,10 +220,10 @@ int Product_lattice::halving(double prob) const{
 	return candidate;
 }
 
-void halving_min(double* __restrict__ a, double* __restrict__ b){
-	if(a[0] > b[0]){
-		a[0] = b[0];
-		a[1] = b[1];
+void halving_min(Halving_res& __restrict__ a, Halving_res& __restrict__ b){
+	if(a.min > b.min){
+		a.min = b.min;
+		a.candidate = b.candidate;
 	}
 }
 
@@ -227,9 +231,8 @@ int Product_lattice::halving_omp(double prob) const{
 	int s_iter;
 	int experiment;
 	int partition_id = 0;
-	double* halving_res = new double[2];
-	halving_res[0] = 2.0;
-	#pragma omp declare reduction(Halving_Min : double* : halving_min(omp_out, omp_in)) initializer (omp_priv=omp_orig)
+	Halving_res halving_res;
+	#pragma omp declare reduction(Halving_Min : Halving_res : halving_min(omp_out, omp_in)) initializer (omp_priv=Halving_res())
 
 	#pragma omp parallel for schedule(dynamic) reduction (Halving_Min : halving_res)
 	for (experiment = 0; experiment < (1 << atom_); experiment++) {
@@ -257,12 +260,12 @@ int Product_lattice::halving_omp(double prob) const{
 		for (int i = 0; i < (1 << variant_); i++) {
 			temp += std::abs(partition_mass[i] - prob);
 		}
-		if (temp < halving_res[0]) {
-			halving_res[0] = temp;
-			halving_res[1] = experiment;
+		if (temp < halving_res.min) {
+			halving_res.min = temp;
+			halving_res.candidate = experiment;
 		}
 	}
-	return halving_res[1];
+	return halving_res.candidate;
 }
 
 void Product_lattice::halving(double prob, int rank, int world_size, double* halving_res) const{
