@@ -112,7 +112,7 @@ void Product_lattice::update_metadata(double thres_up, double thres_lo){
 		int atom = 1 << i;
 		double probMass = get_prob_mass(atom);
 
-		#pragma omp critical
+		#pragma omp critical // nominal_pool_size is small so omit contention overhead
         {
 		if (probMass < thres_lo)
 			pos_clas_ |= placement; // classified as positive
@@ -228,21 +228,19 @@ void halving_min(Halving_res& __restrict__ a, Halving_res& __restrict__ b){
 }
 
 int Product_lattice::halving_omp(double prob) const{
-	int s_iter;
-	int experiment;
-	int partition_id = 0;
 	Halving_res halving_res;
+	
 	#pragma omp declare reduction(Halving_Min : Halving_res : halving_min(omp_out, omp_in)) initializer (omp_priv=Halving_res())
-
 	#pragma omp parallel for schedule(dynamic) reduction (Halving_Min : halving_res)
-	for (experiment = 0; experiment < (1 << atom_); experiment++) {
-		double partition_mass[(1 << variant_)];
-		// reset partition_mass
-		for (int i = 0; i < (1 << variant_); i++)
-			partition_mass[i] = 0.0;
+	for (int experiment = 0; experiment < (1 << atom_); experiment++) {
+		// omp private variables;
+		int partition_id = 0;
+		double temp = 0.0;
+		double partition_mass[(1 << variant_)]{0.0};
+
 		// tricky: for each state, check each variant of actively
 		// pooled subjects to see whether they are all 1.
-		for (s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
+		for (int s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
 			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
 			for (int variant = 0; variant < variant_; variant++) {
 				if ((experiment & (s_iter >> (variant * atom_))) != experiment) {
@@ -252,11 +250,6 @@ int Product_lattice::halving_omp(double prob) const{
 			partition_mass[partition_id] += post_probs_[s_iter];
 			partition_id = 0;
 		}
-		// for (int i = 0; i < totalStates(); i++) {
-		// System.out.print(partitionMap[i] + " ");
-		// }
-		// System.out.println();
-		double temp = 0.0;
 		for (int i = 0; i < (1 << variant_); i++) {
 			temp += std::abs(partition_mass[i] - prob);
 		}
@@ -293,10 +286,6 @@ void Product_lattice::halving(double prob, int rank, int world_size, double* hal
 			partition_mass[partition_id] += post_probs_[s_iter];
 			partition_id = 0;
 		}
-		// for (int i = 0; i < totalStates(); i++) {
-		// System.out.print(partitionMap[i] + " ");
-		// }
-		// System.out.println();
 		double temp = 0.0;
 		for (int i = 0; i < (1 << variant_); i++) {
 			temp += std::abs(partition_mass[i] - prob);
