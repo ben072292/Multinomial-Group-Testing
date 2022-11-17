@@ -3,8 +3,11 @@
 #include "../product_lattice_model/product_lattice_dilution.hpp"
 #include "../product_lattice_model/product_lattice_non_dilution.hpp"
 #include <chrono>
+// #include <omp.h>
 
 int main(int argc, char* argv[]){
+
+    // omp_set_num_threads(8);
     int atom = std::atoi(argv[1]);
     int variant = std::atoi(argv[2]);
     double prior = std::atof(argv[3]);

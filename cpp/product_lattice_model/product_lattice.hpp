@@ -54,7 +54,8 @@ class Product_lattice{
 	bool is_classified() const;
 	int halving(double prob) const;
 	int halving_omp(double prob) const;
-	void halving(double prob, int rank, int world_size, double* halving_res) const; // for MPI split task
+	void halving(double prob, int rank, int world_size, Halving_res& halving_res) const; // for MPI split task
+	void halving_omp(double prob, int rank, int world_size, Halving_res& halving_res) const; // MPI + OpenMP
 	virtual double response_prob(int experiment, int response, int true_state, double** dilution) const = 0;
 	double** generate_dilution(double alpha, double h) const;
 	virtual void type(){std::cout << "Lattice Model" << std::endl;}

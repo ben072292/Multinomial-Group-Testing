@@ -220,7 +220,7 @@ int Product_lattice::halving(double prob) const{
 	return candidate;
 }
 
-void halving_min(Halving_res& __restrict__ a, Halving_res& __restrict__ b){
+void halving_min(Halving_res& a, Halving_res& b){
 	if(a.min > b.min){
 		a.min = b.min;
 		a.candidate = b.candidate;
@@ -261,22 +261,20 @@ int Product_lattice::halving_omp(double prob) const{
 	return halving_res.candidate;
 }
 
-void Product_lattice::halving(double prob, int rank, int world_size, double* halving_res) const{
-	int s_iter;
-	int experiment;
-	halving_res[0] = 2.0;
+void Product_lattice::halving(double prob, int rank, int world_size, Halving_res& halving_res) const{
+	halving_res.min = 2.0; // reset min
 	int partition_id = 0;
 	double partition_mass[(1 << variant_)];
     int start_experiment = (1 << atom_) / world_size * rank;
     int stop_experiment = (1 << atom_) / world_size * (rank+1); 
 
-	for (experiment = start_experiment; experiment < stop_experiment; experiment++) {
+	for (int experiment = start_experiment; experiment < stop_experiment; experiment++) {
 		// reset partition_mass
 		for (int i = 0; i < (1 << variant_); i++)
 			partition_mass[i] = 0.0;
 		// tricky: for each state, check each variant of actively
 		// pooled subjects to see whether they are all 1.
-		for (s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
+		for (int s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
 			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
 			for (int variant = 0; variant < variant_; variant++) {
 				if ((experiment & (s_iter >> (variant * atom_))) != experiment) {
@@ -290,9 +288,47 @@ void Product_lattice::halving(double prob, int rank, int world_size, double* hal
 		for (int i = 0; i < (1 << variant_); i++) {
 			temp += std::abs(partition_mass[i] - prob);
 		}
-		if (temp < halving_res[0]) {
-			halving_res[0] = temp;
-			halving_res[1] = experiment;
+		if (temp < halving_res.min) {
+			halving_res.min = temp;
+			halving_res.candidate = experiment;
+		}
+	}
+}
+
+void Product_lattice::halving_omp(double prob, int rank, int world_size, Halving_res& halving_res) const{
+	halving_res.min = 2.0; // reset min
+    int start_experiment = (1 << atom_) / world_size * rank;
+    int stop_experiment = (1 << atom_) / world_size * (rank+1); 
+
+	#pragma omp declare reduction(Halving_Min : Halving_res : halving_min(omp_out, omp_in)) initializer (omp_priv=Halving_res())
+	#pragma omp parallel for schedule(dynamic) reduction (Halving_Min : halving_res)
+	for (int experiment = start_experiment; experiment < stop_experiment; experiment++) {
+		// omp private variables;
+		int partition_id = 0;
+		double partition_mass[(1 << variant_)];
+		double temp = 0.0;
+
+		// reset partition_mass
+		for (int i = 0; i < (1 << variant_); i++)
+			partition_mass[i] = 0.0;
+		// tricky: for each state, check each variant of actively
+		// pooled subjects to see whether they are all 1.
+		for (int s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
+			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+			for (int variant = 0; variant < variant_; variant++) {
+				if ((experiment & (s_iter >> (variant * atom_))) != experiment) {
+					partition_id |= (1 << variant);
+				}
+			}
+			partition_mass[partition_id] += post_probs_[s_iter];
+			partition_id = 0;
+		}
+		for (int i = 0; i < (1 << variant_); i++) {
+			temp += std::abs(partition_mass[i] - prob);
+		}
+		if (temp < halving_res.min) {
+			halving_res.min = temp;
+			halving_res.candidate = experiment;
 		}
 	}
 }
