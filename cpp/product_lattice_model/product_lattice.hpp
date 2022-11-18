@@ -45,8 +45,6 @@ class Product_lattice{
 	void reset_test_count(){test_ct_ = 0;};
 	void update_probs(int experiment, int response, double thres_up, double thres_lo, double** dilution);
 	void update_probs_in_place(int experiment, int response, double thres_up, double thres_lo, double** dilution);
-	// void update_probs_parallel(int experiment, int response, double thres_up, double thres_lo);
-	// void update_probs_in_place(int experiment, int response, double thres_up, double thres_lo);
 	double* calc_probs(int experiment, int response, double** dilution);
 	void calc_probs_in_place(int experiment, int response, double** dilution);
 	void update_metadata(double thres_up, double thres_lo);
