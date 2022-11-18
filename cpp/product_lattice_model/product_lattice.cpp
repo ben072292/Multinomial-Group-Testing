@@ -101,7 +101,45 @@ void Product_lattice::update_probs_in_place(int experiment, int response, double
     test_ct_++;
 }
 
-// void product_lattice::update_probs_parallel(int experiment, int response, double thres_up, double thres_lo);
+// void Product_lattice::update_metadata(double thres_up, double thres_lo){
+// 	int n = nominal_pool_size()-1; // shared variables
+
+// 	#pragma omp parallel for schedule(dynamic)
+//     for (int i = 0; i < nominal_pool_size(); i++) {
+// 		int placement = (1 << i);
+// 		if (((pos_clas_ + neg_clas_) & placement) != 0)
+// 			continue; // skip checking since it's already classified as either positive or negative
+// 		int atom = 1 << i;
+
+// 		// customized get_prob_mass for atoms
+// 		double prob_mass = 0.0;
+// 		int add_index[n], counter = 0;
+// 		for(int j = 0; j < n+1; j++){
+// 			if((atom & (1 << j)) == 0){
+// 				add_index[counter++] = (1 << j);
+// 			}
+// 		}
+
+// 		int temp;
+// 		for(int j = 0; j < (1 << n); j++){
+// 			temp = atom;
+// 			for(int k = 0; k < n; k++){
+// 				if((j & (1 << k))){
+// 					temp |= add_index[k];
+// 				}
+// 			}
+// 			prob_mass += post_probs_[temp];
+// 		}
+
+// 		#pragma omp critical // nominal_pool_size is small so omit contention overhead
+//         {
+// 		if (prob_mass < thres_lo)
+// 			pos_clas_ |= placement; // classified as positive
+// 		else if (prob_mass > (1 - thres_up))
+// 			neg_clas_ |= placement; // classified as negative
+// 		}
+// 	}
+// }
 
 void Product_lattice::update_metadata(double thres_up, double thres_lo){
 	#pragma omp parallel for schedule(dynamic)
@@ -110,17 +148,18 @@ void Product_lattice::update_metadata(double thres_up, double thres_lo){
 		if (((pos_clas_ + neg_clas_) & placement) != 0)
 			continue; // skip checking since it's already classified as either positive or negative
 		int atom = 1 << i;
-		double probMass = get_prob_mass(atom);
+		double prob_mass = get_prob_mass(atom);
 
 		#pragma omp critical // nominal_pool_size is small so omit contention overhead
         {
-		if (probMass < thres_lo)
+		if (prob_mass < thres_lo)
 			pos_clas_ |= placement; // classified as positive
-		else if (probMass > (1 - thres_up))
+		else if (prob_mass > (1 - thres_up))
 			neg_clas_ |= placement; // classified as negative
 		}
 	}
 }
+
 double Product_lattice::get_prob_mass(int state) const{
     double ret = 0.0;
 	int n = nominal_pool_size() - __builtin_popcount(state), pow_set_size = 1 << n, j, temp;
@@ -159,10 +198,12 @@ double* Product_lattice::calc_probs(int experiment, int response, double** dilut
 	int total_stat = 1 << (atom_ * variant_);
 	double* ret = new double[total_stat];
 	double denominator = 0.0;
+	// #pragma omp parallel for schedule(static) reduction (+ : denominator) // INVESTIGATE: slowdown than serial
 	for (int iter = 0; iter < total_stat; iter++) {
 		ret[iter] = post_probs_[iter] * response_prob(experiment, response, iter, dilution);
 		denominator += ret[iter];
 	}
+	// #pragma omp parallel for schedule(static)
 	for (int i = 0; i < total_stat; i++) {
 		ret[i] /= denominator;
 	}
@@ -172,14 +213,51 @@ double* Product_lattice::calc_probs(int experiment, int response, double** dilut
 void Product_lattice::calc_probs_in_place(int experiment, int response, double **__restrict__ dilution){
 	double denominator = 0.0;
 	int total_stat = 1 << (atom_ * variant_);
+	// #pragma omp parallel for schedule(static) reduction (+ : denominator)
 	for (int iter = 0; iter < total_stat; iter++) {
 		post_probs_[iter] *= response_prob(experiment, response, iter, dilution);
 		denominator += post_probs_[iter];
 	}
+	// #pragma omp parallel for schedule(static)
 	for (int i = 0; i < total_stat; i++) {
 		post_probs_[i] /= denominator;
 	}
 }
+
+// int Product_lattice::halving(double prob) const{
+// 	int candidate = 0;
+// 	int s_iter;
+// 	int experiment;
+// 	double min = 2.0;
+// 	int partition_id = 0;
+// 	double partition_mass[(1 << variant_)];
+// 	for (experiment = 0; experiment < (1 << atom_); experiment++) {
+// 		// reset partition_mass
+// 		for (int i = 0; i < (1 << variant_); i++)
+// 			partition_mass[i] = 0.0;
+// 		// tricky: for each state, check each variant of actively
+// 		// pooled subjects to see whether they are all 1.
+// 		for (s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
+// 			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+// 			for (int variant = 0; variant < variant_; variant++) {
+// 				if ((experiment & (s_iter >> (variant * atom_))) != experiment) {
+// 					partition_id |= (1 << variant);
+// 				}
+// 			}
+// 			partition_mass[partition_id] += post_probs_[s_iter];
+// 			partition_id = 0;
+// 		}
+// 		double temp = 0.0;
+// 		for (int i = 0; i < (1 << variant_); i++) {
+// 			temp += std::abs(partition_mass[i] - prob);
+// 		}
+// 		if (temp < min) {
+// 			min = temp;
+// 			candidate = experiment;
+// 		}
+// 	}
+// 	return candidate;
+// }
 
 int Product_lattice::halving(double prob) const{
 	int candidate = 0;
@@ -197,17 +275,17 @@ int Product_lattice::halving(double prob) const{
 		for (s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
 			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
 			for (int variant = 0; variant < variant_; variant++) {
-				if ((experiment & (s_iter >> (variant * atom_))) != experiment) {
-					partition_id |= (1 << variant);
-				}
+				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
+				//evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way, 
+				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the 
+				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0 
+				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
+				partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * atom_))) - experiment) >> 31));
+				
 			}
 			partition_mass[partition_id] += post_probs_[s_iter];
 			partition_id = 0;
 		}
-		// for (int i = 0; i < totalStates(); i++) {
-		// System.out.print(partitionMap[i] + " ");
-		// }
-		// System.out.println();
 		double temp = 0.0;
 		for (int i = 0; i < (1 << variant_); i++) {
 			temp += std::abs(partition_mass[i] - prob);
@@ -243,9 +321,12 @@ int Product_lattice::halving_omp(double prob) const{
 		for (int s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
 			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
 			for (int variant = 0; variant < variant_; variant++) {
-				if ((experiment & (s_iter >> (variant * atom_))) != experiment) {
-					partition_id |= (1 << variant);
-				}
+				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
+				//evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way, 
+				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the 
+				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0 
+				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
+				partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * atom_))) - experiment) >> 31));
 			}
 			partition_mass[partition_id] += post_probs_[s_iter];
 			partition_id = 0;
@@ -277,9 +358,12 @@ void Product_lattice::halving(double prob, int rank, int world_size, Halving_res
 		for (int s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
 			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
 			for (int variant = 0; variant < variant_; variant++) {
-				if ((experiment & (s_iter >> (variant * atom_))) != experiment) {
-					partition_id |= (1 << variant);
-				}
+				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
+				//evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way, 
+				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the 
+				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0 
+				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
+				partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * atom_))) - experiment) >> 31));
 			}
 			partition_mass[partition_id] += post_probs_[s_iter];
 			partition_id = 0;
@@ -316,9 +400,12 @@ void Product_lattice::halving_omp(double prob, int rank, int world_size, Halving
 		for (int s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
 			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
 			for (int variant = 0; variant < variant_; variant++) {
-				if ((experiment & (s_iter >> (variant * atom_))) != experiment) {
-					partition_id |= (1 << variant);
-				}
+				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
+				//evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way, 
+				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the 
+				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0 
+				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
+				partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * atom_))) - experiment) >> 31));
 			}
 			partition_mass[partition_id] += post_probs_[s_iter];
 			partition_id = 0;

@@ -3,6 +3,8 @@
 #include "../product_lattice_model/product_lattice_dilution.hpp"
 #include "../product_lattice_model/product_lattice_non_dilution.hpp"
 #include <chrono>
+#include <sstream>
+#include <string>
 // #include <omp.h>
 
 int main(int argc, char* argv[]){
@@ -15,6 +17,10 @@ int main(int argc, char* argv[]){
     double thres_lo = 0.005;
     double thres_branch = 0.001;
     int search_depth = 5;
+
+    std::stringstream file_name;
+    file_name << "Multinomial-N=" << atom << "-k=" + variant << "-Prior=" << prior << "-Depth=" << search_depth << ".csv";
+    freopen(file_name.str().c_str(),"w",stdout);
 
     double pi0[atom * variant];
     for(int i = 0; i < atom * variant; i++){
@@ -37,7 +43,6 @@ int main(int argc, char* argv[]){
 
     Tree_stat* prim = new Tree_stat(search_depth, 1);
     Tree_stat* temp = new Tree_stat(search_depth, 1);
-    tree->parse(0, p, pi0, thres_branch, 1.0, prim);
 
     int total_st = p->total_state();
     for(int i = 0; i < total_st; i++){
