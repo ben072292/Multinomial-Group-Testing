@@ -1,6 +1,7 @@
 #include "product_lattice.hpp"
 #include <cstdlib>
 #include <limits>
+#include <cmath> // std:abs(double) support for older gcc
 
 Product_lattice::Product_lattice(int n_atom, int n_variant, double* pi0) : atom_(n_atom), variant_(n_variant){
 	pos_clas_ = 0;
@@ -203,9 +204,10 @@ double* Product_lattice::calc_probs(int experiment, int response, double** dilut
 		ret[iter] = post_probs_[iter] * response_prob(experiment, response, iter, dilution);
 		denominator += ret[iter];
 	}
+	double denominator_inv = 1 / denominator; // division has much higher instruction latency and throughput than multiplication
 	// #pragma omp parallel for schedule(static)
 	for (int i = 0; i < total_stat; i++) {
-		ret[i] /= denominator;
+		ret[i] *= denominator_inv;
 	}
 	return ret;
 }
@@ -224,6 +226,9 @@ void Product_lattice::calc_probs_in_place(int experiment, int response, double *
 	}
 }
 
+/**
+ * Implementation V2
+*/
 // int Product_lattice::halving(double prob) const{
 // 	int candidate = 0;
 // 	int s_iter;
@@ -259,21 +264,58 @@ void Product_lattice::calc_probs_in_place(int experiment, int response, double *
 // 	return candidate;
 // }
 
+// int Product_lattice::halving(double prob) const{
+// 	int candidate = 0;
+// 	int s_iter;
+// 	int experiment;
+// 	double min = 2.0;
+// 	int partition_id = 0;
+// 	double partition_mass[(1 << variant_)];
+// 	for (experiment = 0; experiment < (1 << atom_); experiment++) {
+// 		// reset partition_mass
+// 		for (int i = 0; i < (1 << variant_); i++)
+// 			partition_mass[i] = 0.0;
+// 		// tricky: for each state, check each variant of actively
+// 		// pooled subjects to see whether they are all 1.
+// 		for (s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
+// 			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+// 			for (int variant = 0; variant < variant_; variant++) {
+// 				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
+// 				//evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way, 
+// 				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the 
+// 				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0 
+// 				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
+// 				partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * atom_))) - experiment) >> 31));
+				
+// 			}
+// 			partition_mass[partition_id] += post_probs_[s_iter];
+// 			partition_id = 0;
+// 		}
+// 		double temp = 0.0;
+// 		for (int i = 0; i < (1 << variant_); i++) {
+// 			temp += std::abs(partition_mass[i] - prob);
+// 		}
+// 		if (temp < min) {
+// 			min = temp;
+// 			candidate = experiment;
+// 		}
+// 	}
+// 	return candidate;
+// }
+
 int Product_lattice::halving(double prob) const{
 	int candidate = 0;
 	int s_iter;
 	int experiment;
 	double min = 2.0;
 	int partition_id = 0;
-	double partition_mass[(1 << variant_)];
-	for (experiment = 0; experiment < (1 << atom_); experiment++) {
-		// reset partition_mass
-		for (int i = 0; i < (1 << variant_); i++)
-			partition_mass[i] = 0.0;
-		// tricky: for each state, check each variant of actively
-		// pooled subjects to see whether they are all 1.
-		for (s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
-			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+	double partition_mass[(1 << atom_) * (1 << variant_)]{0.0};
+	
+	// tricky: for each state, check each variant of actively
+	// pooled subjects to see whether they are all 1.
+	for (s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
+		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+		for (experiment = 0; experiment < (1 << atom_); experiment++) {
 			for (int variant = 0; variant < variant_; variant++) {
 				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
 				//evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way, 
@@ -281,20 +323,24 @@ int Product_lattice::halving(double prob) const{
 				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0 
 				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
 				partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * atom_))) - experiment) >> 31));
-				
+			
 			}
-			partition_mass[partition_id] += post_probs_[s_iter];
+			partition_mass[experiment * (1 << variant_) + partition_id] += post_probs_[s_iter];
 			partition_id = 0;
 		}
-		double temp = 0.0;
+	}
+	double temp = 0.0;
+	for (experiment = 0; experiment < (1 << atom_); experiment++) {
 		for (int i = 0; i < (1 << variant_); i++) {
-			temp += std::abs(partition_mass[i] - prob);
+			temp += std::abs(partition_mass[experiment * (1 << variant_) + i] - prob);
 		}
 		if (temp < min) {
 			min = temp;
 			candidate = experiment;
 		}
+		temp = 0.0;
 	}
+	
 	return candidate;
 }
 
@@ -306,20 +352,15 @@ void halving_min(Halving_res& a, Halving_res& b){
 }
 
 int Product_lattice::halving_omp(double prob) const{
-	Halving_res halving_res;
+	double partition_mass[(1 << atom_) * (1 << variant_)]{0.0};
 	
-	#pragma omp declare reduction(Halving_Min : Halving_res : halving_min(omp_out, omp_in)) initializer (omp_priv=Halving_res())
-	#pragma omp parallel for schedule(dynamic) reduction (Halving_Min : halving_res)
-	for (int experiment = 0; experiment < (1 << atom_); experiment++) {
-		// omp private variables;
-		int partition_id = 0;
-		double temp = 0.0;
-		double partition_mass[(1 << variant_)]{0.0};
-
-		// tricky: for each state, check each variant of actively
-		// pooled subjects to see whether they are all 1.
-		for (int s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
-			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+	// tricky: for each state, check each variant of actively
+	// pooled subjects to see whether they are all 1.
+	#pragma omp parallel for schedule(static) reduction (+ : partition_mass)
+	for (int s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
+		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+		for (int experiment = 0; experiment < (1 << atom_); experiment++) {
+			int partition_id = 0;
 			for (int variant = 0; variant < variant_; variant++) {
 				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
 				//evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way, 
@@ -327,36 +368,78 @@ int Product_lattice::halving_omp(double prob) const{
 				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0 
 				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
 				partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * atom_))) - experiment) >> 31));
+			
 			}
-			partition_mass[partition_id] += post_probs_[s_iter];
-			partition_id = 0;
+			partition_mass[experiment* (1 << variant_) + partition_id] += post_probs_[s_iter];
 		}
+	}
+	
+	Halving_res halving_res;
+	#pragma omp declare reduction(Halving_Min : Halving_res : halving_min(omp_out, omp_in)) initializer (omp_priv=Halving_res())
+	#pragma omp parallel for schedule(static) reduction (Halving_Min : halving_res)	
+	for (int experiment = 0; experiment < (1 << atom_); experiment++) {
+		double temp = 0.0;
 		for (int i = 0; i < (1 << variant_); i++) {
-			temp += std::abs(partition_mass[i] - prob);
+			temp += std::abs(partition_mass[experiment * (1 << variant_) + i] - prob);
 		}
 		if (temp < halving_res.min) {
 			halving_res.min = temp;
 			halving_res.candidate = experiment;
 		}
 	}
+	
 	return halving_res.candidate;
 }
+
+// void Product_lattice::halving(double prob, int rank, int world_size, Halving_res& halving_res) const{
+// 	halving_res.min = 2.0; // reset min
+// 	int partition_id = 0;
+// 	double partition_mass[(1 << variant_)];
+//     int start_experiment = (1 << atom_) / world_size * rank;
+//     int stop_experiment = (1 << atom_) / world_size * (rank+1); 
+
+// 	for (int experiment = start_experiment; experiment < stop_experiment; experiment++) {
+// 		// reset partition_mass
+// 		for (int i = 0; i < (1 << variant_); i++)
+// 			partition_mass[i] = 0.0;
+// 		// tricky: for each state, check each variant of actively
+// 		// pooled subjects to see whether they are all 1.
+// 		for (int s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
+// 			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+// 			for (int variant = 0; variant < variant_; variant++) {
+// 				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
+// 				//evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way, 
+// 				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the 
+// 				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0 
+// 				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
+// 				partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * atom_))) - experiment) >> 31));
+// 			}
+// 			partition_mass[partition_id] += post_probs_[s_iter];
+// 			partition_id = 0;
+// 		}
+// 		double temp = 0.0;
+// 		for (int i = 0; i < (1 << variant_); i++) {
+// 			temp += std::abs(partition_mass[i] - prob);
+// 		}
+// 		if (temp < halving_res.min) {
+// 			halving_res.min = temp;
+// 			halving_res.candidate = experiment;
+// 		}
+// 	}
+// }
 
 void Product_lattice::halving(double prob, int rank, int world_size, Halving_res& halving_res) const{
 	halving_res.min = 2.0; // reset min
 	int partition_id = 0;
-	double partition_mass[(1 << variant_)];
-    int start_experiment = (1 << atom_) / world_size * rank;
-    int stop_experiment = (1 << atom_) / world_size * (rank+1); 
+    const int start_experiment = (1 << atom_) / world_size * rank;
+    const int stop_experiment = (1 << atom_) / world_size * (rank+1); 
+	double partition_mass[(stop_experiment - start_experiment) * (1 << variant_)]{0.0};
 
-	for (int experiment = start_experiment; experiment < stop_experiment; experiment++) {
-		// reset partition_mass
-		for (int i = 0; i < (1 << variant_); i++)
-			partition_mass[i] = 0.0;
-		// tricky: for each state, check each variant of actively
-		// pooled subjects to see whether they are all 1.
-		for (int s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
-			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+	// tricky: for each state, check each variant of actively
+	// pooled subjects to see whether they are all 1.
+	for (int s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
+		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+		for (int experiment = start_experiment; experiment < stop_experiment; experiment++) {
 			for (int variant = 0; variant < variant_; variant++) {
 				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
 				//evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way, 
@@ -364,41 +447,38 @@ void Product_lattice::halving(double prob, int rank, int world_size, Halving_res
 				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0 
 				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
 				partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * atom_))) - experiment) >> 31));
+			
 			}
-			partition_mass[partition_id] += post_probs_[s_iter];
+			partition_mass[(experiment - start_experiment) * (1 << variant_) + partition_id] += post_probs_[s_iter];
 			partition_id = 0;
 		}
-		double temp = 0.0;
+	}
+	double temp = 0.0;
+	for (int experiment = start_experiment; experiment < stop_experiment; experiment++) {
 		for (int i = 0; i < (1 << variant_); i++) {
-			temp += std::abs(partition_mass[i] - prob);
+			temp += std::abs(partition_mass[(experiment - start_experiment) * (1 << variant_) + i] - prob);
 		}
 		if (temp < halving_res.min) {
 			halving_res.min = temp;
 			halving_res.candidate = experiment;
 		}
+		temp = 0.0;
 	}
 }
 
 void Product_lattice::halving_omp(double prob, int rank, int world_size, Halving_res& halving_res) const{
 	halving_res.min = 2.0; // reset min
     int start_experiment = (1 << atom_) / world_size * rank;
-    int stop_experiment = (1 << atom_) / world_size * (rank+1); 
+    int stop_experiment = (1 << atom_) / world_size * (rank+1);
+	double partition_mass[(stop_experiment - start_experiment) * (1 << variant_)]{0.0}; 
 
-	#pragma omp declare reduction(Halving_Min : Halving_res : halving_min(omp_out, omp_in)) initializer (omp_priv=Halving_res())
-	#pragma omp parallel for schedule(dynamic) reduction (Halving_Min : halving_res)
-	for (int experiment = start_experiment; experiment < stop_experiment; experiment++) {
-		// omp private variables;
+	#pragma omp parallel for schedule(static) reduction (+ : partition_mass)
+	// tricky: for each state, check each variant of actively
+	// pooled subjects to see whether they are all 1.
+	for (int s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
 		int partition_id = 0;
-		double partition_mass[(1 << variant_)];
-		double temp = 0.0;
-
-		// reset partition_mass
-		for (int i = 0; i < (1 << variant_); i++)
-			partition_mass[i] = 0.0;
-		// tricky: for each state, check each variant of actively
-		// pooled subjects to see whether they are all 1.
-		for (int s_iter = 0; s_iter < (1 << (atom_ * variant_)); s_iter++) {
-			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+		for (int experiment = start_experiment; experiment < stop_experiment; experiment++) {
 			for (int variant = 0; variant < variant_; variant++) {
 				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
 				//evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way, 
@@ -406,17 +486,25 @@ void Product_lattice::halving_omp(double prob, int rank, int world_size, Halving
 				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0 
 				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
 				partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * atom_))) - experiment) >> 31));
+			
 			}
-			partition_mass[partition_id] += post_probs_[s_iter];
+			partition_mass[(experiment - start_experiment) * (1 << variant_) + partition_id] += post_probs_[s_iter];
 			partition_id = 0;
 		}
+	}
+
+	#pragma omp declare reduction(Halving_Min : Halving_res : halving_min(omp_out, omp_in)) initializer (omp_priv=Halving_res())
+	#pragma omp parallel for schedule(static) reduction (Halving_Min : halving_res)
+	for (int experiment = start_experiment; experiment < stop_experiment; experiment++) {
+		double temp = 0.0;
 		for (int i = 0; i < (1 << variant_); i++) {
-			temp += std::abs(partition_mass[i] - prob);
+			temp += std::abs(partition_mass[(experiment - start_experiment) * (1 << variant_) + i] - prob);
 		}
 		if (temp < halving_res.min) {
 			halving_res.min = temp;
 			halving_res.candidate = experiment;
 		}
+		temp = 0.0;
 	}
 }
 
