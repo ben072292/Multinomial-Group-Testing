@@ -52,7 +52,14 @@ class Product_lattice{
 	bool is_classified() const;
 	int halving(double prob) const;
 	int halving_omp(double prob) const;
+	/**
+	 * Halving algorithm for MPI
+	*/
 	void halving(double prob, int rank, int world_size, Halving_res& halving_res) const; // for MPI split task
+
+	/**
+	 * Halving algorithm for hybrid OpenMP + MPI
+	*/
 	void halving_omp(double prob, int rank, int world_size, Halving_res& halving_res) const; // MPI + OpenMP
 	virtual double response_prob(int experiment, int response, int true_state, double** dilution) const = 0;
 	double** generate_dilution(double alpha, double h) const;
