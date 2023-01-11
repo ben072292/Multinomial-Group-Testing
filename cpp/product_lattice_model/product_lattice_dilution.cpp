@@ -5,8 +5,8 @@ double Product_lattice_dilution::response_prob(int experiment, int response, int
 	int experimentLength = __builtin_popcount(experiment);
     for (int variant = 0; variant < variant_; variant++) {
         ret *= (response & (1 << variant)) != 0
-			? dilution[experimentLength-1][experimentLength-__builtin_popcount(experiment & (true_state >> (variant * atom_)))] 
-			: 1.0 - dilution[experimentLength-1][experimentLength-__builtin_popcount(experiment & (true_state >> (variant * atom_)))];
+			? dilution[experimentLength-1][experimentLength-__builtin_popcount(experiment & (true_state >> (variant * curr_subj_)))] 
+			: 1.0 - dilution[experimentLength-1][experimentLength-__builtin_popcount(experiment & (true_state >> (variant * curr_subj_)))];
        
     }
     return ret;

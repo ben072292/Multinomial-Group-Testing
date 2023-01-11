@@ -22,7 +22,7 @@ int main(int argc, char* argv[]){
     Product_lattice* p = new Product_lattice_dilution(atom, variant, pi0);
 
     auto start = std::chrono::high_resolution_clock::now(); 
-    std::cout << p->halving_omp(0.25) << std::endl;
+    std::cout << p->halving(0.25) << std::endl;
     
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);

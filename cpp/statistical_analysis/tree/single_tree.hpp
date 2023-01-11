@@ -25,7 +25,7 @@ class Single_tree {
     inline int ex_res() const {return res_;}
     inline int ex_count() const {return lattice_->test_count();}
     inline int cur_stage() const {return cur_stage_;}
-    inline int atom() const {return lattice_->atom();}
+    inline int atom() const {return lattice_->curr_subj();}
     inline int variant() const {return lattice_->variant();}
     inline double branch_prob() const {return branch_prob_;}
     inline Single_tree **children() const {return children_;}

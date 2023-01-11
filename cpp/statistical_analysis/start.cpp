@@ -16,7 +16,7 @@ int main(int argc, char* argv[]){
     double thres_up = 0.005;
     double thres_lo = 0.005;
     double thres_branch = 0.001;
-    int search_depth = 5;
+    int search_depth = std::atoi(argv[4]);
 
     std::stringstream file_name;
     file_name << "Multinomial-N=" << atom << "-k=" + variant << "-Prior=" << prior << "-Depth=" << search_depth << ".csv";
@@ -53,11 +53,11 @@ int main(int argc, char* argv[]){
 
     std::cout << "N = " << atom << ", k = " << variant << std::endl;
     std::cout << "Prior: ";
-    for (int i = 0; i < p->nominal_pool_size(); i++){
+    for (int i = 0; i < p->curr_atoms(); i++){
         std::cout << pi0[i] << ", ";
     }
     std::cout << std::endl;
-    prim->output_detail(p->nominal_pool_size());
+    prim->output_detail(p->curr_atoms());
     
     // clean up memory
     delete prim;

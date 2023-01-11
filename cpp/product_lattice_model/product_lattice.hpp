@@ -10,7 +10,7 @@
 class Product_lattice{
 
 	protected:
-	int atom_;
+	int curr_subj_;
 	int variant_;
 	double* post_probs_;
 	int test_ct_;
@@ -23,8 +23,8 @@ class Product_lattice{
 	virtual ~Product_lattice();
 	virtual Product_lattice *create(int n_atom, int n_variant, double *pi9) const = 0;
 	virtual Product_lattice *clone(int assert) const = 0;
-	inline int atom() const {return atom_;}
-	inline void atom(int atom){atom_ = atom;}
+	inline int curr_subj() const {return curr_subj_;}
+	inline void curr_subj(int current){curr_subj_ = current;}
 	inline int variant() const {return variant_;};
 	inline void variant(int variant){variant_ = variant;}
 	inline int pos_clas() const {return pos_clas_;}
@@ -36,8 +36,8 @@ class Product_lattice{
 	void copy_posterior_probs(double* post_probs);
 	inline int test_count() const {return test_ct_;};
 	inline void test_count(int test_ct){test_ct_ = test_ct;};
-	inline int total_state() const {return (1 << (atom_ * variant_));}
-	inline int nominal_pool_size() const {return atom_ * variant_;}
+	inline int total_state() const {return (1 << (curr_subj_ * variant_));}
+	inline int curr_atoms() const {return curr_subj_ * variant_;}
 	int* get_up_set (int state, int* ret) const;
 	int* generate_power_set_adder(int* add_index, int state, int* ret) const;
 	void prior_probs(double* pi0);
