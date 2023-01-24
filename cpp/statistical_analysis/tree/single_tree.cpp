@@ -1,34 +1,35 @@
 #include "single_tree.hpp"
 #include <cmath>
 
-Single_tree::Single_tree(Product_lattice* lattice, int ex, int res, int cur_stage){
+Single_tree::Single_tree(Product_lattice* lattice, int ex, int res, int curr_stage){
     lattice_ = lattice;
     is_clas_ = lattice->is_classified();
     ex_ = ex;
     res_ = res;
-    cur_stage_ = cur_stage;
+    curr_stage_ = curr_stage;
     children_ = nullptr;
     branch_prob_ = 0.0; // must be 0.0 so that stat tree can generate correct info
 }
 
-Single_tree::Single_tree(Product_lattice* lattice, int ex, int res, int k, int cur_stage, double thres_up, double thres_lo, int stage, double** dilution) : Single_tree(lattice, ex, res, cur_stage){
-    if (!lattice->is_classified() && cur_stage < stage) {
-        children_ = new Single_tree*[1 << lattice->variant()];
+Single_tree::Single_tree(Product_lattice* lattice, int ex, int res, int k, int curr_stage, double thres_up, double thres_lo, int stage, double** dilution) : Single_tree(lattice, ex, res, curr_stage){
+    if (!lattice->is_classified() && curr_stage < stage) {
+        children_ = new Single_tree*[1 << lattice->variants()];
         // int halving = lattice->halving(1.0 / (1 << lattice->variant()));
-        int halving = lattice->halving_omp(1.0 / (1 << lattice->variant())); // openmp
-        for(int re = 0; re < (1 << lattice->variant()); re++){
-            if(re != (1 << lattice->variant())-1){
+        int halving = lattice->halving_omp(1.0 / (1 << lattice->variants())); // openmp
+        int ex = true_ex(halving); // full-sized experiment should be generated before posterior probability distribution is updated, because unupdated clas_subj_ should be used to calculate the correct value
+        for(int re = 0; re < (1 << lattice->variants()); re++){
+            if(re != (1 << lattice->variants())-1){
                 Product_lattice* p = lattice->clone(1);
                 p->update_probs(halving, re, thres_up, thres_lo, dilution);
-                children_[re] = new Single_tree(p, halving, re, k, cur_stage_+1, thres_up, thres_lo, stage, dilution);
+                children_[re] = new Single_tree(p, ex, re, k, curr_stage_+1, thres_up, thres_lo, stage, dilution);
             }
             else{ // reuse post_prob_ array in child to save memory
                 Product_lattice* p = lattice->clone(1);
                 lattice_->posterior_probs(nullptr); // detach post_prob_ from current lattice
                 p->update_probs_in_place(halving, re, thres_up, thres_lo, dilution);
-                children_[re] = new Single_tree(p, halving, re, k, cur_stage_+1, thres_up, thres_lo, stage, dilution);
+                children_[re] = new Single_tree(p, ex, re, k, curr_stage_+1, thres_up, thres_lo, stage, dilution);
             }
-        } 
+        }
     }
     else{ // clean in advance to save memory
         delete[] lattice->posterior_probs();
@@ -42,12 +43,12 @@ Single_tree::Single_tree(const Single_tree &other, bool deep){
     ex_ = other.ex_;
     res_ = other.res_;
     branch_prob_ = other.branch_prob_;
-    cur_stage_ = other.cur_stage_;
+    curr_stage_ = other.curr_stage_;
     children_ = nullptr;
     if(deep){
         if(other.children_ != nullptr){
-            children_ = new Single_tree*[1 << lattice_->variant()];
-            for(int i = 0; i < (1 << lattice_->variant()); i++){
+            children_ = new Single_tree*[1 << lattice_->variants()];
+            for(int i = 0; i < (1 << lattice_->variants()); i++){
                 children_[i] = new Single_tree(*other.children_[i], deep);
             }
         }
@@ -65,6 +66,21 @@ Single_tree::~Single_tree(){
         }
         delete[] children_;
     }
+}
+
+// Convert halving selection to full-size experiment (because of lattice shrinking).
+// This function should be called inside the tree before posterior probability update.
+// Also note it is recommended ot not use this function if lattice shrinking is disabled,
+// though initial evaluation shows no statistical changes.
+int Single_tree::true_ex(int halving){
+    int ret = 0, pos = 0;
+    for(int i = 0; i < lattice_->orig_subjs(); i++){
+        if(!(lattice_->clas_subjs() & (1 << i))){
+            if((halving & (1 << pos))) ret |= (1 << i);
+            ++pos;
+        }
+    }
+    return ret;
 }
 
 void Single_tree::parse(int true_state, const Product_lattice* org_lattice, double* pi0, double thres_branch, double sym_coef, Tree_stat* stat) const {
@@ -104,44 +120,34 @@ void Single_tree::parse(int true_state, const Product_lattice* org_lattice, doub
     delete leaves;
 }
 
-int Single_tree::actual_true_state() const{
-    int actual = 0;
-    int index = atom() * variant();
-    int neg_classification = neg_clas();
-    for(int i = 0; i < index; i++){
-        if((neg_classification & (1 << i)) != 0) actual += (1 << i);
-    }
-    return actual;
-}
-
-double Single_tree::total_positive() const{
-    return atom() * variant() - __builtin_popcount(actual_true_state());
-}
-
-double Single_tree::total_negative() const{
-    return __builtin_popcount(actual_true_state());
-}
-
 bool Single_tree::is_correct_clas(int true_state) const{
-    return actual_true_state() == true_state;
+    return lattice_->neg_clas() == true_state;
 }
 
-/**
- *  neg_clas ^ true_state filter out atoms that are wrongly classified
- *  then & true_state (1 means negative, 0 means positive) filters out wrong positives
- *  that was suppose to be negatives
-*/
+// neg_clas ^ true_state filter out atoms that are wrongly classified
+// then & true_state (1 means negative, 0 means positive) filters out wrong positives
+// that was suppose to be negatives
 double Single_tree::fp(int true_state) const{
-    return total_positive() == 0.0 ? 0.0 : __builtin_popcount((actual_true_state() ^ true_state) & true_state) / total_positive();
+    return total_positive() == 0.0 ? 0.0 : __builtin_popcount((lattice_->neg_clas() ^ true_state) & true_state) / total_positive();
 }
 
-/**
- *  neg_clas ^ true_state filter out atoms that are wrongly classified
- *  then & ~true_state (0 means negative, 1 means positive) filters out wrong negatives
- *  that was suppose to be positives
-*/
+// neg_clas ^ true_state filter out atoms that are wrongly classified
+// then & ~true_state (0 means negative, 1 means positive) filters out wrong negatives
+// that was suppose to be positives
 double Single_tree::fn(int true_state) const{
-    return total_negative() == 0.0 ? 0.0 : __builtin_popcount((actual_true_state() ^ true_state) & (~true_state)) / total_negative();
+    return total_negative() == 0.0 ? 0.0 : __builtin_popcount((lattice_->neg_clas() ^ true_state) & (~true_state)) / total_negative();
+}
+
+void Single_tree::find_all_leaves(const Single_tree* node, std::vector<const Single_tree*> *leaves){
+    if(node == nullptr) return;
+    if(node->children_ == nullptr){
+        leaves->push_back(node);
+    }
+    else{
+        for(int i = 0; i < (1 << node->variants()); i++){
+            find_all_leaves(node->children_[i], leaves);
+        }
+    }
 }
 
 void Single_tree::find_all_stat(const Single_tree* node, std::vector<const Single_tree*>* leaves, double thres_branch){
@@ -150,7 +156,7 @@ void Single_tree::find_all_stat(const Single_tree* node, std::vector<const Singl
         leaves->push_back(node);
     }
     else{
-        for(int i = 0; i < (1 << node->variant()); i++){
+        for(int i = 0; i < (1 << node->variants()); i++){
             find_all_stat(node->children_[i], leaves, thres_branch);
         }
     }
@@ -163,7 +169,7 @@ void Single_tree::find_clas_stat(const Single_tree* node, std::vector<const Sing
     }
     else{
         if(node->children_ != nullptr){
-            for(int i = 0; i < (1 << node->variant()); i++){
+            for(int i = 0; i < (1 << node->variants()); i++){
                 find_clas_stat(node->children_[i], leaves, thres_branch);
         }
         }
@@ -176,7 +182,7 @@ void Single_tree::find_unclas_stat(const Single_tree* node, std::vector<const Si
         leaves->push_back(node);
     }
     else if(node->children_ != nullptr && !node->is_clas_){
-        for(int i = 0; i < (1 << node->variant()); i++){
+        for(int i = 0; i < (1 << node->variants()); i++){
             find_unclas_stat(node->children_[i], leaves, thres_branch);
         }  
     }
@@ -190,7 +196,7 @@ void Single_tree::apply_true_state_helper(const Product_lattice* __restrict__ or
     if(node == nullptr) return;
     node->branch_prob_ = prob;
     if(node->children_ != nullptr){
-        for(int i = 0; i < (1 << node->variant()); i++){
+        for(int i = 0; i < (1 << node->variants()); i++){
             double child_prob = prob * org_lattice->response_prob(node->children_[i]->ex_, node->children_[i]->res_, true_state, dilution);
             if(child_prob > thres_branch){
                 apply_true_state_helper(org_lattice, node->children_[i], true_state, child_prob, thres_branch, dilution);
@@ -201,6 +207,8 @@ void Single_tree::apply_true_state_helper(const Product_lattice* __restrict__ or
         }
     }
 }
+
+
 
 
 

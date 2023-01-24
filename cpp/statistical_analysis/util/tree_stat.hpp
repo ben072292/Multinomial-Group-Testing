@@ -44,5 +44,5 @@ class Tree_stat{
     int total_leaves() const {return total_leaves_;}
     void total_leaves(int val){total_leaves_ = val;}
     void merge(Tree_stat* other);
-    void output_detail(int pool_size) const;
+    void output_detail() const;
 };

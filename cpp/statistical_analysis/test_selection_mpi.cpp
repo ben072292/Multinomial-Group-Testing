@@ -1,11 +1,10 @@
+#include "../core.hpp"
 #include "tree/single_tree.hpp"
 #include "tree/single_tree_mpi.hpp"
 #include "../product_lattice_model/product_lattice.hpp"
 #include "../product_lattice_model/product_lattice_dilution.hpp"
 #include "../product_lattice_model/product_lattice_non_dilution.hpp"
-#include <chrono>
-#include "mpi.h"
-#include <omp.h>
+// #include <omp.h>
 
 void create_halving_res_type(MPI_Datatype* halving_res_type){
     int lengths[2] = { 1, 1 };
@@ -77,7 +76,7 @@ int main(int argc, char* argv[]){
     double run_time2 = 0.0 - MPI_Wtime();
 
     Halving_res halving_res;   
-    p->halving(0.25, world_rank, world_size, halving_res);
+    p->halving_omp(0.25, world_rank, world_size, halving_res);
 
     run_time1 += MPI_Wtime();
     std::cout << "Time Consumption: " << run_time1 << "s" << std::endl;

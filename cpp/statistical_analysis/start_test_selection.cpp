@@ -1,11 +1,8 @@
+#include "../core.hpp"
 #include "tree/single_tree.hpp"
 #include "../product_lattice_model/product_lattice.hpp"
 #include "../product_lattice_model/product_lattice_dilution.hpp"
 #include "../product_lattice_model/product_lattice_non_dilution.hpp"
-#include <chrono>
-#include <sstream>
-#include <string>
-#include <omp.h>
 
 int main(int argc, char* argv[]){
 

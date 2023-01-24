@@ -2,10 +2,7 @@
 #include "../product_lattice_model/product_lattice_dilution.hpp"
 #include "../product_lattice_model/product_lattice_non_dilution.hpp"
 #include "../product_lattice_model/halving_res/halving_res.hpp"
-#include <chrono>
-#include <sstream>
-#include <string>
-#include "mpi.h"
+#include "../core.hpp"
 
 void create_halving_res_type(MPI_Datatype* halving_res_type){
     int lengths[2] = { 1, 1 };
@@ -110,8 +107,13 @@ int main(int argc, char* argv[]){
         for (int i = 0; i < p->curr_atoms(); i++){
             std::cout << pi0[i] << ", ";
         }
-        std::cout << std::endl;
-        prim->output_detail(p->curr_atoms());
+        
+        std::vector<const Single_tree*> *leaves = new std::vector<const Single_tree*>;
+        tree->find_all_leaves(tree, leaves);
+        std::cout << "Number of tree leaves," << leaves->size() << std::endl;
+        delete leaves;
+
+        prim->output_detail();
 
         // clean up memory
         delete prim;

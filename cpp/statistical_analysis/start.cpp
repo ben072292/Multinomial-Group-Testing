@@ -2,9 +2,7 @@
 #include "../product_lattice_model/product_lattice.hpp"
 #include "../product_lattice_model/product_lattice_dilution.hpp"
 #include "../product_lattice_model/product_lattice_non_dilution.hpp"
-#include <chrono>
-#include <sstream>
-#include <string>
+#include "../core.hpp"
 // #include <omp.h>
 
 int main(int argc, char* argv[]){
@@ -34,10 +32,6 @@ int main(int argc, char* argv[]){
     double** dilution = p->generate_dilution(0.99, 0.005);
 
     Single_tree* tree = new Single_tree(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
-
-    // std::vector<const Single_tree*> *leaves = new std::vector<const Single_tree*>;
-    // Single_tree::find_all(tree, leaves);
-    // std::cout << leaves->size() << std::endl;
     
     tree->apply_true_state(p, 0, thres_branch, dilution);
 
@@ -56,8 +50,13 @@ int main(int argc, char* argv[]){
     for (int i = 0; i < p->curr_atoms(); i++){
         std::cout << pi0[i] << ", ";
     }
-    std::cout << std::endl;
-    prim->output_detail(p->curr_atoms());
+
+    std::vector<const Single_tree*> *leaves = new std::vector<const Single_tree*>;
+    tree->find_all_leaves(tree, leaves);
+    std::cout << "Number of tree leaves," << leaves->size() << std::endl;
+    delete leaves;
+    
+    prim->output_detail();
     
     // clean up memory
     delete prim;

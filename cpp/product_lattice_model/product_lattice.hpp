@@ -1,7 +1,7 @@
 #pragma once
 
 #include "halving_res/halving_res.hpp"
-#include <iostream>
+#include "../core.hpp"
 /*
  * READ BEFORE USE:
  * In this version of lattice model, state is represented using A0B0A1B1...
@@ -10,12 +10,14 @@
 class Product_lattice{
 
 	protected:
-	int curr_subj_;
-	int variant_;
-	double* post_probs_;
-	int test_ct_;
-	int pos_clas_;
-	int neg_clas_;
+	int curr_subj_; // counter
+	int variant_; // counter
+	double* post_probs_; 
+	int test_ct_ = 0; // counter
+	int pos_clas_ = 0; // BE (binary encoding)
+	int neg_clas_ = 0; // BE
+	// variables used for lattice shrinking
+	int clas_subjs_ = 0; // BE
 
 	public:
 	Product_lattice(int n_atom, int n_variant, double* pi0);
@@ -23,10 +25,10 @@ class Product_lattice{
 	virtual ~Product_lattice();
 	virtual Product_lattice *create(int n_atom, int n_variant, double *pi9) const = 0;
 	virtual Product_lattice *clone(int assert) const = 0;
-	inline int curr_subj() const {return curr_subj_;}
-	inline void curr_subj(int current){curr_subj_ = current;}
-	inline int variant() const {return variant_;};
-	inline void variant(int variant){variant_ = variant;}
+	inline int curr_subjs() const {return curr_subj_;}
+	// inline void curr_subj(int current){curr_subj_ = current;}
+	inline int variants() const {return variant_;};
+	// inline void variant(int variant){variant_ = variant;}
 	inline int pos_clas() const {return pos_clas_;}
 	inline void pos_clas(int val) {pos_clas_ = val;}
 	inline int neg_clas() const {return neg_clas_;}
@@ -35,11 +37,14 @@ class Product_lattice{
 	inline void posterior_probs(double* post_probs){post_probs_ = post_probs;}
 	void copy_posterior_probs(double* post_probs);
 	inline int test_count() const {return test_ct_;};
-	inline void test_count(int test_ct){test_ct_ = test_ct;};
+	// inline void test_count(int test_ct){test_ct_ = test_ct;};
 	inline int total_state() const {return (1 << (curr_subj_ * variant_));}
 	inline int curr_atoms() const {return curr_subj_ * variant_;}
+	inline int orig_atoms() const {return orig_subjs() * variant_;}
+	inline int orig_subjs() const {return curr_subj_ + __builtin_popcount(clas_subjs_);}
+	inline int clas_subjs() const {return clas_subjs_;}
 	int* get_up_set (int state, int* ret) const;
-	int* generate_power_set_adder(int* add_index, int state, int* ret) const;
+	int* generate_power_set_adder(int* add_index, int index_len_binary, int state, int* ret) const;
 	void prior_probs(double* pi0);
 	double prior_prob(int state, double* pi0) const;
 	void reset_test_count(){test_ct_ = 0;};
@@ -48,6 +53,7 @@ class Product_lattice{
 	double* calc_probs(int experiment, int response, double** dilution);
 	void calc_probs_in_place(int experiment, int response, double** dilution);
 	void update_metadata(double thres_up, double thres_lo);
+	void update_metadata_with_shrinking(double thres_up, double thres_lo);
 	double get_prob_mass(int state) const;
 	bool is_classified() const;
 	int halving(double prob) const;

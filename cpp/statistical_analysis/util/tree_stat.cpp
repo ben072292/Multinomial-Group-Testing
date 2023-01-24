@@ -27,12 +27,10 @@ void Tree_stat::merge(Tree_stat* other){
     exp_test_ += other->exp_test_;
     stage_sd_ += other->stage_sd_;
     test_sd_ += other->test_sd_;
-    total_leaves_ += other->total_leaves_;
 }
 
-void Tree_stat::output_detail(int pool_size) const{
+void Tree_stat::output_detail() const{
     std::cout << "\n\nStatistics: \n\n"
-              << "Average Leaves:," << total_leaves() / (1 << pool_size) << "\n"
               << "Stagewise Statistics\n"
               << "Stage,Classification,FP,FN\n";
     

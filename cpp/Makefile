@@ -20,6 +20,9 @@ mpi_ts:
 ts: 
 	$(GCC) -std=c++11 -O3 -Wall -fopenmp $(ANALYSIS)/start_test_selection.cpp $(ANALYSIS)/$(TREE)/single_tree.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp -o gtts
 
+test:
+	$(GCC) -std=c++11 -O3 -Wall -fopenmp $(ANALYSIS)/lattice_shrinking_test.cpp $(ANALYSIS)/$(TREE)/single_tree.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp -o gttest
+
 .PHONY: clean
 clean:
-	rm gt*
+	rm -rf gt*
