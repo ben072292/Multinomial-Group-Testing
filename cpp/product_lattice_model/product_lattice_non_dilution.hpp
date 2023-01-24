@@ -6,15 +6,13 @@ class Product_lattice_non_dilution : public Product_lattice{
     // Product_lattice_non_dilution(); // default constructor
     Product_lattice_non_dilution(int n_atom, int n_variant, double* pi0) : Product_lattice(n_atom, n_variant, pi0){}
 
-    Product_lattice_non_dilution(Product_lattice_non_dilution const &other, int assert) : Product_lattice(other, assert){}
+    Product_lattice_non_dilution(Product_lattice_non_dilution const &other, int copy_op) : Product_lattice(other, copy_op){}
 
     Product_lattice_non_dilution *create(int n_atom, int n_variant, double *pi0) const {return new Product_lattice_non_dilution(n_atom, n_variant, pi0);}
 
     Product_lattice_non_dilution *clone(int assert) const {return new Product_lattice_non_dilution(*this, assert);}
 
-    int halving_MPI(double prob, int rank, int world_size) const;
+    double response_prob(bin_enc experiment, bin_enc response, bin_enc true_state, double** dilution) const;
 
-    double response_prob(int experiment, int response, int true_state, double** dilution) const;
-
-    virtual void type(){std::cout << "Lattice Model Non Dilution" << std::endl;}
+    std::string type() const {return "Non-Dilution";}
 };

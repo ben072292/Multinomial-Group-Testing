@@ -1,9 +1,8 @@
-#include "tree/single_tree.hpp"
+#include "tree/global_tree.hpp"
 #include "../product_lattice_model/product_lattice.hpp"
 #include "../product_lattice_model/product_lattice_dilution.hpp"
 #include "../product_lattice_model/product_lattice_non_dilution.hpp"
 #include "../core.hpp"
-// #include <omp.h>
 
 int main(int argc, char* argv[]){
 
@@ -11,27 +10,25 @@ int main(int argc, char* argv[]){
     int atom = std::atoi(argv[1]);
     int variant = std::atoi(argv[2]);
     double prior = std::atof(argv[3]);
-    double thres_up = 0.005;
-    double thres_lo = 0.005;
+    double thres_up = 0.01;
+    double thres_lo = 0.01;
     double thres_branch = 0.001;
     int search_depth = std::atoi(argv[4]);
-
-    std::stringstream file_name;
-    file_name << "Multinomial-N=" << atom << "-k=" + variant << "-Prior=" << prior << "-Depth=" << search_depth << ".csv";
-    freopen(file_name.str().c_str(),"w",stdout);
 
     double pi0[atom * variant];
     for(int i = 0; i < atom * variant; i++){
         pi0[i] = prior;
     }
 
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start_tree_construction = std::chrono::high_resolution_clock::now();
 
-    Product_lattice* p = new Product_lattice_dilution(atom, variant, pi0);
+    Product_lattice* p = new Product_lattice_non_dilution(atom, variant, pi0);
 
     double** dilution = p->generate_dilution(0.99, 0.005);
 
-    Single_tree* tree = new Single_tree(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
+    Global_tree* tree = new Global_tree(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
+
+    auto stop_tree_construction = std::chrono::high_resolution_clock::now();
     
     tree->apply_true_state(p, 0, thres_branch, dilution);
 
@@ -45,16 +42,17 @@ int main(int argc, char* argv[]){
         prim->merge(temp);
     }
 
+    std::stringstream file_name;
+    file_name << "Multinomial-" << p->type() << "-N=" << atom << "-k=" + variant << "-Prior=" << prior << "-Depth=" << search_depth << "-" << get_curr_time() << ".csv";
+    freopen(file_name.str().c_str(),"w",stdout);
+
     std::cout << "N = " << atom << ", k = " << variant << std::endl;
     std::cout << "Prior: ";
     for (int i = 0; i < p->curr_atoms(); i++){
         std::cout << pi0[i] << ", ";
     }
 
-    std::vector<const Single_tree*> *leaves = new std::vector<const Single_tree*>;
-    tree->find_all_leaves(tree, leaves);
-    std::cout << "Number of tree leaves," << leaves->size() << std::endl;
-    delete leaves;
+    std::cout << std::endl << std::endl << tree->shrinking_stat();
     
     prim->output_detail();
     
@@ -69,7 +67,11 @@ int main(int argc, char* argv[]){
 
     delete tree;
 
-    auto stop = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-    std::cout << "\nTime Consumption: " << duration.count()/1e6 << " Second." << std::endl;
+    auto stop_statistical_analysis = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
+    std::cout << "\nGlobal Tree Construction Time: " << duration.count()/1e6 << " Second." << std::endl;
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - stop_tree_construction);
+    std::cout << "Statistical Analysis Time: " << duration.count()/1e6 << " Second." << std::endl;
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
+    std::cout << "Total Time: " << duration.count()/1e6 << " Second." << std::endl;
 }

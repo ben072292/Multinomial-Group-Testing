@@ -1,6 +1,6 @@
 #include "../core.hpp"
-#include "tree/single_tree.hpp"
-#include "tree/single_tree_mpi.hpp"
+#include "tree/global_tree.hpp"
+#include "tree/global_tree_mpi.hpp"
 #include "../product_lattice_model/product_lattice.hpp"
 #include "../product_lattice_model/product_lattice_dilution.hpp"
 #include "../product_lattice_model/product_lattice_non_dilution.hpp"

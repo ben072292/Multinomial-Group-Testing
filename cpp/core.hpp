@@ -17,10 +17,19 @@
 #include <chrono>
 #include <string>
 #include <sstream>
+#include <iomanip>
+#include <ctime>
 #include "/opt/homebrew/include/mpi.h"
 
-inline std::string to_binary(int n, int len)
-{
+// Differentiate binary encoded states from regular index
+typedef int bin_enc;
+
+// Product_lattice copy operation
+#define NO_COPY_PROB_DIST 0
+#define SHALLOW_COPY_PROB_DIST 1
+#define DEEP_COPY_PROB_DIST 2
+
+inline std::string to_binary(bin_enc n, int len){
     std::string r;
     while(n!=0) {r=(n%2==0 ?"0":"1")+r; n/=2;}
     int curr_len = r.length();
@@ -28,6 +37,14 @@ inline std::string to_binary(int n, int len)
         r = "0" + r;
     }
     return r;
+}
+
+inline std::string get_curr_time(){
+    auto t = std::time(nullptr);
+    auto tm = *std::localtime(&t);
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y-%m-%d-%H-%M-%S");
+    return oss.str();
 }
 
 #endif

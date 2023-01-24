@@ -5,7 +5,7 @@ class Product_lattice_dilution : public Product_lattice{
     public:
     Product_lattice_dilution(int n_atom, int n_variant, double* pi0):Product_lattice(n_atom, n_variant, pi0){}
 
-	Product_lattice_dilution(Product_lattice_dilution const &other, int assert) : Product_lattice(other, assert){}
+	Product_lattice_dilution(Product_lattice_dilution const &other, int copy_op) : Product_lattice(other, copy_op){}
 
     Product_lattice_dilution *create(int n_atom, int n_variant, double *pi0) const {return new Product_lattice_dilution(n_atom, n_variant, pi0);}
 
@@ -13,7 +13,7 @@ class Product_lattice_dilution : public Product_lattice{
 
     int halving_MPI(double prob, int rank, int world_size) const;
 
-    double response_prob(int experiment, int response, int true_state, double** dilution) const;
+    double response_prob(bin_enc experiment, bin_enc response, bin_enc true_state, double** dilution) const;
 
-    virtual void type(){std::cout << "Lattice Model Dilution" << std::endl;}
+    std::string type() const {return "Dilution";}
 };
