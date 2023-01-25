@@ -6,7 +6,12 @@
 
 int main(int argc, char* argv[]){
     // Initialize the MPI environment
-    MPI_Init(&argc, &argv);
+    int provided_thread_level;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided_thread_level);
+    if(provided_thread_level < MPI_THREAD_FUNNELED){
+        std::cout << "The threading support level is lesser than that demanded.\n";
+        MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    }
 
     // Get the number of processes
     int world_size;
@@ -51,7 +56,7 @@ int main(int argc, char* argv[]){
 
     Halving_res halving_res;
     // auto mpi_time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::nanoseconds::zero());
-    // Global_tree* tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, world_rank, world_size, &halving_op, &halving_res_type, halving_res, mpi_time);
+    // Global_tree* tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, world_rank, world_size, &halving_op, &halving_res_type, halving_res, &mpi_time);
 
     Global_tree* tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, world_rank, world_size, &halving_op, &halving_res_type, halving_res);
 
