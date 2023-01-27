@@ -51,6 +51,8 @@ class Product_lattice{
 	double get_prob_mass(bin_enc state) const;
 	bin_enc halving(double prob) const;
 	bin_enc halving_omp(double prob) const;
+	// using compiler intrinsics
+	bin_enc halving_AVX2(double prob) const;
 	// For MPI
 	void halving(double prob, int rank, int world_size, Halving_res& halving_res) const; 
 	// For hybrid OpenMP + MPI

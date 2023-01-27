@@ -1,5 +1,6 @@
 #include "product_lattice.hpp"
 #include "lattice_shrinking/lattice_shrinking.hpp"
+#include "intrin_helper.h"
 
 Product_lattice::Product_lattice(int subjs, int variants, double* pi0) : _curr_subjs(subjs), _variants(variants){
     _post_probs = new double[(1 << (_curr_subjs * _variants))];
@@ -372,6 +373,66 @@ bin_enc Product_lattice::halving(double prob) const{
 			partition_id = 0;
 		}
 	}
+	double temp = 0.0;
+	for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++) {
+		for (bin_enc i = 0; i < (1 << _variants); i++) {
+			temp += std::abs(partition_mass[experiment * (1 << _variants) + i] - prob);
+		}
+		if (temp < min) {
+			min = temp;
+			candidate = experiment;
+		}
+		temp = 0.0;
+	}
+	
+	return candidate;
+}
+
+bin_enc Product_lattice::halving_AVX2(double prob) const{
+	bin_enc candidate = 0;
+	double min = 2.0;
+	__m256i partition_id = AVX2_integer(0); //int partition_id = 0;
+	double partition_mass[(1 << _curr_subjs) * (1 << _variants)]{0.0};
+	
+	// tricky: for each state, check each variant of actively
+	// pooled subjects to see whether they are all 1.
+	__m256i variant_shift[_variants], subject_shift[_variants];
+	for(int variant = 0; variant < _variants; variant++) variant_shift[variant] = AVX2_integer((1 << variant)); // (1 << variant)
+
+	for (bin_enc s_iter = 0; s_iter < (1 << (_curr_subjs * _variants)); s_iter++) {
+		// __m256d post_prob = AVX2_double(_post_probs[s_iter]);
+		for(int variant = 0; variant < _variants; variant++) subject_shift[variant] = AVX2_integer((s_iter >> (variant * _curr_subjs)));  // s_iter >> (variant * _curr_subjs)
+		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment+=8) {
+			__m256i experiment_vec = _mm256_set_epi32(experiment, experiment+1, experiment+2, experiment+3, experiment+4, experiment+5, experiment+6, experiment+7);
+			for (int variant = 0; variant < _variants; variant++) {
+				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
+				// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way, 
+				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the 
+				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0 
+				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
+
+				
+				// partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * _curr_subjs))) - experiment) >> 31));
+
+				__m256i a = AVX2_bitwise_AND(experiment_vec, subject_shift[variant]); // (experiment & (s_iter >> (variant * _curr_subjs)
+				__m256i b = AVX2_substract(a, experiment_vec); // ((experiment & (s_iter >> (variant * _curr_subjs))) - experiment)
+				__m256i c = AVX2_bitwise_rshift(b, 31); // (((experiment & (s_iter >> (variant * _curr_subjs))) - experiment) >> 31)
+				__m256i d = AVX2_bitwise_AND(variant_shift[variant], c); // ((1 << variant) & (((experiment & (s_iter >> (variant * _curr_subjs))) - experiment) >> 31))
+				__m256i partition_id = AVX2_bitwise_OR(partition_id, d); // partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * _curr_subjs))) - experiment) >> 31));
+
+			
+			}
+			__m256i partition_pos = AVX2_add(AVX2_mul(AVX2_integer((1 << _variants)), experiment_vec), partition_id);
+			alignas(32) int pos[8];
+			vec_to_int(partition_pos, pos);
+			for(int i = 0; i < 8; i++) partition_mass[pos[i]] += _post_probs[s_iter];
+			// partition_mass[experiment * (1 << _variants) + partition_id] += _post_probs[s_iter];
+			partition_id = AVX2_integer(0); //partition_id = 0;
+		}
+	}
+
+	
 	double temp = 0.0;
 	for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++) {
 		for (bin_enc i = 0; i < (1 << _variants); i++) {

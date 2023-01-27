@@ -19,7 +19,30 @@
 #include <sstream>
 #include <iomanip>
 #include <ctime>
-#include "/opt/homebrew/include/mpi.h"
+#include <mpi.h>
+
+// intrinsics, support intel and arm for now
+#ifdef __x86_64__
+    #include <immintrin.h> //AVX, AVX2, FMA, AVX-512
+    #include <stdalign.h>
+#else
+    #include <sse2neon>
+#endif
+
+// force inline
+#if defined(__clang__)
+#define FORCE_INLINE [[gnu::always_inline]] [[gnu::gnu_inline]] extern inline
+
+#elif defined(__GNUC__)
+#define FORCE_INLINE [[gnu::always_inline]] inline
+
+#elif defined(_MSC_VER)
+#pragma warning(error: 4714)
+#define FORCE_INLINE __forceinline
+
+#else
+#error Unsupported compiler
+#endif
 
 // Differentiate binary encoded states from regular index
 typedef int bin_enc;
