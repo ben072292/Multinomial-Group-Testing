@@ -17,6 +17,7 @@ class Global_tree {
     public:
     Global_tree(Product_lattice* lattice, bin_enc ex, bin_enc res, int curr_stage);
     Global_tree(Product_lattice* lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double thres_up, double thres_lo, int stage, double** dilution);
+    Global_tree(Product_lattice* lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double thres_up, double thres_lo, int stage, double** dilution, std::chrono::nanoseconds halving_times[]);
     Global_tree(const Global_tree &other, bool deep);
     virtual ~Global_tree();
     void increase_stage(int k, double thres_up, double thres_lo, int stage);

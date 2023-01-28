@@ -30,7 +30,7 @@ void Tree_stat::merge(Tree_stat* other){
 }
 
 void Tree_stat::output_detail() const{
-    std::cout << "\n\nStatistics: \n\n"
+    std::cout << "\n\nClassification Statistics: \n\n"
               << "Stagewise Statistics\n"
               << "Stage,Classification,FP,FN\n";
     

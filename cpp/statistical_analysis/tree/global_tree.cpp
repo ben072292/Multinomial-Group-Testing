@@ -37,6 +37,35 @@ Global_tree::Global_tree(Product_lattice* lattice, bin_enc ex, bin_enc res, int 
     }
 }
 
+Global_tree::Global_tree(Product_lattice* lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double thres_up, double thres_lo, int stage, double** dilution, std::chrono::nanoseconds halving_times[]) : Global_tree(lattice, ex, res, curr_stage){
+    auto start = std::chrono::high_resolution_clock::now(), end = start;
+    if (!lattice->is_classified() && curr_stage < stage) {
+        _children = new Global_tree*[1 << lattice->variants()];
+        // int halving = lattice->halving(1.0 / (1 << lattice->variant()));
+        bin_enc halving = lattice->halving_omp(1.0 / (1 << lattice->variants())); // openmp
+        end = std::chrono::high_resolution_clock::now();
+        halving_times[_lattice->curr_subjs()] += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+        bin_enc ex = true_ex(halving); // full-sized experiment should be generated before posterior probability distribution is updated, because unupdated clas_subj_ should be used to calculate the correct value
+        for(bin_enc re = 0; re < (1 << lattice->variants()); re++){
+            if(re != (1 << lattice->variants())-1){
+                Product_lattice* p = lattice->clone(SHALLOW_COPY_PROB_DIST);
+                p->update_probs(halving, re, thres_up, thres_lo, dilution);
+                _children[re] = new Global_tree(p, ex, re, k, _curr_stage+1, thres_up, thres_lo, stage, dilution, halving_times);
+            }
+            else{ // reuse post_prob_ array in child to save memory
+                Product_lattice* p = lattice->clone(SHALLOW_COPY_PROB_DIST);
+                _lattice->posterior_probs(nullptr); // detach post_prob_ from current lattice
+                p->update_probs_in_place(halving, re, thres_up, thres_lo, dilution);
+                _children[re] = new Global_tree(p, ex, re, k, _curr_stage+1, thres_up, thres_lo, stage, dilution, halving_times);
+            }
+        }
+    }
+    else{ // clean in advance to save memory
+        delete[] lattice->posterior_probs();
+        lattice->posterior_probs(nullptr);
+    }
+}
+
 Global_tree::Global_tree(const Global_tree &other, bool deep){
     _lattice = other._lattice->clone(NO_COPY_PROB_DIST);
     _is_clas = other._is_clas;

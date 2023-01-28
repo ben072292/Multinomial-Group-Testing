@@ -99,7 +99,7 @@ void Product_lattice::update_metadata(double thres_up, double thres_lo){
 		if ((_pos_clas_atoms | _neg_clas_atoms) & placement)
 			continue; // skip checking since it's already classified as either positive or negative
 		bin_enc atom = 1 << i;
-		double prob_mass = get_prob_mass(atom);
+		double prob_mass = get_atom_prob_mass(atom);
 
 		#pragma omp critical // nominal_pool_size is small so omit contention overhead
         {
@@ -116,32 +116,32 @@ void Product_lattice::update_metadata_with_shrinking(double thres_up, double thr
 	int orig_subjs = this->orig_subjs(); // called at the beginning to ensure correct value
 	bin_enc curr_clas_atoms = 0; // same size as curr layout
 	int curr_atoms = _curr_subjs * _variants;
+	bin_enc new_curr_clas_atoms = 0;
+	bin_enc new_pos_clas_atoms = 0;
+	bin_enc new_neg_clas_atoms = 0;
 
-	#pragma omp parallel for schedule(dynamic)
+	#pragma omp parallel for schedule(dynamic) reduction (+ : new_curr_clas_atoms, new_pos_clas_atoms, new_neg_clas_atoms)
     for (int i = 0; i < orig_subjs * _variants; i++) {
 		bin_enc orig_index = (1 << i); // binary index in decimal for original layout
 		bin_enc curr_index = orig_curr_ind_conv(i, _clas_subjs, orig_subjs, _variants); // binary index in decimal for current layout
-		if ((clas_atoms & orig_index)){
-			#pragma omp critical
-			{
-			curr_clas_atoms |= curr_index; // update 
-			}
+		if((clas_atoms & orig_index)){
+			new_curr_clas_atoms |= curr_index;
 		}
 		else{
-			double prob_mass = get_prob_mass(curr_index);
-			#pragma omp critical // nominal_pool_size is small so omit contention overhead
-        	{
+			double prob_mass = get_atom_prob_mass(curr_index);
 			if (prob_mass < thres_lo){ // classified as positive
-				_pos_clas_atoms |= orig_index;
-				curr_clas_atoms |= curr_index;
+				new_curr_clas_atoms |= curr_index;
+				new_pos_clas_atoms |= orig_index;
 			}
 			else if (prob_mass > (1 - thres_up)){ // classified as positive
-				_neg_clas_atoms |= orig_index;
-				curr_clas_atoms |= curr_index;
-			}
+				new_curr_clas_atoms |= curr_index;
+				new_neg_clas_atoms |= orig_index;
 			}
 		}
 	}
+	curr_clas_atoms = new_curr_clas_atoms;
+	_pos_clas_atoms |= new_pos_clas_atoms;
+	_neg_clas_atoms |= new_neg_clas_atoms;
 
 	curr_clas_atoms = curr_shrinkable_atoms(curr_clas_atoms, _curr_subjs, _variants);
 	if(!curr_clas_atoms) return; // if no new classifications, we skip the rest
@@ -173,10 +173,6 @@ void Product_lattice::update_metadata_with_shrinking(double thres_up, double thr
 	for (int i = 0; i < (1 << base_count); i++) {
 		ele_base = 0;
 		for (int j = 0; j < base_count; j++) {
-			/*
-			 * Check if j-th bit in the counter is set If set then print j-th element from
-			 * set
-			 */
 			if ((i & (1 << j))) {
 				ele_base |= base_index[j];
 			}
@@ -184,17 +180,12 @@ void Product_lattice::update_metadata_with_shrinking(double thres_up, double thr
 		for(int k = 0; k < (1 << reduce_count); k++){
 			ele_reduce = 0;
 			for(int l = 0; l < reduce_count; l++){
-				/*
-			 	* Check if j-th bit in the counter is set If set then print j-th element from
-			 	* set
-			 	*/
 			 	if((k & (1 << l))) {
 					ele_reduce |= reduce_index[l];
 				}
 			}
 			if(i != ele_base + ele_reduce)
 				_post_probs[i] += _post_probs[ele_base + ele_reduce]; // in-place modfication because each state is uniquely merged
-			// std::cout << i << " " << ele_base + ele_reduce << " " << post_probs_[ele_base + ele_reduce] << std::endl;
 		}
 	}
 	delete[] base_index;
@@ -203,6 +194,7 @@ void Product_lattice::update_metadata_with_shrinking(double thres_up, double thr
 	_curr_subjs = orig_subjs - __builtin_popcount(_clas_subjs);
 }
 
+// Active generation
 double Product_lattice::get_prob_mass(bin_enc state) const{
     double ret = 0.0;
 	int n = curr_atoms() - __builtin_popcount(state), pow_set_size = 1 << n;
@@ -220,10 +212,6 @@ double Product_lattice::get_prob_mass(bin_enc state) const{
 	for (int i = 0; i < pow_set_size; i++) {
 		temp = state;
 		for (int j = 0; j < n; j++) {
-			/*
-			 * Check if j-th bit in the counter is set If set then print j-th element from
-			 * set
-			 */
 			if ((i & (1 << j))) {
 				temp |= add_index[j];
 			}
@@ -236,6 +224,18 @@ double Product_lattice::get_prob_mass(bin_enc state) const{
 	
 }
 
+// Exhaustive traversal is faster than active generation for atoms
+double Product_lattice::get_atom_prob_mass(bin_enc atom) const{
+	double ret = 0.0;
+	// #pragma omp parallel for reduction (+ : ret)
+	for(int i = 0; i < (1 << curr_atoms()); i++){
+		if((i & atom) == atom){
+			ret += _post_probs[i];
+		}
+	}
+	return ret;
+}
+
 /**
  * experiment is an integer with range (0, 2^N)
  * response is an integer with range [0, 2^k)
@@ -244,13 +244,13 @@ double* Product_lattice::calc_probs(bin_enc experiment, bin_enc response, double
 	bin_enc total_state = 1 << (_curr_subjs * _variants);
 	double* ret = new double[total_state];
 	double denominator = 0.0;
-	// #pragma omp parallel for schedule(static) reduction (+ : denominator) // INVESTIGATE: slowdown than serial
+	// #pragma omp parallel for reduction (+ : denominator) // INVESTIGATE: slowdown than serial
 	for (bin_enc i = 0; i < total_state; i++) {
 		ret[i] = _post_probs[i] * response_prob(experiment, response, i, dilution);
 		denominator += ret[i];
 	}
-	double denominator_inv = 1 / denominator; // division has much higher instruction latency and throughput than multiplication
-	// #pragma omp parallel for schedule(static)
+	double denominator_inv = 1 / denominator; // division has much higher instruction latency and throughput than multiplication (however latency is not that important since we have many independent divison operations)
+	// #pragma omp parallel for
 	for (bin_enc i = 0; i < total_state; i++) {
 		ret[i] *= denominator_inv;
 	}
@@ -309,6 +309,9 @@ void Product_lattice::calc_probs_in_place(bin_enc experiment, bin_enc response, 
 // 	return candidate;
 // }
 
+/**
+ * Implementation V3
+*/
 // int Product_lattice::halving(double prob) const{
 // 	int candidate = 0;
 // 	int s_iter;
@@ -434,6 +437,9 @@ bin_enc Product_lattice::halving_omp(double prob) const{
 	return halving_res.candidate;
 }
 
+/**
+ * Implementation V3
+*/
 // void Product_lattice::halving(double prob, int rank, int world_size, Halving_res& halving_res) const{
 // 	halving_res.min = 2.0; // reset min
 // 	int partition_id = 0;
@@ -550,8 +556,6 @@ void Product_lattice::halving_omp(double prob, int rank, int world_size, Halving
 		temp = 0.0;
 	}
 }
-
-// int product_lattice::halving_parallel(double prob);
 
 double** Product_lattice::generate_dilution(double alpha, double h) const{
 	double** ret = new double*[_curr_subjs];

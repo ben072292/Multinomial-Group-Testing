@@ -19,14 +19,18 @@ int main(int argc, char* argv[]){
     for(int i = 0; i < atom * variant; i++){
         pi0[i] = prior;
     }
-
-    auto start_tree_construction = std::chrono::high_resolution_clock::now();
+    auto start_lattice_model_construction = std::chrono::high_resolution_clock::now();
 
     Product_lattice* p = new Product_lattice_non_dilution(atom, variant, pi0);
 
     double** dilution = p->generate_dilution(0.99, 0.005);
 
-    Global_tree* tree = new Global_tree(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
+    auto start_tree_construction = std::chrono::high_resolution_clock::now();
+
+    std::chrono::nanoseconds halving_times[atom + 1]{std::chrono::nanoseconds::zero()};
+    Global_tree* tree = new Global_tree(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, halving_times);
+    
+    //Global_tree* tree = new Global_tree(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
 
     auto stop_tree_construction = std::chrono::high_resolution_clock::now();
     
@@ -43,7 +47,7 @@ int main(int argc, char* argv[]){
     }
 
     std::stringstream file_name;
-    file_name << "Multinomial-" << p->type() << "-N=" << atom << "-k=" + variant << "-Prior=" << prior << "-Depth=" << search_depth << "-" << get_curr_time() << ".csv";
+    file_name << "Multinomial-" << p->type() << "-N=" << atom << "-k=" << variant << "-Prior=" << prior << "-Depth=" << search_depth << "-" << get_curr_time() << ".csv";
     freopen(file_name.str().c_str(),"w",stdout);
 
     std::cout << "N = " << atom << ", k = " << variant << std::endl;
@@ -68,10 +72,21 @@ int main(int argc, char* argv[]){
     delete tree;
 
     auto stop_statistical_analysis = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
-    std::cout << "\nGlobal Tree Construction Time: " << duration.count()/1e6 << " Second." << std::endl;
+    std::chrono::nanoseconds total_MPI_time = std::chrono::nanoseconds::zero();
+
+    std::cout << "\n\n Performance Statistics\n" << std::endl;
+    for(int i = 0; i < atom + 1; i++){
+       std::cout << "Halving Time for lattice model size " << i << "," << halving_times[i].count()/1e9 << " Second." << std::endl; 
+       total_MPI_time += halving_times[i];
+    }
+    std::cout << "Total Halving time," << total_MPI_time.count()/1e9 << " Second." << std::endl;
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(start_tree_construction - start_lattice_model_construction);
+    std::cout << "Initial Lattice Model Construction Time: " << duration.count()/1e6 << " Second." << std::endl; 
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
+    std::cout << "Global Tree Construction Time: " << duration.count()/1e6 << " Second." << std::endl;
+    std::cout << "Non Halving Time in Tree Construction: " << (stop_tree_construction - start_tree_construction - total_MPI_time).count()/1e9 << " Second" << std::endl;
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - stop_tree_construction);
     std::cout << "Statistical Analysis Time: " << duration.count()/1e6 << " Second." << std::endl;
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - start_lattice_model_construction);
     std::cout << "Total Time: " << duration.count()/1e6 << " Second." << std::endl;
 }

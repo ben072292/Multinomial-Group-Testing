@@ -49,6 +49,7 @@ class Product_lattice{
 	void update_metadata(double thres_up, double thres_lo);
 	void update_metadata_with_shrinking(double thres_up, double thres_lo);
 	double get_prob_mass(bin_enc state) const;
+	double get_atom_prob_mass(bin_enc atom) const;
 	bin_enc halving(double prob) const;
 	bin_enc halving_omp(double prob) const;
 	// For MPI
