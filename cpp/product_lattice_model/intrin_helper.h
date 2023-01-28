@@ -16,19 +16,19 @@ FORCE_INLINE __m256i AVX2_bitwise_AND(__m256i a, __m256i b){return _mm256_and_si
 FORCE_INLINE __m256i AVX2_bitwise_OR(__m256i a, __m256i b){return _mm256_or_si256(a, b);}
 
 // 256bit int vector addition: return a+b
-FORCE_INLINE __m256i AVX2_add(__m256i a, __m256i b){return _mm256_add_epi32(a, b);}
+FORCE_INLINE __m256i AVX2_int_add(__m256i a, __m256i b){return _mm256_add_epi32(a, b);}
 
 // 256bit int vector substraction: return a-b
-FORCE_INLINE __m256i AVX2_substract(__m256i a, __m256i b){return _mm256_sub_epi32(a, b);}
+FORCE_INLINE __m256i AVX2_int_substract(__m256i a, __m256i b){return _mm256_sub_epi32(a, b);}
 
 // 256bit int vector multiplication: return a*b
-FORCE_INLINE __m256i AVX2_mul(__m256i a, __m256i b){return _mm256_mul_epi32(a, b);}
+FORCE_INLINE __m256i AVX2_int_mul(__m256i a, __m256i b){return _mm256_mul_epi32(a, b);}
 
-FORCE_INLINE void vec_to_int(__m256i val, int out[]){
+FORCE_INLINE void AVX2_to_int(__m256i val, int out[]){
     _mm256_store_si256((__m256i *)out, val);
 }
 
-FORCE_INLINE void vec_to_double(__m256d val, double out[]){
+FORCE_INLINE void AVX2_to_double(__m256d val, double out[]){
     _mm256_store_pd(out, val);
 }
 

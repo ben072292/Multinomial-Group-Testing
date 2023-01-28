@@ -393,12 +393,12 @@ bin_enc Product_lattice::halving_AVX2(double prob) const{
 	double min = 2.0;
 	__m256i partition_id = AVX2_integer(0); //int partition_id = 0;
 	double partition_mass[(1 << _curr_subjs) * (1 << _variants)]{0.0};
-	
-	// tricky: for each state, check each variant of actively
-	// pooled subjects to see whether they are all 1.
+
 	__m256i variant_shift[_variants], subject_shift[_variants];
 	for(int variant = 0; variant < _variants; variant++) variant_shift[variant] = AVX2_integer((1 << variant)); // (1 << variant)
 
+	// tricky: for each state, check each variant of actively
+	// pooled subjects to see whether they are all 1.
 	for (bin_enc s_iter = 0; s_iter < (1 << (_curr_subjs * _variants)); s_iter++) {
 		// __m256d post_prob = AVX2_double(_post_probs[s_iter]);
 		for(int variant = 0; variant < _variants; variant++) subject_shift[variant] = AVX2_integer((s_iter >> (variant * _curr_subjs)));  // s_iter >> (variant * _curr_subjs)
@@ -416,16 +416,16 @@ bin_enc Product_lattice::halving_AVX2(double prob) const{
 				// partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * _curr_subjs))) - experiment) >> 31));
 
 				__m256i a = AVX2_bitwise_AND(experiment_vec, subject_shift[variant]); // (experiment & (s_iter >> (variant * _curr_subjs)
-				__m256i b = AVX2_substract(a, experiment_vec); // ((experiment & (s_iter >> (variant * _curr_subjs))) - experiment)
+				__m256i b = AVX2_int_substract(a, experiment_vec); // ((experiment & (s_iter >> (variant * _curr_subjs))) - experiment)
 				__m256i c = AVX2_bitwise_rshift(b, 31); // (((experiment & (s_iter >> (variant * _curr_subjs))) - experiment) >> 31)
 				__m256i d = AVX2_bitwise_AND(variant_shift[variant], c); // ((1 << variant) & (((experiment & (s_iter >> (variant * _curr_subjs))) - experiment) >> 31))
 				__m256i partition_id = AVX2_bitwise_OR(partition_id, d); // partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * _curr_subjs))) - experiment) >> 31));
 
 			
 			}
-			__m256i partition_pos = AVX2_add(AVX2_mul(AVX2_integer((1 << _variants)), experiment_vec), partition_id);
+			__m256i partition_pos = AVX2_int_add(AVX2_int_mul(AVX2_integer((1 << _variants)), experiment_vec), partition_id);
 			alignas(32) int pos[8];
-			vec_to_int(partition_pos, pos);
+			AVX2_to_int(partition_pos, pos);
 			for(int i = 0; i < 8; i++) partition_mass[pos[i]] += _post_probs[s_iter];
 			// partition_mass[experiment * (1 << _variants) + partition_id] += _post_probs[s_iter];
 			partition_id = AVX2_integer(0); //partition_id = 0;
