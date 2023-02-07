@@ -477,8 +477,13 @@ bin_enc Product_lattice::halving_omp(double prob) const{
 // 	}
 // }
 
-void Product_lattice::halving(double prob, int rank, int world_size, Halving_res& halving_res) const{
-	halving_res.min = 2.0; // reset min
+void Product_lattice::halving(double prob, Halving_res& halving_res) const{
+	halving_res.reset();
+	int world_size, rank;
+	// Get the number of processes
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    // Get the rank of the process
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	int partition_id = 0;
     const bin_enc start_experiment = (1 << _curr_subjs) / world_size * rank;
     const bin_enc stop_experiment = (1 << _curr_subjs) / world_size * (rank+1); 
@@ -515,8 +520,13 @@ void Product_lattice::halving(double prob, int rank, int world_size, Halving_res
 	}
 }
 
-void Product_lattice::halving_omp(double prob, int rank, int world_size, Halving_res& halving_res) const{
+void Product_lattice::halving_omp(double prob, Halving_res& halving_res) const{
 	halving_res.reset();
+	int world_size, rank;
+	// Get the number of processes
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    // Get the rank of the process
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     const bin_enc start_experiment = (1 << _curr_subjs) / world_size * rank;
     const bin_enc stop_experiment = (1 << _curr_subjs) / world_size * (rank+1);
 	double partition_mass[(stop_experiment - start_experiment) * (1 << _variants)]{0.0}; 

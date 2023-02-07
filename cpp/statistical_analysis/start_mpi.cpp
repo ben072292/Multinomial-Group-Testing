@@ -61,9 +61,9 @@ int main(int argc, char* argv[]){
     auto start_tree_construction = std::chrono::high_resolution_clock::now();
 
     std::chrono::nanoseconds mpi_times[atom + 1]{std::chrono::nanoseconds::zero()};
-    Global_tree* tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, world_rank, world_size, &halving_op, &halving_res_type, halving_res, mpi_times);
+    Global_tree* tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, &halving_op, &halving_res_type, halving_res, mpi_times);
 
-    // Global_tree* tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, world_rank, world_size, &halving_op, &halving_res_type, halving_res);
+    // Global_tree* tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, &halving_op, &halving_res_type, halving_res);
 
     auto stop_tree_construction = std::chrono::high_resolution_clock::now();
     if(world_rank == 0){

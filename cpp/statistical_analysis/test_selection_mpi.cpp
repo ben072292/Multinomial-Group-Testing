@@ -76,7 +76,7 @@ int main(int argc, char* argv[]){
     double run_time2 = 0.0 - MPI_Wtime();
 
     Halving_res halving_res;   
-    p->halving_omp(0.25, world_rank, world_size, halving_res);
+    p->halving_omp(0.25, halving_res);
 
     run_time1 += MPI_Wtime();
     std::cout << "Time Consumption: " << run_time1 << "s" << std::endl;

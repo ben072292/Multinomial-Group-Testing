@@ -53,9 +53,9 @@ class Product_lattice{
 	bin_enc halving(double prob) const;
 	bin_enc halving_omp(double prob) const;
 	// For MPI
-	void halving(double prob, int rank, int world_size, Halving_res& halving_res) const; 
+	void halving(double prob, Halving_res& halving_res) const; 
 	// For hybrid OpenMP + MPI
-	void halving_omp(double prob, int rank, int world_size, Halving_res& halving_res) const;
+	void halving_omp(double prob, Halving_res& halving_res) const;
 	virtual double response_prob(bin_enc experiment, bin_enc response, bin_enc true_state, double** dilution) const = 0;
 	double** generate_dilution(double alpha, double h) const;
 	virtual std::string type() const = 0;

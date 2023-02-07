@@ -1,4 +1,4 @@
-GCC = g++-12
+GCC = mpicxx
 ANALYSIS = statistical_analysis
 TREE = tree
 UTIL = util
@@ -12,10 +12,10 @@ debug:
 	$(GCC) -std=c++11 -O0 -Wall -Werror -g3 -fopenmp $(ANALYSIS)/start.cpp $(ANALYSIS)/$(TREE)/global_tree.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp -o gtdebug
 
 mpi:
-	mpicxx -std=c++11 -O3 -Wall -fopenmp $(ANALYSIS)/start_mpi.cpp $(ANALYSIS)/$(TREE)/global_tree.cpp $(ANALYSIS)/$(TREE)/global_tree_mpi.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp -o gtmpi
+	$(GCC) -std=c++11 -O3 -Wall -fopenmp $(ANALYSIS)/start_mpi.cpp $(ANALYSIS)/$(TREE)/global_tree.cpp $(ANALYSIS)/$(TREE)/global_tree_mpi.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp -o gtmpi
 
 mpi_ts:
-	mpicxx -std=c++11 -O3 -Wall -fopenmp $(ANALYSIS)/test_selection_mpi.cpp $(ANALYSIS)/$(TREE)/global_tree.cpp $(ANALYSIS)/$(TREE)/global_tree_mpi.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp -o gtmpits
+	$(GCC) -std=c++11 -O3 -Wall -fopenmp $(ANALYSIS)/test_selection_mpi.cpp $(ANALYSIS)/$(TREE)/global_tree.cpp $(ANALYSIS)/$(TREE)/global_tree_mpi.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp -o gtmpits
 
 ts: 
 	$(GCC) -std=c++11 -O3 -Wall -fopenmp $(ANALYSIS)/start_test_selection.cpp $(ANALYSIS)/$(TREE)/global_tree.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp -o gtts
