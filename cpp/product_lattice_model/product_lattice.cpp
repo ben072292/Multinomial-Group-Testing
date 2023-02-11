@@ -1,6 +1,11 @@
 #include "product_lattice.hpp"
 #include "lattice_shrinking/lattice_shrinking.hpp"
 
+static int rank;
+static int world_size;
+static MPI_Datatype halving_res_type;
+static MPI_Op halving_op;
+
 Product_lattice::Product_lattice(int subjs, int variants, double* pi0) : _curr_subjs(subjs), _variants(variants){
     _post_probs = new double[(1 << (_curr_subjs * _variants))];
 	prior_probs(pi0);
@@ -477,13 +482,30 @@ bin_enc Product_lattice::halving_omp(double prob) const{
 // 	}
 // }
 
-void Product_lattice::halving(double prob, Halving_res& halving_res) const{
-	halving_res.reset();
-	int world_size, rank;
+// Assign rank and world size as static member variable,
+// initialize MPI datatypes and collective ops for product lattice
+void Product_lattice::MPI_Product_lattice_Initialize(){
 	// Get the number of processes
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
     // Get the rank of the process
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+	Halving_res::create_halving_res_type(&halving_res_type);
+	MPI_Type_commit(&halving_res_type);
+	MPI_Op_create((MPI_User_function*)&Halving_res::halving_reduce, true, &halving_op);
+}
+
+// free MPI datatypes and collective ops for product lattice
+void Product_lattice::MPI_Product_lattice_Free(){
+	// Free datatype
+    MPI_Type_free(&halving_res_type);
+    // Free reduce op
+    MPI_Op_free(&halving_op);
+    // Finalize the MPI environment.
+}
+
+bin_enc Product_lattice::halving_mpi(double prob) const{
+	Halving_res halving_res; 
 	int partition_id = 0;
     const bin_enc start_experiment = (1 << _curr_subjs) / world_size * rank;
     const bin_enc stop_experiment = (1 << _curr_subjs) / world_size * (rank+1); 
@@ -518,15 +540,13 @@ void Product_lattice::halving(double prob, Halving_res& halving_res) const{
 		}
 		temp = 0.0;
 	}
+	MPI_Allreduce(MPI_IN_PLACE, &halving_res, 2, halving_res_type, halving_op, MPI_COMM_WORLD);
+
+	return halving_res.candidate;
 }
 
-void Product_lattice::halving_omp(double prob, Halving_res& halving_res) const{
-	halving_res.reset();
-	int world_size, rank;
-	// Get the number of processes
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-    // Get the rank of the process
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+bin_enc Product_lattice::halving_hybrid(double prob) const{
+	Halving_res halving_res;
     const bin_enc start_experiment = (1 << _curr_subjs) / world_size * rank;
     const bin_enc stop_experiment = (1 << _curr_subjs) / world_size * (rank+1);
 	double partition_mass[(stop_experiment - start_experiment) * (1 << _variants)]{0.0}; 
@@ -565,6 +585,8 @@ void Product_lattice::halving_omp(double prob, Halving_res& halving_res) const{
 		}
 		temp = 0.0;
 	}
+	MPI_Allreduce(MPI_IN_PLACE, &halving_res, 2, halving_res_type, halving_op, MPI_COMM_WORLD);
+	return halving_res.candidate;
 }
 
 double** Product_lattice::generate_dilution(double alpha, double h) const{

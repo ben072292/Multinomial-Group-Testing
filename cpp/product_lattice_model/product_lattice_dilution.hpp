@@ -11,8 +11,6 @@ class Product_lattice_dilution : public Product_lattice{
 
     Product_lattice_dilution *clone(int assert) const {return new Product_lattice_dilution(*this, assert);}
 
-    int halving_MPI(double prob, int rank, int world_size) const;
-
     double response_prob(bin_enc experiment, bin_enc response, bin_enc true_state, double** dilution) const;
 
     std::string type() const {return "Dilution";}

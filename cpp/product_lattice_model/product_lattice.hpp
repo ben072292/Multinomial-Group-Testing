@@ -50,12 +50,12 @@ class Product_lattice{
 	void update_metadata_with_shrinking(double thres_up, double thres_lo);
 	double get_prob_mass(bin_enc state) const;
 	double get_atom_prob_mass(bin_enc atom) const;
-	bin_enc halving(double prob) const;
-	bin_enc halving_omp(double prob) const;
-	// For MPI
-	void halving(double prob, Halving_res& halving_res) const; 
-	// For hybrid OpenMP + MPI
-	void halving_omp(double prob, Halving_res& halving_res) const;
+	bin_enc halving(double prob) const; // serial halving algorithm
+	bin_enc halving_omp(double prob) const; // OpenMP halving algorithm
+	static void MPI_Product_lattice_Initialize();
+	static void MPI_Product_lattice_Free();
+	bin_enc halving_mpi(double prob) const;  // MPI halving algorithm 
+	bin_enc halving_hybrid(double prob) const; // hybrid MPI + OpenMP halving algorithm
 	virtual double response_prob(bin_enc experiment, bin_enc response, bin_enc true_state, double** dilution) const = 0;
 	double** generate_dilution(double alpha, double h) const;
 	virtual std::string type() const = 0;

@@ -26,14 +26,8 @@ int main(int argc, char* argv[]){
     int name_len;
     MPI_Get_processor_name(processor_name, &name_len);
 
-     // Create the datatype
-    MPI_Datatype halving_res_type;
-    Halving_res::create_halving_res_type(&halving_res_type);
-    MPI_Type_commit(&halving_res_type);
-
-    MPI_Op halving_op;
-    MPI_Op_create((MPI_User_function*)&Halving_res::halving_reduce, true, &halving_op);
-
+    // Initialize product lattice MPI env
+    Product_lattice::MPI_Product_lattice_Initialize();
 
     int atom = std::atoi(argv[1]);
     int variant = std::atoi(argv[2]);
@@ -61,9 +55,9 @@ int main(int argc, char* argv[]){
     auto start_tree_construction = std::chrono::high_resolution_clock::now();
 
     std::chrono::nanoseconds mpi_times[atom + 1]{std::chrono::nanoseconds::zero()};
-    Global_tree* tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, &halving_op, &halving_res_type, halving_res, mpi_times);
+    Global_tree* tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, mpi_times);
 
-    // Global_tree* tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, &halving_op, &halving_res_type, halving_res);
+    // Global_tree* tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
 
     auto stop_tree_construction = std::chrono::high_resolution_clock::now();
     if(world_rank == 0){
@@ -128,10 +122,7 @@ int main(int argc, char* argv[]){
     delete[] dilution;
     delete tree;
 
-    // Free datatype
-    MPI_Type_free(&halving_res_type);
-    // Free reduce op
-    MPI_Op_free(&halving_op);
-    // Finalize the MPI environment.
+    // Free product lattice MPI env
+    Product_lattice::MPI_Product_lattice_Free();
     MPI_Finalize();
 }
