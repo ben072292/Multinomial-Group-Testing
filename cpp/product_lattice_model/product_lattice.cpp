@@ -1,8 +1,7 @@
 #include "product_lattice.hpp"
-#include "lattice_shrinking/lattice_shrinking.hpp"
 
-static int rank;
-static int world_size;
+int Product_lattice::rank = -1;
+int Product_lattice::world_size = 0;
 static MPI_Datatype halving_res_type;
 static MPI_Op halving_op;
 
@@ -395,13 +394,6 @@ bin_enc Product_lattice::halving(double prob) const{
 	return candidate;
 }
 
-void halving_min(Halving_res& a, Halving_res& b){
-	if(a.min > b.min){
-		a.min = b.min;
-		a.candidate = b.candidate;
-	}
-}
-
 bin_enc Product_lattice::halving_omp(double prob) const{
 	double partition_mass[(1 << _curr_subjs) * (1 << _variants)]{0.0};
 	
@@ -426,7 +418,7 @@ bin_enc Product_lattice::halving_omp(double prob) const{
 	}
 	
 	Halving_res halving_res;
-	#pragma omp declare reduction(Halving_Min : Halving_res : halving_min(omp_out, omp_in)) initializer (omp_priv=Halving_res())
+	#pragma omp declare reduction(Halving_Min : Halving_res : Halving_res::halving_min(omp_out, omp_in)) initializer (omp_priv=Halving_res())
 	#pragma omp parallel for schedule(static) reduction (Halving_Min : halving_res)	
 	for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++) {
 		double temp = 0.0;
@@ -572,7 +564,7 @@ bin_enc Product_lattice::halving_hybrid(double prob) const{
 		}
 	}
 
-	#pragma omp declare reduction(Halving_Min : Halving_res : halving_min(omp_out, omp_in)) initializer (omp_priv=Halving_res())
+	#pragma omp declare reduction(Halving_Min : Halving_res : Halving_res::halving_min(omp_out, omp_in)) initializer (omp_priv=Halving_res())
 	#pragma omp parallel for schedule(static) reduction (Halving_Min : halving_res)
 	for (bin_enc experiment = start_experiment; experiment < stop_experiment; experiment++) {
 		double temp = 0.0;

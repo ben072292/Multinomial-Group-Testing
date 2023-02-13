@@ -30,10 +30,17 @@ typedef struct Halving_res{
         MPI_Type_create_struct(2, lengths, displacements, types, halving_res_type);
     }
 
-    inline  static void halving_reduce(Halving_res* in, Halving_res* inout, int* len, MPI_Datatype *dptr){
+    inline static void halving_reduce(Halving_res* in, Halving_res* inout, int* len, MPI_Datatype *dptr){
         if(in->min < inout->min){
             inout->min = in->min;
             inout->candidate = in->candidate;
         }
+    }
+
+    static void halving_min(Halving_res& a, Halving_res& b){
+	    if(a.min > b.min){
+		    a.min = b.min;
+		    a.candidate = b.candidate;
+	    }
     }
 } Halving_res;

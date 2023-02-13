@@ -1,7 +1,7 @@
 #pragma once
-
-#include "halving_res/halving_res.hpp"
 #include "../core.hpp"
+#include "halving_res/halving_res.hpp"
+#include "lattice_shrinking/lattice_shrinking.hpp"
 /*
  * READ BEFORE USE:
  * In this version of lattice model, state is represented using A0B0A1B1...
@@ -10,6 +10,7 @@
 class Product_lattice{
 
 	protected:
+	static int rank, world_size;
 	int _curr_subjs; // counter
 	int _variants; // counter
 	double* _post_probs; 
@@ -19,6 +20,7 @@ class Product_lattice{
 	bin_enc _clas_subjs = 0; // BE, variables used for lattice shrinking
 
 	public:
+	Product_lattice(){}
 	Product_lattice(int n_atom, int n_variant, double* pi0);
 	Product_lattice(const Product_lattice &other, int copy_op);
 	virtual ~Product_lattice();
@@ -37,26 +39,27 @@ class Product_lattice{
 	inline void posterior_probs(double* post_probs){_post_probs = post_probs;}
 	inline int test_count() const {return _test_ct;};
 	inline bool is_classified() const {return __builtin_popcount(_pos_clas_atoms | _neg_clas_atoms) == orig_atoms();}
+	inline void reset_test_count(){_test_ct = 0;};
 	bin_enc* get_up_set (bin_enc state, bin_enc* ret) const;
 	void generate_power_set_adder(bin_enc* add_index, int index_len, bin_enc state, bin_enc* ret) const;
-	void prior_probs(double* pi0);
+	virtual void prior_probs(double* pi0);
 	double prior_prob(bin_enc state, double* pi0) const;
-	void reset_test_count(){_test_ct = 0;};
 	void update_probs(bin_enc experiment, bin_enc response, double thres_up, double thres_lo, double** dilution);
 	void update_probs_in_place(bin_enc experiment, bin_enc response, double thres_up, double thres_lo, double** dilution);
-	double* calc_probs(bin_enc experiment, bin_enc response, double** dilution);
-	void calc_probs_in_place(bin_enc experiment, bin_enc response, double** dilution);
-	void update_metadata(double thres_up, double thres_lo);
-	void update_metadata_with_shrinking(double thres_up, double thres_lo);
-	double get_prob_mass(bin_enc state) const;
-	double get_atom_prob_mass(bin_enc atom) const;
-	bin_enc halving(double prob) const; // serial halving algorithm
-	bin_enc halving_omp(double prob) const; // OpenMP halving algorithm
-	static void MPI_Product_lattice_Initialize();
-	static void MPI_Product_lattice_Free();
-	bin_enc halving_mpi(double prob) const;  // MPI halving algorithm 
-	bin_enc halving_hybrid(double prob) const; // hybrid MPI + OpenMP halving algorithm
+	virtual double* calc_probs(bin_enc experiment, bin_enc response, double** dilution);
+	virtual void calc_probs_in_place(bin_enc experiment, bin_enc response, double** dilution);
+	virtual void update_metadata(double thres_up, double thres_lo);
+	virtual void update_metadata_with_shrinking(double thres_up, double thres_lo);
+	virtual double get_prob_mass(bin_enc state) const;
+	virtual double get_atom_prob_mass(bin_enc atom) const;
+	virtual bin_enc halving(double prob) const; // serial halving algorithm
+	virtual bin_enc halving_omp(double prob) const; // OpenMP halving algorithm
+	virtual bin_enc halving_mpi(double prob) const;  // MPI halving algorithm 
+	virtual bin_enc halving_hybrid(double prob) const; // hybrid MPI + OpenMP halving algorithm
 	virtual double response_prob(bin_enc experiment, bin_enc response, bin_enc true_state, double** dilution) const = 0;
 	double** generate_dilution(double alpha, double h) const;
 	virtual std::string type() const = 0;
+
+	static void MPI_Product_lattice_Initialize();
+	static void MPI_Product_lattice_Free();
 };
