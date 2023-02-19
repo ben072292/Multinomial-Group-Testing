@@ -1,8 +1,10 @@
 #include "tree_stat.hpp"
 #include <iostream>
 
-void Tree_stat::clear(){
-    for(int i = 0; i < depth() * k() + 1; i++){
+void Tree_stat::clear()
+{
+    for (int i = 0; i < depth() * k() + 1; i++)
+    {
         correct_[i] = 0.0;
         incorrect_[i] = 0.0;
         fp_[i] = 0.0;
@@ -15,8 +17,10 @@ void Tree_stat::clear(){
     test_sd_ = 0.0;
     total_leaves_ = 0;
 }
-void Tree_stat::merge(Tree_stat* other){
-    for(int i = 0; i <= depth_ * k_; i++){
+void Tree_stat::merge(Tree_stat *other)
+{
+    for (int i = 0; i <= depth_ * k_; i++)
+    {
         correct_[i] += other->correct_[i];
         incorrect_[i] += other->incorrect_[i];
         fp_[i] += other->fp_[i];
@@ -29,18 +33,21 @@ void Tree_stat::merge(Tree_stat* other){
     test_sd_ += other->test_sd_;
 }
 
-void Tree_stat::output_detail() const{
+void Tree_stat::output_detail() const
+{
     std::cout << "\n\nClassification Statistics: \n\n"
               << "Stagewise Statistics\n"
               << "Stage,Classification,FP,FN\n";
-    
+
     double correctSum = 0, wrongSum = 0, fpTotal = 0, fnTotal = 0;
-    for (int i = 0; i < depth_; i++) {
+    for (int i = 0; i < depth_; i++)
+    {
         double tempCorrectProbTotal = 0;
         double tempWrongProbTotal = 0;
         double tempFPTotal = 0;
         double tempFNTotal = 0;
-        for (int j = 1; j <= k_; j++) {
+        for (int j = 1; j <= k_; j++)
+        {
             tempCorrectProbTotal += correct_[i * k_ + j];
             tempWrongProbTotal += incorrect_[i * k_ + j];
             tempFPTotal += fp_[i * k_ + j];
@@ -51,35 +58,33 @@ void Tree_stat::output_detail() const{
         fpTotal += tempFPTotal;
         fnTotal += tempFNTotal;
 
-        std::cout << (i + 1)  
-                  << "," 
-                  << (tempCorrectProbTotal + tempWrongProbTotal) * 100 
+        std::cout << (i + 1)
+                  << ","
+                  << (tempCorrectProbTotal + tempWrongProbTotal) * 100
                   << " %,"
-                  << tempFPTotal * 100 
-                  << " %," 
-                  << tempFNTotal * 100 
-                  << " %" 
+                  << tempFPTotal * 100
+                  << " %,"
+                  << tempFNTotal * 100
+                  << " %"
                   << std::endl;
-
     }
-    std::cout << "Total," 
-             << (1 - unclas_) * 100 
-             << " %," 
-             << fpTotal * 100
-             << " %," << fnTotal * 100 << " %\n\n" << std::endl;
+    std::cout << "Total,"
+              << (1 - unclas_) * 100
+              << " %,"
+              << fpTotal * 100
+              << " %," << fnTotal * 100 << " %\n\n"
+              << std::endl;
 
-    std::cout <<"Potentially Can Be Classified in Future Stages:,"
-              << unclas_ * 100 
+    std::cout << "Potentially Can Be Classified in Future Stages:,"
+              << unclas_ * 100
               << " %"
               << std::endl;
-    std::cout <<"Total Probability Of Classified Sequences But With < .1 % Branch Probability:,"
-              <<(1 - unclas_ - (correctSum + wrongSum)) * 100 
+    std::cout << "Total Probability Of Classified Sequences But With < .1 % Branch Probability:,"
+              << (1 - unclas_ - (correctSum + wrongSum)) * 100
               << " %"
               << std::endl;
-    std::cout <<"Expected Average Number Of Classification Stages:," << exp_stage_ << std::endl;
-    std::cout <<"Expected Average Number Of Classification Tests:," << exp_test_ << std::endl;
-    std::cout <<"Standard Deviation For Number of Stages:," << stage_sd_ << std::endl;
-    std::cout <<"Standard Deviation For Number of Tests:," << test_sd_ << std::endl;
+    std::cout << "Expected Average Number Of Classification Stages:," << exp_stage_ << std::endl;
+    std::cout << "Expected Average Number Of Classification Tests:," << exp_test_ << std::endl;
+    std::cout << "Standard Deviation For Number of Stages:," << stage_sd_ << std::endl;
+    std::cout << "Standard Deviation For Number of Tests:," << test_sd_ << std::endl;
 }
-    
-    
