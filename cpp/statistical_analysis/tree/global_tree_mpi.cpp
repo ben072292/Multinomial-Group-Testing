@@ -3,8 +3,6 @@
 Global_tree_mpi::Global_tree_mpi(Product_lattice* lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double thres_up, double thres_lo, int stage, double** __restrict__ dilution) : Global_tree_mpi(lattice, ex, res, curr_stage){
     if (!lattice->is_classified() && curr_stage < stage) {
         bin_enc halving = -1;
-        int world_size;
-        MPI_Comm_size(MPI_COMM_WORLD, &world_size);
         _children = new Global_tree*[1 << lattice->variants()];
         if((1 << lattice->curr_subjs()) >= world_size){ // for larger lattice models, need future tuning
             // lattice->halving_mpi(1.0 / (1 << lattice->variants()));
@@ -39,8 +37,6 @@ Global_tree_mpi::Global_tree_mpi(Product_lattice* lattice, bin_enc ex, bin_enc r
     auto start = std::chrono::high_resolution_clock::now(), end = start;
     if (!lattice->is_classified() && curr_stage < stage) {
         bin_enc halving = -1;
-        int world_size;
-        MPI_Comm_size(MPI_COMM_WORLD, &world_size);
         _children = new Global_tree*[1 << lattice->variants()];
         if((1 << lattice->curr_subjs()) >= world_size){ // for larger lattice models
             // halving = lattice->halving_mpi(1.0 / (1 << lattice->variants()));

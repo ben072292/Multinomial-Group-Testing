@@ -1,9 +1,10 @@
 #include "../core.hpp"
-#include "tree/global_tree.hpp"
-#include "tree/global_tree_mpi.hpp"
 #include "../product_lattice_model/product_lattice.hpp"
 #include "../product_lattice_model/product_lattice_dilution.hpp"
 #include "../product_lattice_model/product_lattice_non_dilution.hpp"
+#include "../product_lattice_model/product_lattice_mp.hpp"
+#include "../product_lattice_model/product_lattice_mp_dilution.hpp"
+#include "../product_lattice_model/product_lattice_mp_non_dilution.hpp"
 
 int main(int argc, char* argv[]){
     // Initialize the MPI environment
@@ -23,6 +24,7 @@ int main(int argc, char* argv[]){
     MPI_Get_processor_name(processor_name, &name_len);
 
     // Initialize product lattice MPI env
+    Product_lattice_mp::MPI_Product_lattice_Initialize();
     Product_lattice::MPI_Product_lattice_Initialize();
 
 
@@ -35,15 +37,23 @@ int main(int argc, char* argv[]){
         pi0[i] = prior;
     }
 
-    Product_lattice* p = new Product_lattice_dilution(atom, variant, pi0);
+    Product_lattice* p = new Product_lattice_mp_non_dilution(atom, variant, pi0);
 
     double run_time1 = 0.0 - MPI_Wtime();
     double run_time2 = 0.0 - MPI_Wtime();
 
-    p->halving_hybrid(0.25);
+    int selection = p->halving_hybrid(0.25);
+
+    if(world_rank == 0){
+        std::cout << "Selection: " << selection << std::endl;
+    }
+
+    p->update_probs(7, 3, 0.01, 0.01, NULL);
+
+    std::cout << p->posterior_probs()[0] << std::endl;
 
     run_time1 += MPI_Wtime();
-    std::cout << "Time Consumption: " << run_time1 << "s" << std::endl;
+    //std::cout << "Time Consumption: " << run_time1 << "s" << std::endl;
 
     run_time2 += MPI_Wtime();
     
@@ -53,6 +63,7 @@ int main(int argc, char* argv[]){
     }
 
     // Free product lattice MPI env
+    Product_lattice_mp::MPI_Product_lattice_Free();
     Product_lattice::MPI_Product_lattice_Free();
 
     // Finalize the MPI environment.

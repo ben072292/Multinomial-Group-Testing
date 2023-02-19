@@ -1,6 +1,6 @@
-#include "tree/global_tree_mpi.hpp"
-#include "../product_lattice_model/product_lattice_dilution.hpp"
-#include "../product_lattice_model/product_lattice_non_dilution.hpp"
+#include "tree/global_tree_mp.hpp"
+#include "../product_lattice_model/product_lattice_mp_dilution.hpp"
+#include "../product_lattice_model/product_lattice_mp_non_dilution.hpp"
 #include "../product_lattice_model/halving_res/halving_res.hpp"
 #include "../core.hpp"
 
@@ -29,8 +29,8 @@ int main(int argc, char* argv[]){
     // Initialize product lattice MPI env
     Product_lattice::MPI_Product_lattice_Initialize();
 
-    // Initialize global tree MPI env
-    Global_tree::MPI_Global_tree_Initialize();
+    // Initialize product lattice MPI env
+    Global_tree_mp::MPI_Global_tree_Initialize();
 
     int atom = std::atoi(argv[1]);
     int variant = std::atoi(argv[2]);
@@ -47,7 +47,7 @@ int main(int argc, char* argv[]){
 
     auto start_lattice_model_construction = std::chrono::high_resolution_clock::now();
 
-    Product_lattice* p = new Product_lattice_non_dilution(atom, variant, pi0);
+    Product_lattice_mp* p = new Product_lattice_mp_non_dilution(atom, variant, pi0);
 
     auto stop_lattice_model_construction = std::chrono::high_resolution_clock::now();
 
@@ -58,9 +58,9 @@ int main(int argc, char* argv[]){
     auto start_tree_construction = std::chrono::high_resolution_clock::now();
 
     std::chrono::nanoseconds mpi_times[atom + 1]{std::chrono::nanoseconds::zero()};
-    Global_tree* tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, mpi_times);
+    Global_tree* tree = new Global_tree_mp(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, mpi_times);
 
-    // Global_tree* tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
+    // Global_tree* tree = new Global_tree_mp(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
 
     auto stop_tree_construction = std::chrono::high_resolution_clock::now();
     if(world_rank == 0){
@@ -75,11 +75,9 @@ int main(int argc, char* argv[]){
             tree->parse(i, p, pi0, thres_branch, 1.0, temp);
             prim->merge(temp);
         }
-
         std::stringstream file_name;
         file_name << "Multinomial-" << p->type() << "-N=" << atom << "-k=" << variant << "-Prior=" << prior << "-Depth=" << search_depth << "-" << get_curr_time() << ".csv";
         freopen(file_name.str().c_str(),"w",stdout);
-
         std::cout << std::endl << std::endl << tree->shrinking_stat();
 
         std::cout << "N = " << atom << ", k = " << variant << std::endl;

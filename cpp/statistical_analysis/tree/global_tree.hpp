@@ -6,7 +6,8 @@
 #include "../util/tree_stat.hpp"
 
 class Global_tree {
-    protected: 
+    protected:
+    static int rank, world_size;
     Product_lattice* _lattice;
     bin_enc _ex, _res;
     int _curr_stage;
@@ -15,6 +16,7 @@ class Global_tree {
     bool _is_clas;
 
     public:
+    Global_tree(){}
     Global_tree(Product_lattice* lattice, bin_enc ex, bin_enc res, int curr_stage);
     Global_tree(Product_lattice* lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double thres_up, double thres_lo, int stage, double** dilution);
     Global_tree(Product_lattice* lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double thres_up, double thres_lo, int stage, double** dilution, std::chrono::nanoseconds halving_times[]);
@@ -48,4 +50,5 @@ class Global_tree {
     static void apply_true_state_helper(const Product_lattice* org_lattice, Global_tree* node, bin_enc true_state, double prob, double thres_branch, double** dilution);
     std::string shrinking_stat() const;
 
+    static void MPI_Global_tree_Initialize();
 };

@@ -19,7 +19,7 @@
 #include <sstream>
 #include <iomanip>
 #include <ctime>
-#include "/opt/homebrew/include/mpi.h"
+#include <mpi.h>
 
 // Differentiate binary encoded states from regular index
 typedef int bin_enc;
@@ -28,6 +28,10 @@ typedef int bin_enc;
 #define NO_COPY_PROB_DIST 0
 #define SHALLOW_COPY_PROB_DIST 1
 #define DEEP_COPY_PROB_DIST 2
+
+// Product_lattice parallelism
+#define DATA_PARALLELISM 0
+#define MODEL_PARALLELISM 1
 
 inline std::string to_binary(bin_enc n, int len){
     std::string r;

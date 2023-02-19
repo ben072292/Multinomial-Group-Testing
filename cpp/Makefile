@@ -4,7 +4,7 @@ TREE = tree
 UTIL = util
 LATTICE = product_lattice_model
 
-all: omp debug mpi mpi_ts ts
+all: omp debug mpi mp mpi_ts ts
 omp:
 	$(GCC) -std=c++11 -O3 -Wall -fopenmp $(ANALYSIS)/start.cpp $(ANALYSIS)/$(TREE)/global_tree.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp $(LATTICE)/lattice_shrinking/lattice_shrinking.cpp -o gtomp
 
@@ -14,8 +14,11 @@ debug:
 mpi:
 	$(GCC) -std=c++11 -O3 -Wall -fopenmp $(ANALYSIS)/start_mpi.cpp $(ANALYSIS)/$(TREE)/global_tree.cpp $(ANALYSIS)/$(TREE)/global_tree_mpi.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp $(LATTICE)/lattice_shrinking/lattice_shrinking.cpp -o gtmpi
 
+mp:
+	$(GCC) -std=c++11 -O3 -Wall -fopenmp $(ANALYSIS)/start_mp.cpp $(ANALYSIS)/$(TREE)/global_tree.cpp $(ANALYSIS)/$(TREE)/global_tree_mp.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_mp.cpp $(LATTICE)/product_lattice_mp_dilution.cpp $(LATTICE)/product_lattice_mp_non_dilution.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp $(LATTICE)/lattice_shrinking/lattice_shrinking.cpp -o gtmp
+
 mpi_ts:
-	$(GCC) -std=c++11 -O3 -Wall -fopenmp $(ANALYSIS)/test_selection_mpi.cpp $(ANALYSIS)/$(TREE)/global_tree.cpp $(ANALYSIS)/$(TREE)/global_tree_mpi.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp $(LATTICE)/lattice_shrinking/lattice_shrinking.cpp -o gtmpits
+	$(GCC) -std=c++11 -O3 -Wall -fopenmp $(ANALYSIS)/test_selection_mpi.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_mp.cpp $(LATTICE)/product_lattice_mp_dilution.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp $(LATTICE)/product_lattice_mp_non_dilution.cpp $(LATTICE)/lattice_shrinking/lattice_shrinking.cpp -o gtmpits
 
 ts: 
 	$(GCC) -std=c++11 -O3 -Wall -fopenmp $(ANALYSIS)/start_test_selection.cpp $(ANALYSIS)/$(TREE)/global_tree.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp $(LATTICE)/lattice_shrinking/lattice_shrinking.cpp -o gtts

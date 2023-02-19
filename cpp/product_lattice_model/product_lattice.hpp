@@ -11,6 +11,7 @@ class Product_lattice{
 
 	protected:
 	static int rank, world_size;
+	int _parallelism;
 	int _curr_subjs; // counter
 	int _variants; // counter
 	double* _post_probs; 
@@ -26,6 +27,7 @@ class Product_lattice{
 	virtual ~Product_lattice();
 	virtual Product_lattice *create(int n_atom, int n_variant, double *pi9) const = 0;
 	virtual Product_lattice *clone(int copy_op) const = 0;
+	inline int parallelism() const {return _parallelism;}
 	inline int curr_subjs() const {return _curr_subjs;}
 	inline int variants() const {return _variants;};
 	inline bin_enc pos_clas_atoms() const {return _pos_clas_atoms;}
@@ -36,6 +38,7 @@ class Product_lattice{
 	inline bin_enc clas_subjs() const {return _clas_subjs;}
 	inline int total_state() const {return (1 << (_curr_subjs * _variants));}
 	inline double* posterior_probs() const {return _post_probs;};
+	virtual double posterior_prob(bin_enc state) const;
 	inline void posterior_probs(double* post_probs){_post_probs = post_probs;}
 	inline int test_count() const {return _test_ct;};
 	inline bool is_classified() const {return __builtin_popcount(_pos_clas_atoms | _neg_clas_atoms) == orig_atoms();}
@@ -50,12 +53,14 @@ class Product_lattice{
 	virtual void calc_probs_in_place(bin_enc experiment, bin_enc response, double** dilution);
 	virtual void update_metadata(double thres_up, double thres_lo);
 	virtual void update_metadata_with_shrinking(double thres_up, double thres_lo);
+	virtual void shrinking(int orig_subjs, int curr_atoms, int curr_clas_atoms);
 	virtual double get_prob_mass(bin_enc state) const;
 	virtual double get_atom_prob_mass(bin_enc atom) const;
 	virtual bin_enc halving(double prob) const; // serial halving algorithm
 	virtual bin_enc halving_omp(double prob) const; // OpenMP halving algorithm
 	virtual bin_enc halving_mpi(double prob) const;  // MPI halving algorithm 
 	virtual bin_enc halving_hybrid(double prob) const; // hybrid MPI + OpenMP halving algorithm
+	virtual bin_enc halving_mp(double prob) const;
 	virtual double response_prob(bin_enc experiment, bin_enc response, bin_enc true_state, double** dilution) const = 0;
 	double** generate_dilution(double alpha, double h) const;
 	virtual std::string type() const = 0;

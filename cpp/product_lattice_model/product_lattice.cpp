@@ -6,11 +6,13 @@ static MPI_Datatype halving_res_type;
 static MPI_Op halving_op;
 
 Product_lattice::Product_lattice(int subjs, int variants, double* pi0) : _curr_subjs(subjs), _variants(variants){
+	_parallelism = DATA_PARALLELISM;
     _post_probs = new double[(1 << (_curr_subjs * _variants))];
 	prior_probs(pi0);
 }
 
 Product_lattice::Product_lattice(const Product_lattice &other, int copy_op){
+	_parallelism = other._parallelism;
     _curr_subjs = other._curr_subjs;
 	_variants = other._variants;
 	_pos_clas_atoms = other._pos_clas_atoms;
@@ -30,6 +32,10 @@ Product_lattice::Product_lattice(const Product_lattice &other, int copy_op){
 
 Product_lattice::~Product_lattice(){
 	if(_post_probs != nullptr) delete[] _post_probs;
+}
+
+double Product_lattice::posterior_prob(bin_enc state) const {
+	return _post_probs[state];
 }
 
 bin_enc* Product_lattice::get_up_set(bin_enc state, int* ret) const{
@@ -148,7 +154,11 @@ void Product_lattice::update_metadata_with_shrinking(double thres_up, double thr
 	_neg_clas_atoms |= new_neg_clas_atoms;
 
 	curr_clas_atoms = curr_shrinkable_atoms(curr_clas_atoms, _curr_subjs, _variants);
-	if(!curr_clas_atoms) return; // if no new classifications, we skip the rest
+	if(curr_clas_atoms) shrinking(orig_subjs, curr_atoms, curr_clas_atoms); // if there's new classifications, we perform the actual shrinkings
+
+}
+
+void Product_lattice::shrinking(int orig_subjs, int curr_atoms, int curr_clas_atoms){
 	int reduce_count = __builtin_popcount(curr_clas_atoms);
 	int base_count = curr_atoms - reduce_count;
 	bin_enc* base_index = new bin_enc[base_count];
@@ -474,28 +484,6 @@ bin_enc Product_lattice::halving_omp(double prob) const{
 // 	}
 // }
 
-// Assign rank and world size as static member variable,
-// initialize MPI datatypes and collective ops for product lattice
-void Product_lattice::MPI_Product_lattice_Initialize(){
-	// Get the number of processes
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-    // Get the rank of the process
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-	Halving_res::create_halving_res_type(&halving_res_type);
-	MPI_Type_commit(&halving_res_type);
-	MPI_Op_create((MPI_User_function*)&Halving_res::halving_reduce, true, &halving_op);
-}
-
-// free MPI datatypes and collective ops for product lattice
-void Product_lattice::MPI_Product_lattice_Free(){
-	// Free datatype
-    MPI_Type_free(&halving_res_type);
-    // Free reduce op
-    MPI_Op_free(&halving_op);
-    // Finalize the MPI environment.
-}
-
 bin_enc Product_lattice::halving_mpi(double prob) const{
 	Halving_res halving_res; 
 	int partition_id = 0;
@@ -581,6 +569,11 @@ bin_enc Product_lattice::halving_hybrid(double prob) const{
 	return halving_res.candidate;
 }
 
+bin_enc Product_lattice::halving_mp(double prob) const {
+	if((1 << _curr_subjs) >= world_size) return halving_hybrid(prob);
+	else return halving_omp(prob);
+}
+
 double** Product_lattice::generate_dilution(double alpha, double h) const{
 	double** ret = new double*[_curr_subjs];
 	int k;
@@ -593,4 +586,26 @@ double** Product_lattice::generate_dilution(double alpha, double h) const{
 		}
 	}
 	return ret;
+}
+
+// Assign rank and world size as static member variable,
+// initialize MPI datatypes and collective ops for product lattice
+void Product_lattice::MPI_Product_lattice_Initialize(){
+	// Get the number of processes
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    // Get the rank of the process
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+	Halving_res::create_halving_res_type(&halving_res_type);
+	MPI_Type_commit(&halving_res_type);
+	MPI_Op_create((MPI_User_function*)&Halving_res::halving_reduce, true, &halving_op);
+}
+
+// free MPI datatypes and collective ops for product lattice
+void Product_lattice::MPI_Product_lattice_Free(){
+	// Free datatype
+    MPI_Type_free(&halving_res_type);
+    // Free reduce op
+    MPI_Op_free(&halving_op);
+    // Finalize the MPI environment.
 }

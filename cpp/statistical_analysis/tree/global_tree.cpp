@@ -1,5 +1,7 @@
 #include "global_tree.hpp"
-#include <cmath>
+
+int Global_tree::rank = -1;
+int Global_tree::world_size = 0;
 
 Global_tree::Global_tree(Product_lattice* lattice, bin_enc ex, bin_enc res, int curr_stage){
     _lattice = lattice;
@@ -86,9 +88,10 @@ Global_tree::Global_tree(const Global_tree &other, bool deep){
 
 Global_tree::~Global_tree(){
     // recursive dtor
+    int variants = _lattice->variants();
     if(_lattice != nullptr) delete _lattice;
     if(_children != nullptr){
-        for(int i = 0; i < 4; i++){
+        for(int i = 0; i < (1 << variants); i++){
             if(_children[i] != nullptr){
                 delete _children[i];
             }
@@ -272,7 +275,9 @@ std::string Global_tree::shrinking_stat() const {
     return ret;
 }
 
-
-
-
-
+void Global_tree::MPI_Global_tree_Initialize(){
+    // Get the number of processes
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    // Get the rank of the process
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+}

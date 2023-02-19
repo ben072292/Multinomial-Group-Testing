@@ -1,6 +1,5 @@
 #pragma once
 #include "global_tree.hpp"
-// #include "mpi.h"
 
 class Global_tree_mpi : public Global_tree{
     public:
