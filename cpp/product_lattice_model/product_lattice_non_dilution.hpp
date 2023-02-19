@@ -1,9 +1,10 @@
 #pragma once
 #include "product_lattice.hpp"
 
-class Product_lattice_non_dilution : public Product_lattice{
+class Product_lattice_non_dilution : public virtual Product_lattice{
     public:
-    // Product_lattice_non_dilution(); // default constructor
+    Product_lattice_non_dilution(){}; // default constructor
+    
     Product_lattice_non_dilution(int n_atom, int n_variant, double* pi0) : Product_lattice(n_atom, n_variant, pi0){}
 
     Product_lattice_non_dilution(Product_lattice const &other, int copy_op) : Product_lattice(other, copy_op){}

@@ -47,7 +47,7 @@ int main(int argc, char* argv[]){
 
     auto start_lattice_model_construction = std::chrono::high_resolution_clock::now();
 
-    Product_lattice_mp* p = new Product_lattice_mp_non_dilution(atom, variant, pi0);
+    Product_lattice* p = new Product_lattice_mp_non_dilution(atom, variant, pi0);
 
     auto stop_lattice_model_construction = std::chrono::high_resolution_clock::now();
 

@@ -24,7 +24,6 @@ int main(int argc, char* argv[]){
     MPI_Get_processor_name(processor_name, &name_len);
 
     // Initialize product lattice MPI env
-    Product_lattice_mp::MPI_Product_lattice_Initialize();
     Product_lattice::MPI_Product_lattice_Initialize();
 
 
@@ -37,7 +36,11 @@ int main(int argc, char* argv[]){
         pi0[i] = prior;
     }
 
-    Product_lattice* p = new Product_lattice_mp_non_dilution(atom, variant, pi0);
+    Product_lattice_mp* p = new Product_lattice_mp_non_dilution(atom, variant, pi0);
+
+    Product_lattice_mp* p1 = new Product_lattice_mp_non_dilution(*p, SHALLOW_COPY_PROB_DIST);
+
+    std::cout << p1->curr_subjs() << std::endl;
 
     double run_time1 = 0.0 - MPI_Wtime();
     double run_time2 = 0.0 - MPI_Wtime();
@@ -48,7 +51,7 @@ int main(int argc, char* argv[]){
         std::cout << "Selection: " << selection << std::endl;
     }
 
-    p->update_probs(7, 3, 0.01, 0.01, NULL);
+    p->update_probs(15, 3, 0.01, 0.01, NULL);
 
     std::cout << p->posterior_probs()[0] << std::endl;
 
@@ -63,7 +66,6 @@ int main(int argc, char* argv[]){
     }
 
     // Free product lattice MPI env
-    Product_lattice_mp::MPI_Product_lattice_Free();
     Product_lattice::MPI_Product_lattice_Free();
 
     // Finalize the MPI environment.

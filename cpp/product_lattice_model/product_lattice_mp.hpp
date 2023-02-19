@@ -8,7 +8,7 @@
  * The input of prior should also follow this pattern.
  * Model parallelism implementation for lattice model
  */
-class Product_lattice_mp : public Product_lattice{
+class Product_lattice_mp : public virtual Product_lattice{
 
 	protected:
 	inline bin_enc total_state_each() const {return total_state() / world_size;}
@@ -17,8 +17,9 @@ class Product_lattice_mp : public Product_lattice{
     inline bin_enc offset_to_state(int offset) const {return offset + total_state_each() * rank;}
 
 	public:
+	Product_lattice_mp(){} // default constructor
 	Product_lattice_mp(int n_atom, int n_variant, double* pi0);
-	Product_lattice_mp(const Product_lattice_mp &other, int copy_op) : Product_lattice(other, copy_op){};
+	Product_lattice_mp(const Product_lattice &other, int copy_op) : Product_lattice(other, copy_op){};
 	virtual ~Product_lattice_mp();
 	double posterior_prob(bin_enc state) const;
 	void prior_probs(double* pi0);
