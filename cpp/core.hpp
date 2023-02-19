@@ -25,6 +25,12 @@
 // Differentiate binary encoded states from regular index
 typedef int bin_enc;
 
+// Product_lattice type
+#define MP_NON_DILUTION 1
+#define MP_DILUTION 2
+#define DP_NON_DILUTION 3
+#define DP_DILUTION 4
+
 // Product_lattice copy operation
 #define NO_COPY_PROB_DIST 0
 #define SHALLOW_COPY_PROB_DIST 1
