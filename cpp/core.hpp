@@ -20,6 +20,7 @@
 #include <iomanip>
 #include <ctime>
 #include <mpi.h>
+#include <omp.h>
 
 // Differentiate binary encoded states from regular index
 typedef int bin_enc;

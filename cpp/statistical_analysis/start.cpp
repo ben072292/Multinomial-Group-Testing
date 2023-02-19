@@ -47,7 +47,13 @@ int main(int argc, char* argv[]){
     }
 
     std::stringstream file_name;
-    file_name << "Multinomial-" << p->type() << "-N=" << atom << "-k=" << variant << "-Prior=" << prior << "-Depth=" << search_depth << "-" << get_curr_time() << ".csv";
+    file_name << "Multinomial-" << p->type() << "-N=" 
+              << atom << "-k=" << variant 
+              << "-Prior=" << prior 
+              << "-Depth=" << search_depth 
+              << "-Threads=" << omp_get_num_threads()
+              << "-" << get_curr_time()
+              << ".csv";
     freopen(file_name.str().c_str(),"w",stdout);
 
     std::cout << "N = " << atom << ", k = " << variant << std::endl;
