@@ -1,10 +1,11 @@
-#include "tree/global_tree.hpp"
+#include "../core.hpp"
 #include "../product_lattice_model/product_lattice.hpp"
 #include "../product_lattice_model/product_lattice_dilution.hpp"
 #include "../product_lattice_model/product_lattice_non_dilution.hpp"
-#include "../core.hpp"
+#include "tree/global_tree.hpp"
 
-int main(int argc, char* argv[]){
+int main(int argc, char *argv[])
+{
 
     // omp_set_num_threads(8);
     int atom = std::atoi(argv[1]);
@@ -16,61 +17,67 @@ int main(int argc, char* argv[]){
     int search_depth = std::atoi(argv[4]);
 
     double pi0[atom * variant];
-    for(int i = 0; i < atom * variant; i++){
+    for (int i = 0; i < atom * variant; i++)
+    {
         pi0[i] = prior;
     }
     auto start_lattice_model_construction = std::chrono::high_resolution_clock::now();
 
-    Product_lattice* p = new Product_lattice_non_dilution(atom, variant, pi0);
+    Product_lattice *p = new Product_lattice_non_dilution(atom, variant, pi0);
 
-    double** dilution = p->generate_dilution(0.99, 0.005);
+    double **dilution = p->generate_dilution(0.99, 0.005);
 
     auto start_tree_construction = std::chrono::high_resolution_clock::now();
 
     std::chrono::nanoseconds halving_times[atom + 1]{std::chrono::nanoseconds::zero()};
-    Global_tree* tree = new Global_tree(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, halving_times);
-    
-    //Global_tree* tree = new Global_tree(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
+    Global_tree *tree = new Global_tree(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, halving_times);
+
+    // Global_tree* tree = new Global_tree(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
 
     auto stop_tree_construction = std::chrono::high_resolution_clock::now();
-    
+
     tree->apply_true_state(p, 0, thres_branch, dilution);
 
-    Tree_stat* prim = new Tree_stat(search_depth, 1);
-    Tree_stat* temp = new Tree_stat(search_depth, 1);
+    Tree_stat *prim = new Tree_stat(search_depth, 1);
+    Tree_stat *temp = new Tree_stat(search_depth, 1);
 
     int total_st = p->total_state();
-    for(int i = 0; i < total_st; i++){
+    for (int i = 0; i < total_st; i++)
+    {
         tree->apply_true_state(p, i, 0.001, dilution);
         tree->parse(i, p, pi0, thres_branch, 1.0, temp);
         prim->merge(temp);
     }
 
     std::stringstream file_name;
-    file_name << "Multinomial-" << p->type() << "-N=" 
-              << atom << "-k=" << variant 
-              << "-Prior=" << prior 
-              << "-Depth=" << search_depth 
+    file_name << "Multinomial-" << p->type() << "-N="
+              << atom << "-k=" << variant
+              << "-Prior=" << prior
+              << "-Depth=" << search_depth
               << "-Threads=" << omp_get_num_threads()
               << "-" << get_curr_time()
               << ".csv";
-    freopen(file_name.str().c_str(),"w",stdout);
+    freopen(file_name.str().c_str(), "w", stdout);
 
     std::cout << "N = " << atom << ", k = " << variant << std::endl;
     std::cout << "Prior: ";
-    for (int i = 0; i < p->curr_atoms(); i++){
+    for (int i = 0; i < p->curr_atoms(); i++)
+    {
         std::cout << pi0[i] << ", ";
     }
 
-    std::cout << std::endl << std::endl << tree->shrinking_stat();
-    
+    std::cout << std::endl
+              << std::endl
+              << tree->shrinking_stat();
+
     prim->output_detail();
-    
+
     // clean up memory
     delete prim;
     delete temp;
 
-    for(int i = 0; i < atom; i++){
+    for (int i = 0; i < atom; i++)
+    {
         delete[] dilution[i];
     }
     delete[] dilution;
@@ -80,19 +87,21 @@ int main(int argc, char* argv[]){
     auto stop_statistical_analysis = std::chrono::high_resolution_clock::now();
     std::chrono::nanoseconds total_MPI_time = std::chrono::nanoseconds::zero();
 
-    std::cout << "\n\n Performance Statistics\n" << std::endl;
-    for(int i = 0; i < atom + 1; i++){
-       std::cout << "Halving Time for lattice model size " << i << "," << halving_times[i].count()/1e9 << " Second." << std::endl; 
-       total_MPI_time += halving_times[i];
+    std::cout << "\n\n Performance Statistics\n"
+              << std::endl;
+    for (int i = 0; i < atom + 1; i++)
+    {
+        std::cout << "Halving Time for lattice model size " << i << "," << halving_times[i].count() / 1e9 << " Second." << std::endl;
+        total_MPI_time += halving_times[i];
     }
-    std::cout << "Total Halving time," << total_MPI_time.count()/1e9 << " Second." << std::endl;
+    std::cout << "Total Halving time," << total_MPI_time.count() / 1e9 << " Second." << std::endl;
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(start_tree_construction - start_lattice_model_construction);
-    std::cout << "Initial Lattice Model Construction Time: " << duration.count()/1e6 << " Second." << std::endl; 
+    std::cout << "Initial Lattice Model Construction Time: " << duration.count() / 1e6 << " Second." << std::endl;
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
-    std::cout << "Global Tree Construction Time: " << duration.count()/1e6 << " Second." << std::endl;
-    std::cout << "Non Halving Time in Tree Construction: " << (stop_tree_construction - start_tree_construction - total_MPI_time).count()/1e9 << " Second" << std::endl;
+    std::cout << "Global Tree Construction Time: " << duration.count() / 1e6 << " Second." << std::endl;
+    std::cout << "Non Halving Time in Tree Construction: " << (stop_tree_construction - start_tree_construction - total_MPI_time).count() / 1e9 << " Second" << std::endl;
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - stop_tree_construction);
-    std::cout << "Statistical Analysis Time: " << duration.count()/1e6 << " Second." << std::endl;
+    std::cout << "Statistical Analysis Time: " << duration.count() / 1e6 << " Second." << std::endl;
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - start_lattice_model_construction);
-    std::cout << "Total Time: " << duration.count()/1e6 << " Second." << std::endl;
+    std::cout << "Total Time: " << duration.count() / 1e6 << " Second." << std::endl;
 }
