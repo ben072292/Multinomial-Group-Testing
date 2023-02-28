@@ -98,12 +98,28 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 	// if model parallelism is not achievable, covert model parallelism to data parallelism and then shrinking
 	else if (curr_clas_atoms && target_prob_size / world_size == 0)
 	{
-		double *candidate_post_probs = new double[(1 << curr_atoms)]{0.0};
-		MPI_Allgather(_post_probs, total_state_each(), MPI_DOUBLE, candidate_post_probs, total_state_each(), MPI_DOUBLE, MPI_COMM_WORLD);
+		double *candidate_post_probs;
+		if (rank == 0)
+			candidate_post_probs = new double[(1 << curr_atoms)]{0.0};
+		else
+			candidate_post_probs = new double[target_prob_size]{0.0};
+		MPI_Gather(_post_probs, total_state_each(), MPI_DOUBLE, candidate_post_probs, total_state_each(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+		if (rank == 0)
+		{
+			double *temp = _post_probs;
+			_post_probs = candidate_post_probs;
+			Product_lattice::shrinking(orig_subjs, curr_atoms, curr_clas_atoms);
+			_post_probs = temp;
+		}
+		MPI_Bcast(candidate_post_probs, target_prob_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 		delete[] _post_probs;
 		_post_probs = candidate_post_probs;
 		_parallelism = DATA_PARALLELISM;
-		Product_lattice::shrinking(orig_subjs, curr_atoms, curr_clas_atoms);
+		if (rank != 0)
+		{
+			_clas_subjs = update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, orig_subjs, _variants);
+			_curr_subjs = orig_subjs - __builtin_popcount(_clas_subjs);
+		}
 	}
 }
 

@@ -27,44 +27,54 @@ int main(int argc, char *argv[])
     // Initialize product lattice MPI env
     Product_lattice::MPI_Product_lattice_Initialize();
 
-    int atom = std::atoi(argv[1]);
-    int variant = std::atoi(argv[2]);
-    double prior = std::atof(argv[3]);
+    int parallelism_type = std::atoi(argv[1]);
+    int omp_enabled = std::atoi(argv[2]);
+    int atom = std::atoi(argv[3]);
+    int variant = std::atoi(argv[4]);
 
     double pi0[atom * variant];
     for (int i = 0; i < atom * variant; i++)
     {
-        pi0[i] = prior;
+        pi0[i] = 0.02;
     }
 
-    Product_lattice_mp *p = new Product_lattice_mp_non_dilution(atom, variant, pi0);
+    Product_lattice *p;
+    auto start_lattice_construction = std::chrono::high_resolution_clock::now();
+    if (parallelism_type == MP_NON_DILUTION)
+        p = new Product_lattice_mp_non_dilution(atom, variant, pi0);
+    else if (parallelism_type == MP_DILUTION)
+        p = new Product_lattice_mp_dilution(atom, variant, pi0);
+    else if (parallelism_type == DP_NON_DILUTION)
+        p = new Product_lattice_non_dilution(atom, variant, pi0);
+    else if (parallelism_type == DP_DILUTION)
+        p = new Product_lattice_dilution(atom, variant, pi0);
+    else
+        exit(1);
 
-    Product_lattice_mp *p1 = new Product_lattice_mp_non_dilution(*p, SHALLOW_COPY_PROB_DIST);
+    auto end_lattice_construction = std::chrono::high_resolution_clock::now();
+    auto start_halving = std::chrono::high_resolution_clock::now();
 
-    std::cout << p1->curr_subjs() << std::endl;
+    if (omp_enabled)
+        p->halving_hybrid(0.25);
+    else
+        p->halving_mpi(0.25);
 
-    double run_time1 = 0.0 - MPI_Wtime();
-    double run_time2 = 0.0 - MPI_Wtime();
-
-    int selection = p->halving_hybrid(0.25);
+    auto end_halving = std::chrono::high_resolution_clock::now();
 
     if (world_rank == 0)
     {
-        std::cout << "Selection: " << selection << std::endl;
-    }
+        std::stringstream file_name;
+        file_name << "Multinomial-" << p->type()
+                  << "-N=" << atom
+                  << "-k=" << variant
+                  << "-Processes=" << world_size
+                  << "-Threads=" << omp_get_num_threads()
+                  << "-" << get_curr_time()
+                  << ".csv";
+        freopen(file_name.str().c_str(), "w", stdout);
 
-    p->update_probs(15, 3, 0.01, 0.01, NULL);
-
-    std::cout << p->posterior_probs()[0] << std::endl;
-
-    run_time1 += MPI_Wtime();
-    // std::cout << "Time Consumption: " << run_time1 << "s" << std::endl;
-
-    run_time2 += MPI_Wtime();
-
-    if (world_rank == 0)
-    {
-        std::cout << "Overall Time Consumption: " << run_time2 << "s" << std::endl;
+        std::cout << "Construction Time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end_lattice_construction - start_lattice_construction).count() / 1e9 << "s\n";
+        std::cout << "Halving Time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end_halving - start_halving).count() / 1e9 << "s\n";
     }
 
     // Free product lattice MPI env
