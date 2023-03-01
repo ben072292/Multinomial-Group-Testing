@@ -53,15 +53,27 @@ int main(int argc, char *argv[])
 
     Product_lattice *p;
     if (type == MP_NON_DILUTION)
+    {
+        Product_lattice_mp::MPI_Product_lattice_Initialize(atom, variant);
         p = new Product_lattice_mp_non_dilution(atom, variant, pi0);
+    }
     else if (type == MP_DILUTION)
+    {
+        Product_lattice_mp::MPI_Product_lattice_Initialize(atom, variant);
         p = new Product_lattice_mp_dilution(atom, variant, pi0);
+    }
     else if (type == DP_NON_DILUTION)
+    {
         p = new Product_lattice_non_dilution(atom, variant, pi0);
+    }
     else if (type == DP_DILUTION)
+    {
         p = new Product_lattice_dilution(atom, variant, pi0);
+    }
     else
+    {
         exit(1);
+    }
 
     auto stop_lattice_model_construction = std::chrono::high_resolution_clock::now();
 
@@ -174,5 +186,11 @@ int main(int argc, char *argv[])
 
     // Free product lattice MPI env
     Product_lattice::MPI_Product_lattice_Free();
+    if (type == MP_NON_DILUTION || type == MP_DILUTION)
+    {
+        Product_lattice_mp::MPI_Product_lattice_Free();
+    }
+
+    // Finalize MPI
     MPI_Finalize();
 }

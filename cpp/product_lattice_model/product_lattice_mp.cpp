@@ -1,5 +1,8 @@
 #include "product_lattice_mp.hpp"
 
+double *Product_lattice_mp::temp_post_prob_holder = nullptr;
+MPI_Win Product_lattice_mp::win;
+
 Product_lattice_mp::Product_lattice_mp(int subjs, int variants, double *pi0)
 {
 	_parallelism = MODEL_PARALLELISM;
@@ -127,12 +130,9 @@ void Product_lattice_mp::shrinking(int orig_subjs, int curr_atoms, bin_enc curr_
 {
 	int reduce_count = __builtin_popcount(curr_clas_atoms);
 	int base_count = curr_atoms - reduce_count;
-	double *shrinked_post_probs = new double[(1 << curr_atoms) / world_size]{0.0};
 	int shrinked_total_state_each = (1 << base_count) / world_size;
-	MPI_Win window;
-	MPI_Win_create(shrinked_post_probs, sizeof(double) * ((1 << curr_atoms) / world_size), sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &window);
-	MPI_Win_fence(0, window);
 
+	MPI_Win_fence(0, win);
 	for (int i = 0; i < total_state_each(); i++)
 	{
 		bin_enc state = offset_to_state(i);
@@ -152,22 +152,18 @@ void Product_lattice_mp::shrinking(int orig_subjs, int curr_atoms, bin_enc curr_
 				shrinked_state |= (1 << (j - reduce_index_counter));
 			}
 		}
-		MPI_Put(&_post_probs[i], 1, MPI_DOUBLE, shrinked_state / shrinked_total_state_each, (shrinked_state % shrinked_total_state_each) * (1 << reduce_count) + pos, 1, MPI_DOUBLE, window);
+		MPI_Put(&_post_probs[i], 1, MPI_DOUBLE, shrinked_state / shrinked_total_state_each, (shrinked_state % shrinked_total_state_each) * (1 << reduce_count) + pos, 1, MPI_DOUBLE, win);
 	}
-
-	MPI_Win_fence(0, window);
-	// Destroy the window
-	MPI_Win_free(&window);
+	MPI_Win_fence(0, win);
 
 	for (int i = 0; i < shrinked_total_state_each; i++)
 	{
 		_post_probs[i] = 0.0;
 		for (int j = 0; j < (1 << reduce_count); j++)
 		{
-			_post_probs[i] += shrinked_post_probs[i * (1 << reduce_count) + j];
+			_post_probs[i] += temp_post_prob_holder[i * (1 << reduce_count) + j];
 		}
 	}
-	delete[] shrinked_post_probs;
 	_clas_subjs = update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, orig_subjs, _variants);
 	_curr_subjs = orig_subjs - __builtin_popcount(_clas_subjs);
 }
@@ -331,4 +327,16 @@ bin_enc Product_lattice_mp::halving_hybrid(double prob) const
 	}
 	MPI_Allreduce(MPI_IN_PLACE, &halving_res.candidate, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
 	return halving_res.candidate;
+}
+
+void Product_lattice_mp::MPI_Product_lattice_Initialize(int atoms, int variants)
+{
+	temp_post_prob_holder = new double[(1 << (atoms * variants)) / world_size];
+	MPI_Win_create(temp_post_prob_holder, sizeof(double) * (1 << (atoms * variants)) / world_size, sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &win);
+}
+
+void Product_lattice_mp::MPI_Product_lattice_Free()
+{
+	MPI_Win_free(&win);
+	delete[] temp_post_prob_holder;
 }

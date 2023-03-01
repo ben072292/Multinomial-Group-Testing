@@ -12,6 +12,8 @@ class Product_lattice_mp : public virtual Product_lattice
 {
 
 protected:
+	static double* temp_post_prob_holder;
+	static MPI_Win win;
 	inline bin_enc total_state_each() const { return total_state() / world_size; }
 	inline int state_to_offset(bin_enc state) const { return state % total_state_each(); }
 	inline int state_to_rank(bin_enc state) const { return state / total_state_each(); }
@@ -36,4 +38,7 @@ public:
 	bin_enc halving_mpi(double prob) const;												   // MPI halving algorithm
 	bin_enc halving_hybrid(double prob) const;											   // hybrid MPI + OpenMP halving algorithm
 	inline bin_enc halving_mp(double prob) const { return halving_hybrid(prob); }
+
+	static void MPI_Product_lattice_Initialize(int atoms, int variants);
+	static void MPI_Product_lattice_Free();
 };
