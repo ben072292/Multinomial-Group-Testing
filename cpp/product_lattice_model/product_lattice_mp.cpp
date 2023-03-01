@@ -125,34 +125,49 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 
 void Product_lattice_mp::shrinking(int orig_subjs, int curr_atoms, bin_enc curr_clas_atoms)
 {
-	int base_count = curr_atoms - __builtin_popcount(curr_clas_atoms);
-	double *shrinked_post_probs = new double[(1 << base_count) / world_size]{0.0};
+	int reduce_count = __builtin_popcount(curr_clas_atoms);
+	int base_count = curr_atoms - reduce_count;
+	double *shrinked_post_probs = new double[(1 << curr_atoms) / world_size]{0.0};
 	int shrinked_total_state_each = (1 << base_count) / world_size;
 	MPI_Win window;
-	MPI_Win_create(shrinked_post_probs, sizeof(double) * ((1 << base_count) / world_size), sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &window);
+	MPI_Win_create(shrinked_post_probs, sizeof(double) * ((1 << curr_atoms) / world_size), sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &window);
 	MPI_Win_fence(0, window);
 
 	for (int i = 0; i < total_state_each(); i++)
 	{
 		bin_enc state = offset_to_state(i);
 		bin_enc shrinked_state = 0;
-		int base_index_counter = 0;
+		int pos = 0;
+		int reduce_index_counter = 0;
 		for (int j = 0; j < curr_atoms; j++)
 		{
 			if (curr_clas_atoms & (1 << j))
-				++base_index_counter;
+			{
+				if (state & (1 << j))
+					pos |= (1 << reduce_index_counter);
+				reduce_index_counter++;
+			}
 			else if (state & (1 << j))
-				shrinked_state |= (1 << (j - base_index_counter));
+			{
+				shrinked_state |= (1 << (j - reduce_index_counter));
+			}
 		}
-		MPI_Accumulate(&_post_probs[i], 1, MPI_DOUBLE, shrinked_state / shrinked_total_state_each, shrinked_state % shrinked_total_state_each, 1, MPI_DOUBLE, MPI_SUM, window);
+		MPI_Put(&_post_probs[i], 1, MPI_DOUBLE, shrinked_state / shrinked_total_state_each, (shrinked_state % shrinked_total_state_each) * (1 << reduce_count) + pos, 1, MPI_DOUBLE, window);
 	}
 
 	MPI_Win_fence(0, window);
 	// Destroy the window
 	MPI_Win_free(&window);
 
-	delete[] _post_probs;
-	_post_probs = shrinked_post_probs;
+	for (int i = 0; i < shrinked_total_state_each; i++)
+	{
+		_post_probs[i] = 0.0;
+		for (int j = 0; j < (1 << reduce_count); j++)
+		{
+			_post_probs[i] += shrinked_post_probs[i * (1 << reduce_count) + j];
+		}
+	}
+	delete[] shrinked_post_probs;
 	_clas_subjs = update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, orig_subjs, _variants);
 	_curr_subjs = orig_subjs - __builtin_popcount(_clas_subjs);
 }
