@@ -95,6 +95,11 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 	curr_clas_atoms = curr_shrinkable_atoms(curr_clas_atoms, _curr_subjs, _variants);
 
 	int target_prob_size = (1 << ((orig_subjs - __builtin_popcount(update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, orig_subjs, _variants))) * _variants));
+	if(target_prob_size == 1){ // if classified, update variables and return;
+		_clas_subjs = update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, orig_subjs, _variants);
+		_curr_subjs = orig_subjs - __builtin_popcount(_clas_subjs);
+		return;
+	}
 	// if data parallelism is achievable, i.e., each process has at least 1 state to work, performing model parallelism shrinking
 	if (curr_clas_atoms && target_prob_size / world_size > 0)
 		shrinking(orig_subjs, curr_atoms, curr_clas_atoms);
