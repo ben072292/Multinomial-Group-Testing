@@ -236,7 +236,6 @@ void Product_lattice_mp::calc_probs_in_place(bin_enc experiment, bin_enc respons
 
 bin_enc Product_lattice_mp::halving_mpi(double prob) const
 {
-	int partition_id = 0;
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
 	double partition_mass[partition_size]{0.0};
 
@@ -245,19 +244,24 @@ bin_enc Product_lattice_mp::halving_mpi(double prob) const
 	for (int s_iter = 0; s_iter < total_state_each(); s_iter++)
 	{
 		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
-		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
+		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment+=8)
 		{
-			for (int variant = 0; variant < _variants; variant++)
-			{
-				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
-				// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
-				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
-				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
-				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
-				partition_id |= ((1 << variant) & (((experiment & (offset_to_state(s_iter) >> (variant * _curr_subjs))) - experiment) >> 31));
+			int8_v partition_id = {0, 0, 0, 0, 0, 0, 0, 0};
+			int8_v ex = {experiment, experiment+1, experiment+2, experiment+3, experiment+4, experiment+5, experiment+6, experiment+7};
+			
+			// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
+			// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
+			// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
+			// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
+			// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
+			partition_id |= (1 & (((ex & (offset_to_state(s_iter) >> 0)) - ex) >> 31));
+			partition_id |= (2 & (((ex & (offset_to_state(s_iter) >> _curr_subjs)) - ex) >> 31));
+
+			partition_id = ex * (1 << _variants) + partition_id;
+			
+			for(int i = 0; i < 8; i++){
+				partition_mass[partition_id[i]] += _post_probs[s_iter];
 			}
-			partition_mass[experiment * (1 << _variants) + partition_id] += _post_probs[s_iter];
-			partition_id = 0;
 		}
 	}
 	MPI_Allreduce(MPI_IN_PLACE, partition_mass, partition_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);

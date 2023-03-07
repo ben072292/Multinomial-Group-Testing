@@ -25,6 +25,11 @@
 // Differentiate binary encoded states from regular index
 typedef int bin_enc;
 
+typedef int int8_v __attribute__ ((vector_size (8 * sizeof(int))));
+typedef int int16_v __attribute__ ((vector_size (16 * sizeof(int))));
+typedef double double4_v __attribute__((vector_size (4 * sizeof(double))));
+typedef double double8_v __attribute__((vector_size (8 * sizeof(double))));
+
 // Product_lattice type
 #define MP_NON_DILUTION 1
 #define MP_DILUTION 2
@@ -63,6 +68,38 @@ inline std::string get_curr_time()
     std::ostringstream oss;
     oss << std::put_time(&tm, "%Y-%m-%d-%H-%M-%S");
     return oss.str();
+}
+
+static int8_v* int8_alloc(std::size_t n) {
+    void* tmp = 0;
+    if (posix_memalign(&tmp, sizeof(int8_v), sizeof(int8_v) * n)) {
+        throw std::bad_alloc();
+    }
+    return (int8_v*)tmp;
+}
+
+static int16_v* int16_alloc(std::size_t n) {
+    void* tmp = 0;
+    if (posix_memalign(&tmp, sizeof(int16_v), sizeof(int16_v) * n)) {
+        throw std::bad_alloc();
+    }
+    return (int16_v*)tmp;
+}
+
+static double4_v* double4_alloc(std::size_t n) {
+    void* tmp = 0;
+    if (posix_memalign(&tmp, sizeof(double4_v), sizeof(double4_v) * n)) {
+        throw std::bad_alloc();
+    }
+    return (double4_v*)tmp;
+}
+
+static double8_v* double8_alloc(std::size_t n) {
+    void* tmp = 0;
+    if (posix_memalign(&tmp, sizeof(double8_v), sizeof(double8_v) * n)) {
+        throw std::bad_alloc();
+    }
+    return (double8_v*)tmp;
 }
 
 #endif
