@@ -25,10 +25,25 @@
 // Differentiate binary encoded states from regular index
 typedef int bin_enc;
 
-typedef int int8_v __attribute__ ((vector_size (8 * sizeof(int))));
-typedef int int16_v __attribute__ ((vector_size (16 * sizeof(int))));
-typedef double double4_v __attribute__((vector_size (4 * sizeof(double))));
-typedef double double8_v __attribute__((vector_size (8 * sizeof(double))));
+// Vector types
+typedef int _mm512_si __attribute__ ((vector_size (16 * sizeof(int))));
+typedef double _mm512_d __attribute__((vector_size (8 * sizeof(double))));
+
+inline _mm512_si* __mm512_si_alloc(std::size_t n) {
+    void* tmp = 0;
+    if (posix_memalign(&tmp, sizeof(_mm512_si), sizeof(_mm512_si) * n)) {
+        throw std::bad_alloc();
+    }
+    return (_mm512_si*)tmp;
+}
+
+inline _mm512_d* __mm512_d_alloc(std::size_t n) {
+    void* tmp = 0;
+    if (posix_memalign(&tmp, sizeof(_mm512_d), sizeof(_mm512_d) * n)) {
+        throw std::bad_alloc();
+    }
+    return (_mm512_d*)tmp;
+}
 
 // Product_lattice type
 #define MP_NON_DILUTION 1
@@ -68,38 +83,6 @@ inline std::string get_curr_time()
     std::ostringstream oss;
     oss << std::put_time(&tm, "%Y-%m-%d-%H-%M-%S");
     return oss.str();
-}
-
-static int8_v* int8_alloc(std::size_t n) {
-    void* tmp = 0;
-    if (posix_memalign(&tmp, sizeof(int8_v), sizeof(int8_v) * n)) {
-        throw std::bad_alloc();
-    }
-    return (int8_v*)tmp;
-}
-
-static int16_v* int16_alloc(std::size_t n) {
-    void* tmp = 0;
-    if (posix_memalign(&tmp, sizeof(int16_v), sizeof(int16_v) * n)) {
-        throw std::bad_alloc();
-    }
-    return (int16_v*)tmp;
-}
-
-static double4_v* double4_alloc(std::size_t n) {
-    void* tmp = 0;
-    if (posix_memalign(&tmp, sizeof(double4_v), sizeof(double4_v) * n)) {
-        throw std::bad_alloc();
-    }
-    return (double4_v*)tmp;
-}
-
-static double8_v* double8_alloc(std::size_t n) {
-    void* tmp = 0;
-    if (posix_memalign(&tmp, sizeof(double8_v), sizeof(double8_v) * n)) {
-        throw std::bad_alloc();
-    }
-    return (double8_v*)tmp;
 }
 
 #endif
