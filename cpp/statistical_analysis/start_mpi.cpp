@@ -20,19 +20,13 @@ int main(int argc, char *argv[])
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
     // Get the rank of the process
-    int world_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     // Get the name of the processor
     char processor_name[MPI_MAX_PROCESSOR_NAME];
     int name_len;
     MPI_Get_processor_name(processor_name, &name_len);
-
-    // Initialize product lattice MPI env
-    Product_lattice::MPI_Product_lattice_Initialize();
-
-    // Initialize product lattice MPI env
-    Global_tree_mpi::MPI_Global_tree_Initialize();
 
     int type = std::atoi(argv[1]);
     int atom = std::atoi(argv[2]);
@@ -42,6 +36,12 @@ int main(int argc, char *argv[])
     double thres_up = 0.01;
     double thres_lo = 0.01;
     double thres_branch = 0.001;
+
+    // Initialize product lattice MPI env
+    Product_lattice::MPI_Product_lattice_Initialize();
+
+    // Initialize product lattice MPI env
+    Global_tree_mpi::MPI_Global_tree_Initialize(search_depth, 1);
 
     double pi0[atom * variant];
     for (int i = 0; i < atom * variant; i++)
@@ -87,25 +87,31 @@ int main(int argc, char *argv[])
     std::chrono::nanoseconds mp_update_times[atom + 1]{std::chrono::nanoseconds::zero()};
     std::chrono::nanoseconds dp_update_times[atom + 1]{std::chrono::nanoseconds::zero()};
     std::chrono::nanoseconds mp_dp_update_times[atom + 1]{std::chrono::nanoseconds::zero()};
+
+    // Fusion tree
+    // Global_tree *tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, pi0, dilution, halving_times, mp_update_times, dp_update_times, mp_dp_update_times);
+    // Global tree
+    // Global_tree* tree = new Global_tree_mp(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
     Global_tree *tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, halving_times, mp_update_times, dp_update_times, mp_dp_update_times);
 
-    // Global_tree* tree = new Global_tree_mp(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
-
     auto stop_tree_construction = std::chrono::high_resolution_clock::now();
-    if (world_rank == 0)
+
+    Tree_stat prim(search_depth, 1);
+    Tree_stat temp(search_depth, 1); 
+    Tree_stat summ(search_depth, 1);
+
+    int total_st = p->total_state();
+    for (int i = total_st / world_size * rank; i < total_st / world_size * (rank + 1); i++)
     {
-        tree->apply_true_state(p, 0, thres_branch, dilution);
+        tree->apply_true_state(p, i, thres_branch, dilution);
+        tree->parse(i, p, pi0, thres_branch, 1.0, &temp);
+        prim.merge(&temp);
+    }
 
-        Tree_stat *prim = new Tree_stat(search_depth, 1);
-        Tree_stat *temp = new Tree_stat(search_depth, 1);
+    MPI_Reduce(&prim, &summ, 1, Global_tree_mpi::tree_stat_type, Global_tree_mpi::tree_stat_op, 0, MPI_COMM_WORLD);
 
-        int total_st = p->total_state();
-        for (int i = 0; i < total_st; i++)
-        {
-            tree->apply_true_state(p, i, 0.001, dilution);
-            tree->parse(i, p, pi0, thres_branch, 1.0, temp);
-            prim->merge(temp);
-        }
+    if (!rank)
+    {
         std::stringstream file_name;
         file_name << "Multinomial-" << p->type()
                   << "-N=" << atom
@@ -117,39 +123,31 @@ int main(int argc, char *argv[])
                   << "-" << get_curr_time()
                   << ".csv";
         freopen(file_name.str().c_str(), "w", stdout);
-        std::cout << std::endl
-                  << std::endl
-                  << tree->shrinking_stat();
-
         std::cout << "N = " << atom << ", k = " << variant << std::endl;
         std::cout << "Prior: ";
         for (int i = 0; i < p->curr_atoms(); i++)
         {
             std::cout << pi0[i] << ", ";
         }
+        std::cout << "\nNegative classification threshold: " << thres_up << std::endl;
+        std::cout << "Positive classification threshold: " << thres_lo << std::endl;
+        std::cout << "Branch elimination threshold: " << thres_branch << std::endl;
 
-        std::vector<const Global_tree *> *leaves = new std::vector<const Global_tree *>;
-        tree->find_all_leaves(tree, leaves);
-        std::cout << std::endl
-                  << "\nNumber of tree leaves," << leaves->size() << std::endl;
-        delete leaves;
-
-        prim->output_detail();
-
-        // clean up memory
-        delete prim;
-        delete temp;
+        summ.output_detail();
     }
+
     auto stop_statistical_analysis = std::chrono::high_resolution_clock::now();
     std::chrono::nanoseconds total_halving_time = std::chrono::nanoseconds::zero();
     std::chrono::nanoseconds total_mp_update_time = std::chrono::nanoseconds::zero();
     std::chrono::nanoseconds total_dp_update_time = std::chrono::nanoseconds::zero();
     std::chrono::nanoseconds total_mp_dp_update_time = std::chrono::nanoseconds::zero();
 
-    if (world_rank == 0)
+    if (rank == 0)
     {
-        std::cout << "\n\n Performance Statistics\n"
-                  << std::endl;
+        std::cout << "\n\nPerformance Statistics\n\n";
+
+        std::cout << tree->shrinking_stat() << std::endl << std::endl;
+
         for (int i = 0; i < atom + 1; i++)
         {
             std::cout << "Model size:," << i << ",Having time:," << halving_times[i].count() / 1e9 << "s,"
@@ -190,6 +188,7 @@ int main(int argc, char *argv[])
     {
         Product_lattice_mp::MPI_Product_lattice_Free();
     }
+    Global_tree_mpi::MPI_Global_tree_Free();
 
     // Finalize MPI
     MPI_Finalize();

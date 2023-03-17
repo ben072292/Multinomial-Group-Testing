@@ -8,14 +8,12 @@
 class Global_tree
 {
 protected:
-    static int rank, world_size;
     Product_lattice *_lattice;
     bin_enc _ex, _res;
     int _curr_stage;
     double _branch_prob;
     Global_tree **_children;
-    bool _is_clas;
-
+    
 public:
     Global_tree() {}
     Global_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int curr_stage);
@@ -32,11 +30,10 @@ public:
     inline int ex_count() const { return _lattice->test_count(); }
     inline int curr_stage() const { return _curr_stage; }
     inline int curr_subjs() const { return _lattice->curr_subjs(); }
-    inline int orig_subjs() const { return _lattice->orig_subjs(); }
     inline int variants() const { return _lattice->variants(); }
     inline double branch_prob() const { return _branch_prob; }
     inline Global_tree **children() const { return _children; }
-    inline bool is_classified() const { return _is_clas; }
+    inline bool is_classified() const { return _lattice->is_classified();}
     void parse(bin_enc true_state, const Product_lattice *org_lattice, double *pi0, double thres_branch, double sym_coef, Tree_stat *ret) const;
     inline double total_positive() const { return __builtin_popcount(_lattice->pos_clas_atoms()); }
     inline double total_negative() const { return __builtin_popcount(_lattice->neg_clas_atoms()); }
@@ -50,6 +47,5 @@ public:
     void apply_true_state(const Product_lattice *org_lattice, bin_enc true_state, double thres_branch, double **dilution);
     static void apply_true_state_helper(const Product_lattice *org_lattice, Global_tree *node, bin_enc true_state, double prob, double thres_branch, double **dilution);
     std::string shrinking_stat() const;
-
-    static void MPI_Global_tree_Initialize();
+    
 };

@@ -7,6 +7,7 @@ Product_lattice_mp::Product_lattice_mp(int subjs, int variants, double *pi0)
 {
 	_parallelism = MODEL_PARALLELISM;
 	_curr_subjs = subjs;
+	_orig_subjs = subjs;
 	_variants = variants;
 	_post_probs = new double[total_state_each()];
 	prior_probs(pi0);
@@ -58,17 +59,16 @@ void Product_lattice_mp::update_metadata(double thres_up, double thres_lo)
 void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double thres_lo)
 {
 	bin_enc clas_atoms = (_pos_clas_atoms | _neg_clas_atoms); // same size as orig layout
-	int orig_subjs = this->orig_subjs();					  // called at the beginning to ensure correct value
 	bin_enc curr_clas_atoms = 0;							  // same size as curr layout
 	int curr_atoms = _curr_subjs * _variants;
 	bin_enc new_curr_clas_atoms = 0;
 	bin_enc new_pos_clas_atoms = 0;
 	bin_enc new_neg_clas_atoms = 0;
 
-	for (int i = 0; i < orig_subjs * _variants; i++)
+	for (int i = 0; i < _orig_subjs * _variants; i++)
 	{
 		bin_enc orig_index = (1 << i);													// binary index in decimal for original layout
-		bin_enc curr_index = orig_curr_ind_conv(i, _clas_subjs, orig_subjs, _variants); // binary index in decimal for current layout
+		bin_enc curr_index = orig_curr_ind_conv(i, _clas_subjs, _orig_subjs, _variants); // binary index in decimal for current layout
 		if ((clas_atoms & orig_index))
 		{
 			new_curr_clas_atoms |= curr_index;
@@ -94,16 +94,17 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 
 	curr_clas_atoms = curr_shrinkable_atoms(curr_clas_atoms, _curr_subjs, _variants);
 
-	int target_prob_size = (1 << ((orig_subjs - __builtin_popcount(update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, orig_subjs, _variants))) * _variants));
-	if(target_prob_size == 1){ // if classified, update variables and return;
-		_clas_subjs = update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, orig_subjs, _variants);
-		_curr_subjs = orig_subjs - __builtin_popcount(_clas_subjs);
+	int target_prob_size = (1 << ((_orig_subjs - __builtin_popcount(update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, _orig_subjs, _variants))) * _variants));
+	if(is_classified()){ // if classified, update variables and return;
+		_clas_subjs = update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, _orig_subjs, _variants);
+		_curr_subjs = _orig_subjs - __builtin_popcount(_clas_subjs);
+		delete[] _post_probs;
+		_post_probs = nullptr;
 		return;
 	}
 	// if data parallelism is achievable, i.e., each process has at least 1 state to work, performing model parallelism shrinking
-	// >= 256 otherwise the vectorized halving will crash during statistical analysis
-	if (curr_clas_atoms && target_prob_size / world_size > 0 && target_prob_size >= 256) 
-		shrinking(orig_subjs, curr_atoms, curr_clas_atoms);
+	if (curr_clas_atoms && target_prob_size / world_size > 0) 
+		shrinking(curr_atoms, curr_clas_atoms);
 	// if model parallelism is not achievable, covert model parallelism to data parallelism and then shrinking
 	else if (curr_clas_atoms && target_prob_size / world_size == 0)
 	{
@@ -117,22 +118,23 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 		{
 			double *temp = _post_probs;
 			_post_probs = candidate_post_probs;
-			Product_lattice::shrinking(orig_subjs, curr_atoms, curr_clas_atoms);
+			Product_lattice::shrinking(curr_atoms, curr_clas_atoms);
 			_post_probs = temp;
 		}
 		MPI_Bcast(candidate_post_probs, target_prob_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 		delete[] _post_probs;
 		_post_probs = candidate_post_probs;
+		candidate_post_probs = nullptr;
 		_parallelism = DATA_PARALLELISM;
 		if (rank != 0)
 		{
-			_clas_subjs = update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, orig_subjs, _variants);
-			_curr_subjs = orig_subjs - __builtin_popcount(_clas_subjs);
+			_clas_subjs = update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, _orig_subjs, _variants);
+			_curr_subjs = _orig_subjs - __builtin_popcount(_clas_subjs);
 		}
 	}
 }
 
-void Product_lattice_mp::shrinking(int orig_subjs, int curr_atoms, bin_enc curr_clas_atoms)
+void Product_lattice_mp::shrinking(int curr_atoms, bin_enc curr_clas_atoms)
 {
 	int reduce_count = __builtin_popcount(curr_clas_atoms);
 	int base_count = curr_atoms - reduce_count;
@@ -170,8 +172,8 @@ void Product_lattice_mp::shrinking(int orig_subjs, int curr_atoms, bin_enc curr_
 			_post_probs[i] += temp_post_prob_holder[i * (1 << reduce_count) + j];
 		}
 	}
-	_clas_subjs = update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, orig_subjs, _variants);
-	_curr_subjs = orig_subjs - __builtin_popcount(_clas_subjs);
+	_clas_subjs = update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, _orig_subjs, _variants);
+	_curr_subjs = _orig_subjs - __builtin_popcount(_clas_subjs);
 }
 
 // Exhaustive traversal is faster than active generation for atoms

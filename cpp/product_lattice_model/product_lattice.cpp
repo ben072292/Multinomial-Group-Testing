@@ -1,12 +1,17 @@
 #include "product_lattice.hpp"
 
-int Product_lattice::rank = -1;
-int Product_lattice::world_size = 0;
+int Product_lattice::rank;
+int Product_lattice::world_size;
+int Product_lattice::_orig_subjs;
+int Product_lattice::_variants;
 static MPI_Datatype halving_res_type;
 static MPI_Op halving_op;
 
-Product_lattice::Product_lattice(int subjs, int variants, double *pi0) : _curr_subjs(subjs), _variants(variants)
+Product_lattice::Product_lattice(int subjs, int variants, double *pi0)
 {
+	_curr_subjs = subjs;
+	_orig_subjs = subjs;
+	_variants = variants;
 	_parallelism = DATA_PARALLELISM;
 	_post_probs = new double[(1 << (_curr_subjs * _variants))];
 	prior_probs(pi0);
@@ -16,7 +21,6 @@ Product_lattice::Product_lattice(const Product_lattice &other, int copy_op)
 {
 	_parallelism = other._parallelism;
 	_curr_subjs = other._curr_subjs;
-	_variants = other._variants;
 	_pos_clas_atoms = other._pos_clas_atoms;
 	_neg_clas_atoms = other._neg_clas_atoms;
 	_test_ct = other._test_ct;
@@ -147,7 +151,6 @@ void Product_lattice::update_metadata(double thres_up, double thres_lo)
 void Product_lattice::update_metadata_with_shrinking(double thres_up, double thres_lo)
 {
 	bin_enc clas_atoms = (_pos_clas_atoms | _neg_clas_atoms); // same size as orig layout
-	int orig_subjs = this->orig_subjs();					  // called at the beginning to ensure correct value
 	bin_enc curr_clas_atoms = 0;							  // same size as curr layout
 	int curr_atoms = _curr_subjs * _variants;
 	bin_enc new_curr_clas_atoms = 0;
@@ -156,10 +159,10 @@ void Product_lattice::update_metadata_with_shrinking(double thres_up, double thr
 
 #pragma omp parallel for schedule(dynamic) reduction(+ \
 													 : new_curr_clas_atoms, new_pos_clas_atoms, new_neg_clas_atoms)
-	for (int i = 0; i < orig_subjs * _variants; i++)
+	for (int i = 0; i < _orig_subjs * _variants; i++)
 	{
 		bin_enc orig_index = (1 << i);													// binary index in decimal for original layout
-		bin_enc curr_index = orig_curr_ind_conv(i, _clas_subjs, orig_subjs, _variants); // binary index in decimal for current layout
+		bin_enc curr_index = orig_curr_ind_conv(i, _clas_subjs, _orig_subjs, _variants); // binary index in decimal for current layout
 		if ((clas_atoms & orig_index))
 		{
 			new_curr_clas_atoms |= curr_index;
@@ -185,10 +188,10 @@ void Product_lattice::update_metadata_with_shrinking(double thres_up, double thr
 
 	curr_clas_atoms = curr_shrinkable_atoms(curr_clas_atoms, _curr_subjs, _variants);
 	if (curr_clas_atoms)
-		shrinking(orig_subjs, curr_atoms, curr_clas_atoms); // if there's new classifications, we perform the actual shrinkings
+		shrinking(curr_atoms, curr_clas_atoms); // if there's new classifications, we perform the actual shrinkings
 }
 
-void Product_lattice::shrinking(int orig_subjs, int curr_atoms, int curr_clas_atoms)
+void Product_lattice::shrinking(int curr_atoms, int curr_clas_atoms)
 {
 	int reduce_count = __builtin_popcount(curr_clas_atoms);
 	int base_count = curr_atoms - reduce_count;
@@ -242,8 +245,8 @@ void Product_lattice::shrinking(int orig_subjs, int curr_atoms, int curr_clas_at
 	}
 	delete[] base_index;
 	delete[] reduce_index;
-	_clas_subjs = update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, orig_subjs, _variants);
-	_curr_subjs = orig_subjs - __builtin_popcount(_clas_subjs);
+	_clas_subjs = update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, _orig_subjs, _variants);
+	_curr_subjs = _orig_subjs - __builtin_popcount(_clas_subjs);
 }
 
 // Active generation
@@ -654,9 +657,9 @@ bin_enc Product_lattice::halving_hybrid(double prob) const
 bin_enc Product_lattice::halving_mp(double prob) const
 {
 	if ((1 << _curr_subjs) >= world_size)
-		return halving_hybrid(prob);
+		return halving_mpi(prob);
 	else
-		return halving_omp(prob);
+		return halving(prob);
 }
 
 double **Product_lattice::generate_dilution(double alpha, double h) const

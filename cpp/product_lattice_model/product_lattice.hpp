@@ -11,10 +11,9 @@ class Product_lattice
 {
 
 protected:
-	static int rank, world_size;
+	static int rank, world_size, _orig_subjs, _variants;
 	int _parallelism;
 	int _curr_subjs; // counter
-	int _variants;	 // counter
 	double *_post_probs;
 	int _test_ct = 0;			 // counter
 	bin_enc _pos_clas_atoms = 0; // BE (binary encoding)
@@ -30,12 +29,12 @@ public:
 	virtual Product_lattice *clone(int copy_op) const = 0;
 	inline int parallelism() const { return _parallelism; }
 	inline int curr_subjs() const { return _curr_subjs; }
-	inline int variants() const { return _variants; };
+	inline static int variants() { return _variants; };
 	inline bin_enc pos_clas_atoms() const { return _pos_clas_atoms; }
 	inline bin_enc neg_clas_atoms() const { return _neg_clas_atoms; }
 	inline int curr_atoms() const { return _curr_subjs * _variants; }
-	inline int orig_atoms() const { return orig_subjs() * _variants; }
-	inline int orig_subjs() const { return _curr_subjs + __builtin_popcount(_clas_subjs); }
+	inline int orig_atoms() const { return _orig_subjs * _variants; }
+	inline static int orig_subjs() { return _orig_subjs;}
 	inline bin_enc clas_subjs() const { return _clas_subjs; }
 	inline int total_state() const { return (1 << (_curr_subjs * _variants)); }
 	inline double *posterior_probs() const { return _post_probs; };
@@ -54,7 +53,7 @@ public:
 	virtual void calc_probs_in_place(bin_enc experiment, bin_enc response, double **dilution);
 	virtual void update_metadata(double thres_up, double thres_lo);
 	virtual void update_metadata_with_shrinking(double thres_up, double thres_lo);
-	virtual void shrinking(int orig_subjs, int curr_atoms, int curr_clas_atoms);
+	virtual void shrinking(int curr_atoms, int curr_clas_atoms);
 	virtual double get_prob_mass(bin_enc state) const;
 	virtual double get_atom_prob_mass(bin_enc atom) const;
 	virtual bin_enc halving(double prob) const;		   // serial halving algorithm

@@ -30,14 +30,14 @@ public:
 	void calc_probs_in_place(bin_enc experiment, bin_enc response, double **dilution);
 	void update_metadata(double thres_up, double thres_lo);
 	void update_metadata_with_shrinking(double thres_up, double thres_lo);
-	void shrinking(int orig_subjs, int curr_atoms, int curr_clas_atoms);
+	void shrinking(int curr_atoms, int curr_clas_atoms);
 	double get_prob_mass(bin_enc state) const { throw std::logic_error("Not Implemented."); }
 	double get_atom_prob_mass(bin_enc atom) const;
 	bin_enc halving(double prob) const { throw std::logic_error("Not Implemented."); }	   // serial halving algorithm
 	bin_enc halving_omp(double prob) const { throw std::logic_error("Not Implemented."); } // OpenMP halving algorithm
 	bin_enc halving_mpi(double prob) const;												   // MPI halving algorithm
 	bin_enc halving_hybrid(double prob) const;											   // hybrid MPI + OpenMP halving algorithm
-	inline bin_enc halving_mp(double prob) const { return halving_mpi(prob); }
+	inline bin_enc halving_mp(double prob) const { return total_state_each() >= 256 ? halving_mpi(prob) : halving_hybrid(prob); }
 
 	static void MPI_Product_lattice_Initialize(int atoms, int variants);
 	static void MPI_Product_lattice_Free();

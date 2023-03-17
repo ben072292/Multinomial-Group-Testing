@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
     int total_st = p->total_state();
     for (int i = 0; i < total_st; i++)
     {
-        tree->apply_true_state(p, i, 0.001, dilution);
+        tree->apply_true_state(p, i, thres_branch, dilution);
         tree->parse(i, p, pi0, thres_branch, 1.0, temp);
         prim->merge(temp);
     }

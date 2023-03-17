@@ -1,12 +1,8 @@
 #include "global_tree.hpp"
 
-int Global_tree::rank = -1;
-int Global_tree::world_size = 0;
-
 Global_tree::Global_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int curr_stage)
 {
     _lattice = lattice;
-    _is_clas = lattice->is_classified();
     _ex = ex;
     _res = res;
     _curr_stage = curr_stage;
@@ -84,7 +80,6 @@ Global_tree::Global_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int 
 Global_tree::Global_tree(const Global_tree &other, bool deep)
 {
     _lattice = other._lattice->clone(NO_COPY_PROB_DIST);
-    _is_clas = other._is_clas;
     _ex = other._ex;
     _res = other._res;
     _branch_prob = other._branch_prob;
@@ -106,7 +101,7 @@ Global_tree::Global_tree(const Global_tree &other, bool deep)
 Global_tree::~Global_tree()
 {
     // recursive dtor
-    int variants = _lattice->variants();
+    int variants = Product_lattice::variants();
     if (_lattice != nullptr)
         delete _lattice;
     if (_children != nullptr)
@@ -114,9 +109,7 @@ Global_tree::~Global_tree()
         for (int i = 0; i < (1 << variants); i++)
         {
             if (_children[i] != nullptr)
-            {
                 delete _children[i];
-            }
         }
         delete[] _children;
     }
@@ -129,7 +122,7 @@ Global_tree::~Global_tree()
 bin_enc Global_tree::true_ex(bin_enc halving)
 {
     bin_enc ret = 0, pos = 0;
-    for (int i = 0; i < _lattice->orig_subjs(); i++)
+    for (int i = 0; i < Product_lattice::orig_subjs(); i++)
     {
         if (!(_lattice->clas_subjs() & (1 << i)))
         {
@@ -153,17 +146,17 @@ void Global_tree::parse(bin_enc true_state, const Product_lattice *org_lattice, 
     {
         const Global_tree *leaf = (*leaves)[i];
         int index = leaf->ex_count();
-        if (leaf->_is_clas && leaf->is_correct_clas(true_state))
+        if (leaf->is_classified() && leaf->is_correct_clas(true_state))
         {
             stat->correct()[index] += leaf->_branch_prob * coef;
         }
-        else if (leaf->_is_clas && !leaf->is_correct_clas(true_state))
+        else if (leaf->is_classified() && !leaf->is_correct_clas(true_state))
         {
             stat->incorrect()[index] += leaf->_branch_prob * coef;
             stat->fp()[index] += leaf->fp(true_state) * coef * leaf->_branch_prob;
             stat->fn()[index] += leaf->fn(true_state) * coef * leaf->_branch_prob;
         }
-        else if (!leaf->_is_clas)
+        else if (!leaf->is_classified())
         {
             stat->unclassified(stat->unclassified() + leaf->_branch_prob * coef);
         }
@@ -217,7 +210,10 @@ void Global_tree::find_all_leaves(const Global_tree *node, std::vector<const Glo
     {
         for (int i = 0; i < (1 << node->variants()); i++)
         {
-            find_all_leaves(node->_children[i], leaves);
+            if (node->children()[i] != nullptr)
+            {
+                find_all_leaves(node->_children[i], leaves);
+            }
         }
     }
 }
@@ -234,7 +230,10 @@ void Global_tree::find_all_stat(const Global_tree *node, std::vector<const Globa
     {
         for (int i = 0; i < (1 << node->variants()); i++)
         {
-            find_all_stat(node->_children[i], leaves, thres_branch);
+            if (node->children()[i] != nullptr)
+            {
+                find_all_stat(node->_children[i], leaves, thres_branch);
+            }
         }
     }
 }
@@ -243,7 +242,7 @@ void Global_tree::find_clas_stat(const Global_tree *node, std::vector<const Glob
 {
     if (node == nullptr || node->_branch_prob < thres_branch)
         return;
-    if (node->_is_clas)
+    if (node->is_classified())
     {
         leaves->push_back(node);
     }
@@ -253,7 +252,10 @@ void Global_tree::find_clas_stat(const Global_tree *node, std::vector<const Glob
         {
             for (int i = 0; i < (1 << node->variants()); i++)
             {
-                find_clas_stat(node->_children[i], leaves, thres_branch);
+                if (node->children()[i] != nullptr)
+                {
+                    find_clas_stat(node->_children[i], leaves, thres_branch);
+                }
             }
         }
     }
@@ -261,17 +263,20 @@ void Global_tree::find_clas_stat(const Global_tree *node, std::vector<const Glob
 
 void Global_tree::find_unclas_stat(const Global_tree *node, std::vector<const Global_tree *> *leaves, double thres_branch)
 {
-    if (node == nullptr || node->_is_clas || node->_branch_prob < thres_branch)
+    if (node == nullptr || node->is_classified() || node->_branch_prob < thres_branch)
         return;
-    if (node->_children == nullptr && !node->_is_clas)
+    if (node->_children == nullptr && !node->is_classified())
     {
         leaves->push_back(node);
     }
-    else if (node->_children != nullptr && !node->_is_clas)
+    else if (node->_children != nullptr && !node->is_classified())
     {
         for (int i = 0; i < (1 << node->variants()); i++)
         {
-            find_unclas_stat(node->_children[i], leaves, thres_branch);
+            if (node->children()[i] != nullptr)
+            {
+                find_unclas_stat(node->_children[i], leaves, thres_branch);
+            }
         }
     }
 }
@@ -290,14 +295,18 @@ void Global_tree::apply_true_state_helper(const Product_lattice *__restrict__ or
     {
         for (int i = 0; i < (1 << node->variants()); i++)
         {
-            double child_prob = prob * org_lattice->response_prob(node->_children[i]->_ex, node->_children[i]->_res, true_state, dilution);
-            if (child_prob > thres_branch)
+            if (node->_children[i] != nullptr)
             {
-                apply_true_state_helper(org_lattice, node->_children[i], true_state, child_prob, thres_branch, dilution);
-            }
-            else
-            {
-                node->_children[i]->_branch_prob = 0.0; // otherwise parsing stat tree will lead to incorrect result
+
+                double child_prob = prob * org_lattice->response_prob(node->_children[i]->_ex, node->_children[i]->_res, true_state, dilution);
+                if (child_prob > thres_branch)
+                {
+                    apply_true_state_helper(org_lattice, node->_children[i], true_state, child_prob, thres_branch, dilution);
+                }
+                else
+                {
+                    node->_children[i]->_branch_prob = 0.0; // otherwise parsing stat tree will lead to incorrect result
+                }
             }
         }
     }
@@ -315,7 +324,10 @@ void shrinking_stat_helper(const Global_tree *node, int *stat)
     {
         for (int i = 0; i < (1 << node->variants()); i++)
         {
-            shrinking_stat_helper(node->children()[i], stat);
+            if (node->children()[i] != nullptr)
+            {
+                shrinking_stat_helper(node->children()[i], stat);
+            }
         }
     }
 }
@@ -344,12 +356,4 @@ std::string Global_tree::shrinking_stat() const
     ret += ",100%\n";
     delete[] stat;
     return ret;
-}
-
-void Global_tree::MPI_Global_tree_Initialize()
-{
-    // Get the number of processes
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-    // Get the rank of the process
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 }
