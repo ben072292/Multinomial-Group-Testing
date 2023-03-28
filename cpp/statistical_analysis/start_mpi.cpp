@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
     MPI_Get_processor_name(processor_name, &name_len);
 
     int type = std::atoi(argv[1]);
-    int atom = std::atoi(argv[2]);
+    int subjs = std::atoi(argv[2]);
     int variant = std::atoi(argv[3]);
     double prior = std::atof(argv[4]);
     int search_depth = std::atoi(argv[5]);
@@ -41,10 +41,10 @@ int main(int argc, char *argv[])
     Product_lattice::MPI_Product_lattice_Initialize();
 
     // Initialize product lattice MPI env
-    Global_tree_mpi::MPI_Global_tree_Initialize(search_depth, 1);
+    Global_tree_mpi::MPI_Global_tree_Initialize(subjs, search_depth, 1);
 
-    double pi0[atom * variant];
-    for (int i = 0; i < atom * variant; i++)
+    double pi0[subjs * variant];
+    for (int i = 0; i < subjs * variant; i++)
     {
         pi0[i] = prior;
     }
@@ -54,21 +54,21 @@ int main(int argc, char *argv[])
     Product_lattice *p;
     if (type == MP_NON_DILUTION)
     {
-        Product_lattice_mp::MPI_Product_lattice_Initialize(atom, variant);
-        p = new Product_lattice_mp_non_dilution(atom, variant, pi0);
+        Product_lattice_mp::MPI_Product_lattice_Initialize(subjs, variant);
+        p = new Product_lattice_mp_non_dilution(subjs, variant, pi0);
     }
     else if (type == MP_DILUTION)
     {
-        Product_lattice_mp::MPI_Product_lattice_Initialize(atom, variant);
-        p = new Product_lattice_mp_dilution(atom, variant, pi0);
+        Product_lattice_mp::MPI_Product_lattice_Initialize(subjs, variant);
+        p = new Product_lattice_mp_dilution(subjs, variant, pi0);
     }
     else if (type == DP_NON_DILUTION)
     {
-        p = new Product_lattice_non_dilution(atom, variant, pi0);
+        p = new Product_lattice_non_dilution(subjs, variant, pi0);
     }
     else if (type == DP_DILUTION)
     {
-        p = new Product_lattice_dilution(atom, variant, pi0);
+        p = new Product_lattice_dilution(subjs, variant, pi0);
     }
     else
     {
@@ -83,16 +83,11 @@ int main(int argc, char *argv[])
 
     auto start_tree_construction = std::chrono::high_resolution_clock::now();
 
-    std::chrono::nanoseconds halving_times[atom + 1]{std::chrono::nanoseconds::zero()};
-    std::chrono::nanoseconds mp_update_times[atom + 1]{std::chrono::nanoseconds::zero()};
-    std::chrono::nanoseconds dp_update_times[atom + 1]{std::chrono::nanoseconds::zero()};
-    std::chrono::nanoseconds mp_dp_update_times[atom + 1]{std::chrono::nanoseconds::zero()};
-
     // Fusion tree
     // Global_tree *tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, pi0, dilution, halving_times, mp_update_times, dp_update_times, mp_dp_update_times);
     // Global tree
     // Global_tree* tree = new Global_tree_mp(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
-    Global_tree *tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, halving_times, mp_update_times, dp_update_times, mp_dp_update_times);
+    Global_tree *tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, true);
 
     auto stop_tree_construction = std::chrono::high_resolution_clock::now();
 
@@ -114,7 +109,7 @@ int main(int argc, char *argv[])
     {
         std::stringstream file_name;
         file_name << "Multinomial-" << p->type()
-                  << "-N=" << atom
+                  << "-N=" << subjs
                   << "-k=" << variant
                   << "-Prior=" << prior
                   << "-Depth=" << search_depth
@@ -123,7 +118,7 @@ int main(int argc, char *argv[])
                   << "-" << get_curr_time()
                   << ".csv";
         freopen(file_name.str().c_str(), "w", stdout);
-        std::cout << "N = " << atom << ", k = " << variant << std::endl;
+        std::cout << "N = " << subjs << ", k = " << variant << std::endl;
         std::cout << "Prior: ";
         for (int i = 0; i < p->curr_atoms(); i++)
         {
@@ -137,10 +132,6 @@ int main(int argc, char *argv[])
     }
 
     auto stop_statistical_analysis = std::chrono::high_resolution_clock::now();
-    std::chrono::nanoseconds total_halving_time = std::chrono::nanoseconds::zero();
-    std::chrono::nanoseconds total_mp_update_time = std::chrono::nanoseconds::zero();
-    std::chrono::nanoseconds total_dp_update_time = std::chrono::nanoseconds::zero();
-    std::chrono::nanoseconds total_mp_dp_update_time = std::chrono::nanoseconds::zero();
 
     if (rank == 0)
     {
@@ -148,26 +139,12 @@ int main(int argc, char *argv[])
 
         std::cout << tree->shrinking_stat() << std::endl << std::endl;
 
-        for (int i = 0; i < atom + 1; i++)
-        {
-            std::cout << "Model size:," << i << ",Having time:," << halving_times[i].count() / 1e9 << "s,"
-                      << "MP Update time:," << mp_update_times[i].count() / 1e9 << "s,"
-                      << "DP Update time:," << dp_update_times[i].count() / 1e9 << "s,"
-                      << "MP-DP Update time:," << mp_dp_update_times[i].count() / 1e9 << "s" << std::endl;
-            total_halving_time += halving_times[i];
-            total_mp_update_time += mp_update_times[i];
-            total_dp_update_time += dp_update_times[i];
-            total_mp_dp_update_time += mp_dp_update_times[i];
-        }
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_lattice_model_construction - start_lattice_model_construction);
         std::cout << "Initial Lattice Model Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
-        std::cout << "Total Halving time," << total_halving_time.count() / 1e9 << "s." << std::endl;
-        std::cout << "Total MP Update time," << total_mp_update_time.count() / 1e9 << "s." << std::endl;
-        std::cout << "Total DP Update time," << total_dp_update_time.count() / 1e9 << "s." << std::endl;
-        std::cout << "Total MP-DP Update time," << total_mp_dp_update_time.count() / 1e9 << "s." << std::endl;
-        std::cout << "Total Update time," << ((total_mp_update_time.count() + total_dp_update_time.count() + total_mp_dp_update_time.count()) / 1e9) << "s." << std::endl;
-        std::cout << "Extra Time," << (duration.count() / 1e6 - total_halving_time.count() / 1e9 - total_mp_update_time.count() / 1e9 - total_dp_update_time.count() / 1e9 - total_mp_dp_update_time.count() / 1e9) << "s." << std::endl;
+
+        Global_tree_mpi::tree_perf->output_verbose();
+
         std::cout << "Global Tree Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - stop_tree_construction);
         std::cout << "Statistical Analysis Time: " << duration.count() / 1e6 << "s." << std::endl;
@@ -175,7 +152,7 @@ int main(int argc, char *argv[])
         std::cout << "Total Time: " << duration.count() / 1e6 << "s." << std::endl;
     }
 
-    for (int i = 0; i < atom; i++)
+    for (int i = 0; i < subjs; i++)
     {
         delete[] dilution[i];
     }

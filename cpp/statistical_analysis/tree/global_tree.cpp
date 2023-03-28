@@ -23,14 +23,16 @@ Global_tree::Global_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int 
             if (re != (1 << lattice->variants()) - 1)
             {
                 Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
-                p->update_probs(halving, re, thres_up, thres_lo, dilution);
+                p->update_probs(halving, re, dilution);
+                p->update_metadata_with_shrinking(thres_up, thres_lo);
                 _children[re] = new Global_tree(p, ex, re, k, _curr_stage + 1, thres_up, thres_lo, stage, dilution);
             }
             else
             { // reuse post_prob_ array in child to save memory
                 Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
                 _lattice->posterior_probs(nullptr); // detach post_prob_ from current lattice
-                p->update_probs_in_place(halving, re, thres_up, thres_lo, dilution);
+                p->update_probs_in_place(halving, re, dilution);
+                p->update_metadata_with_shrinking(thres_up, thres_lo);
                 _children[re] = new Global_tree(p, ex, re, k, _curr_stage + 1, thres_up, thres_lo, stage, dilution);
             }
         }
@@ -58,14 +60,16 @@ Global_tree::Global_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int 
             if (re != (1 << lattice->variants()) - 1)
             {
                 Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
-                p->update_probs(halving, re, thres_up, thres_lo, dilution);
+                p->update_probs(halving, re, dilution);
+                p->update_metadata_with_shrinking(thres_up, thres_lo);
                 _children[re] = new Global_tree(p, ex, re, k, _curr_stage + 1, thres_up, thres_lo, stage, dilution, halving_times);
             }
             else
             { // reuse post_prob_ array in child to save memory
                 Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
                 _lattice->posterior_probs(nullptr); // detach post_prob_ from current lattice
-                p->update_probs_in_place(halving, re, thres_up, thres_lo, dilution);
+                p->update_probs_in_place(halving, re, dilution);
+                p->update_metadata_with_shrinking(thres_up, thres_lo);
                 _children[re] = new Global_tree(p, ex, re, k, _curr_stage + 1, thres_up, thres_lo, stage, dilution, halving_times);
             }
         }
@@ -316,17 +320,21 @@ void shrinking_stat_helper(const Global_tree *node, int *stat)
 {
     if (node == nullptr)
         return;
-    if (node->children() == nullptr)
-    {
-        stat[node->lattice()->curr_subjs()]++;
-    }
+    // if (node->children() == nullptr)
+    // {
+    //     stat[node->lattice()->curr_subjs()]++;
+    // }
     else
     {
-        for (int i = 0; i < (1 << node->variants()); i++)
+        stat[node->lattice()->curr_subjs()]++;
+        if (node->children() != nullptr)
         {
-            if (node->children()[i] != nullptr)
+            for (int i = 0; i < (1 << node->variants()); i++)
             {
-                shrinking_stat_helper(node->children()[i], stat);
+                if (node->children()[i] != nullptr)
+                {
+                    shrinking_stat_helper(node->children()[i], stat);
+                }
             }
         }
     }

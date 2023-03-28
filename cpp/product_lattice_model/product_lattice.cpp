@@ -111,25 +111,21 @@ double Product_lattice::prior_prob(bin_enc state, double *pi0) const
 	return prob;
 }
 
-void Product_lattice::update_probs(bin_enc experiment, bin_enc response, double thres_up, double thres_lo, double **dilution)
+void Product_lattice::update_probs(bin_enc experiment, bin_enc response, double **dilution)
 {
 	_post_probs = calc_probs(experiment, response, dilution);
-	// update_metadata(thres_up, thres_lo); // no lattice shrinking
-	update_metadata_with_shrinking(thres_up, thres_lo); // lattice shrinking
 	_test_ct++;
 }
 
-void Product_lattice::update_probs_in_place(bin_enc experiment, bin_enc response, double thres_up, double thres_lo, double **dilution)
+void Product_lattice::update_probs_in_place(bin_enc experiment, bin_enc response, double **dilution)
 {
 	calc_probs_in_place(experiment, response, dilution);
-	// update_metadata(thres_up, thres_lo);
-	update_metadata_with_shrinking(thres_up, thres_lo);
 	_test_ct++;
 }
 
 void Product_lattice::update_metadata(double thres_up, double thres_lo)
 {
-#pragma omp parallel for schedule(dynamic)
+	// #pragma omp parallel for schedule(dynamic)
 	for (int i = 0; i < curr_atoms(); i++)
 	{
 		bin_enc placement = (1 << i);
@@ -138,7 +134,7 @@ void Product_lattice::update_metadata(double thres_up, double thres_lo)
 		bin_enc atom = 1 << i;
 		double prob_mass = get_atom_prob_mass(atom);
 
-#pragma omp critical // nominal_pool_size is small so omit contention overhead
+		// #pragma omp critical // nominal_pool_size is small so omit contention overhead
 		{
 			if (prob_mass < thres_lo)
 				_pos_clas_atoms |= placement; // classified as positive
@@ -157,8 +153,7 @@ void Product_lattice::update_metadata_with_shrinking(double thres_up, double thr
 	bin_enc new_pos_clas_atoms = 0;
 	bin_enc new_neg_clas_atoms = 0;
 
-#pragma omp parallel for schedule(dynamic) reduction(+ \
-													 : new_curr_clas_atoms, new_pos_clas_atoms, new_neg_clas_atoms)
+	// #pragma omp parallel for schedule(dynamic) reduction(+ : new_curr_clas_atoms, new_pos_clas_atoms, new_neg_clas_atoms)
 	for (int i = 0; i < _orig_subjs * _variants; i++)
 	{
 		bin_enc orig_index = (1 << i);													// binary index in decimal for original layout
@@ -469,10 +464,9 @@ bin_enc Product_lattice::halving_omp(double prob) const
 {
 	double partition_mass[(1 << _curr_subjs) * (1 << _variants)]{0.0};
 
-// tricky: for each state, check each variant of actively
-// pooled subjects to see whether they are all 1.
-#pragma omp parallel for schedule(static) reduction(+ \
-													: partition_mass)
+	// tricky: for each state, check each variant of actively
+	// pooled subjects to see whether they are all 1.
+	#pragma omp parallel for schedule(static) reduction(+ : partition_mass)
 	for (bin_enc s_iter = 0; s_iter < (1 << (_curr_subjs * _variants)); s_iter++)
 	{
 		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
@@ -493,10 +487,8 @@ bin_enc Product_lattice::halving_omp(double prob) const
 	}
 
 	Halving_res halving_res;
-#pragma omp declare reduction(Halving_Min:Halving_res \
-							  : Halving_res::halving_min(omp_out, omp_in)) initializer(omp_priv = Halving_res())
-#pragma omp parallel for schedule(static) reduction(Halving_Min \
-													: halving_res)
+	#pragma omp declare reduction(Halving_Min:Halving_res : Halving_res::halving_min(omp_out, omp_in)) initializer(omp_priv = Halving_res())
+	#pragma omp parallel for schedule(static) reduction(Halving_Min : halving_res)
 	for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 	{
 		double temp = 0.0;
@@ -601,6 +593,8 @@ bin_enc Product_lattice::halving_mpi(double prob) const
 	return halving_res.candidate;
 }
 
+bin_enc Product_lattice::halving_mpi_vectorize(double prob) const { throw std::logic_error("Not Implemented."); }
+
 bin_enc Product_lattice::halving_hybrid(double prob) const
 {
 	Halving_res halving_res;
@@ -608,8 +602,7 @@ bin_enc Product_lattice::halving_hybrid(double prob) const
 	const bin_enc stop_experiment = (1 << _curr_subjs) / world_size * (rank + 1);
 	double partition_mass[(stop_experiment - start_experiment) * (1 << _variants)]{0.0};
 
-#pragma omp parallel for schedule(static) reduction(+ \
-													: partition_mass)
+	#pragma omp parallel for schedule(static) reduction(+ : partition_mass)
 	// tricky: for each state, check each variant of actively
 	// pooled subjects to see whether they are all 1.
 	for (bin_enc s_iter = 0; s_iter < (1 << (_curr_subjs * _variants)); s_iter++)
@@ -632,10 +625,8 @@ bin_enc Product_lattice::halving_hybrid(double prob) const
 		}
 	}
 
-#pragma omp declare reduction(Halving_Min:Halving_res \
-							  : Halving_res::halving_min(omp_out, omp_in)) initializer(omp_priv = Halving_res())
-#pragma omp parallel for schedule(static) reduction(Halving_Min \
-													: halving_res)
+	#pragma omp declare reduction(Halving_Min:Halving_res : Halving_res::halving_min(omp_out, omp_in)) initializer(omp_priv = Halving_res())
+	#pragma omp parallel for schedule(static) reduction(Halving_Min : halving_res)
 	for (bin_enc experiment = start_experiment; experiment < stop_experiment; experiment++)
 	{
 		double temp = 0.0;

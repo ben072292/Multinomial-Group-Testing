@@ -4,6 +4,7 @@
 #include "../../product_lattice_model/product_lattice_dilution.hpp"
 #include "../../product_lattice_model/product_lattice_non_dilution.hpp"
 #include "../util/tree_stat.hpp"
+#include "../util/tree_perf.hpp"
 
 class Global_tree
 {

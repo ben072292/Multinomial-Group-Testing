@@ -36,8 +36,9 @@ public:
 	bin_enc halving(double prob) const { throw std::logic_error("Not Implemented."); }	   // serial halving algorithm
 	bin_enc halving_omp(double prob) const { throw std::logic_error("Not Implemented."); } // OpenMP halving algorithm
 	bin_enc halving_mpi(double prob) const;												   // MPI halving algorithm
+	bin_enc halving_mpi_vectorize(double prob) const;									   // MPI halving algorithm using vectorization
 	bin_enc halving_hybrid(double prob) const;											   // hybrid MPI + OpenMP halving algorithm
-	inline bin_enc halving_mp(double prob) const { return total_state_each() >= 256 ? halving_mpi(prob) : halving_hybrid(prob); }
+	inline bin_enc halving_mp(double prob) const { return total_state_each() >= 256 ? halving_mpi_vectorize(prob) : halving_mpi(prob); }
 
 	static void MPI_Product_lattice_Initialize(int atoms, int variants);
 	static void MPI_Product_lattice_Free();

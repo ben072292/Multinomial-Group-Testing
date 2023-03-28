@@ -47,8 +47,8 @@ public:
 	void generate_power_set_adder(bin_enc *add_index, int index_len, bin_enc state, bin_enc *ret) const;
 	virtual void prior_probs(double *pi0);
 	double prior_prob(bin_enc state, double *pi0) const;
-	void update_probs(bin_enc experiment, bin_enc response, double thres_up, double thres_lo, double **dilution);
-	void update_probs_in_place(bin_enc experiment, bin_enc response, double thres_up, double thres_lo, double **dilution);
+	void update_probs(bin_enc experiment, bin_enc response, double **dilution);
+	void update_probs_in_place(bin_enc experiment, bin_enc response, double **dilution);
 	virtual double *calc_probs(bin_enc experiment, bin_enc response, double **dilution);
 	virtual void calc_probs_in_place(bin_enc experiment, bin_enc response, double **dilution);
 	virtual void update_metadata(double thres_up, double thres_lo);
@@ -59,6 +59,7 @@ public:
 	virtual bin_enc halving(double prob) const;		   // serial halving algorithm
 	virtual bin_enc halving_omp(double prob) const;	   // OpenMP halving algorithm
 	virtual bin_enc halving_mpi(double prob) const;	   // MPI halving algorithm
+	virtual bin_enc halving_mpi_vectorize(double prob) const;
 	virtual bin_enc halving_hybrid(double prob) const; // hybrid MPI + OpenMP halving algorithm
 	virtual bin_enc halving_mp(double prob) const;
 	virtual double response_prob(bin_enc experiment, bin_enc response, bin_enc true_state, double **dilution) const = 0;

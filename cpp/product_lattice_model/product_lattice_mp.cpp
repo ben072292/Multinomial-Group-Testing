@@ -67,7 +67,7 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 
 	for (int i = 0; i < _orig_subjs * _variants; i++)
 	{
-		bin_enc orig_index = (1 << i);													// binary index in decimal for original layout
+		bin_enc orig_index = (1 << i);													 // binary index in decimal for original layout
 		bin_enc curr_index = orig_curr_ind_conv(i, _clas_subjs, _orig_subjs, _variants); // binary index in decimal for current layout
 		if ((clas_atoms & orig_index))
 		{
@@ -95,7 +95,8 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 	curr_clas_atoms = curr_shrinkable_atoms(curr_clas_atoms, _curr_subjs, _variants);
 
 	int target_prob_size = (1 << ((_orig_subjs - __builtin_popcount(update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, _orig_subjs, _variants))) * _variants));
-	if(is_classified()){ // if classified, update variables and return;
+	if (is_classified())
+	{ // if fully classified, update variables and return;
 		_clas_subjs = update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, _orig_subjs, _variants);
 		_curr_subjs = _orig_subjs - __builtin_popcount(_clas_subjs);
 		delete[] _post_probs;
@@ -103,9 +104,10 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 		return;
 	}
 	// if data parallelism is achievable, i.e., each process has at least 1 state to work, performing model parallelism shrinking
-	if (curr_clas_atoms && target_prob_size / world_size > 0) 
+	if (curr_clas_atoms && target_prob_size / world_size > 0)
 		shrinking(curr_atoms, curr_clas_atoms);
-	// if model parallelism is not achievable, covert model parallelism to data parallelism and then shrinking
+	// if model parallelism is not achievable, first shrinking the lattice model to the minimum achievable size of model parallelism
+	// then perform MP-DP conversion, improving performance and scalability than directly performing MP-DP conversion
 	else if (curr_clas_atoms && target_prob_size / world_size == 0)
 	{
 		double *candidate_post_probs;
@@ -180,8 +182,7 @@ void Product_lattice_mp::shrinking(int curr_atoms, bin_enc curr_clas_atoms)
 double Product_lattice_mp::get_atom_prob_mass(bin_enc atom) const
 {
 	double ret = 0.0;
-#pragma omp parallel for reduction(+ \
-								   : ret)
+	// #pragma omp parallel for reduction(+ : ret)
 	for (int i = 0; i < total_state_each(); i++)
 	{
 		if ((offset_to_state(i) & atom) == atom)
@@ -201,8 +202,7 @@ double *Product_lattice_mp::calc_probs(bin_enc experiment, bin_enc response, dou
 {
 	double *ret = new double[total_state_each()];
 	double denominator = 0.0;
-#pragma omp parallel for reduction(+ \
-								   : denominator) // INVESTIGATE: slowdown than serial
+	// #pragma omp parallel for reduction(+ : denominator) // INVESTIGATE: slowdown than serial
 	for (int i = 0; i < total_state_each(); i++)
 	{
 		ret[i] = _post_probs[i] * response_prob(experiment, response, offset_to_state(i), dilution);
@@ -210,7 +210,7 @@ double *Product_lattice_mp::calc_probs(bin_enc experiment, bin_enc response, dou
 	}
 	MPI_Allreduce(MPI_IN_PLACE, &denominator, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 	double denominator_inv = 1 / denominator; // division has much higher instruction latency and throughput than multiplication (however latency is not that important since we have many independent divison operations)
-#pragma omp parallel for
+	// #pragma omp parallel for
 	for (int i = 0; i < total_state_each(); i++)
 	{
 		ret[i] *= denominator_inv;
@@ -221,8 +221,7 @@ double *Product_lattice_mp::calc_probs(bin_enc experiment, bin_enc response, dou
 void Product_lattice_mp::calc_probs_in_place(bin_enc experiment, bin_enc response, double **__restrict__ dilution)
 {
 	double denominator = 0.0;
-#pragma omp parallel for schedule(static) reduction(+ \
-													: denominator)
+	// #pragma omp parallel for schedule(static) reduction(+ : denominator)
 	for (int i = 0; i < total_state_each(); i++)
 	{
 		_post_probs[i] *= response_prob(experiment, response, offset_to_state(i), dilution);
@@ -230,17 +229,64 @@ void Product_lattice_mp::calc_probs_in_place(bin_enc experiment, bin_enc respons
 	}
 	MPI_Allreduce(MPI_IN_PLACE, &denominator, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 	double denominator_inv = 1 / denominator; // division has much higher instruction latency and throughput than multiplication (however latency is not that important since we have many independent divison operations)
-#pragma omp parallel for schedule(static)
+	// #pragma omp parallel for schedule(static)
 	for (int i = 0; i < total_state_each(); i++)
 	{
 		_post_probs[i] *= denominator_inv;
 	}
 }
 
+bin_enc Product_lattice_mp::halving_mpi(double prob) const
+{
+	int partition_id = 0;
+	int partition_size = (1 << _curr_subjs) * (1 << _variants);
+	double partition_mass[partition_size]{0.0};
+
+	// tricky: for each state, check each variant of actively
+	// pooled subjects to see whether they are all 1.
+	for (int s_iter = 0; s_iter < total_state_each(); s_iter++)
+	{
+		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
+		{
+			for (int variant = 0; variant < _variants; variant++)
+			{
+				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
+				// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
+				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
+				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
+				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
+				partition_id |= ((1 << variant) & (((experiment & (offset_to_state(s_iter) >> (variant * _curr_subjs))) - experiment) >> 31));
+			}
+			partition_mass[experiment * (1 << _variants) + partition_id] += _post_probs[s_iter];
+			partition_id = 0;
+		}
+	}
+	MPI_Allreduce(MPI_IN_PLACE, partition_mass, partition_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+	double temp = 0.0;
+	double min = 2.0;
+	bin_enc candidate = -1;
+	for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
+	{
+		for (int i = 0; i < (1 << _variants); i++)
+		{
+			temp += std::abs(partition_mass[experiment * (1 << _variants) + i] - prob);
+		}
+		if (temp < min)
+		{
+			min = temp;
+			candidate = experiment;
+		}
+		temp = 0.0;
+	}
+
+	return candidate;
+}
+
 // only work for k = 2 because of loop unrolling
 // SIMD compatible with both AVX2 and AVX-512 using vector type
 // MP-DP need to switch when total states <= 256 (2^8)
-bin_enc Product_lattice_mp::halving_mpi(double prob) const
+bin_enc Product_lattice_mp::halving_mpi_vectorize(double prob) const
 {
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
 	double partition_mass[partition_size]{0.0};
@@ -253,7 +299,7 @@ bin_enc Product_lattice_mp::halving_mpi(double prob) const
 	{
 		bin_enc state = offset_to_state(s_iter);
 		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
-		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment+=16)
+		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment += 16)
 		{
 			ex += experiment;
 			// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
@@ -265,7 +311,8 @@ bin_enc Product_lattice_mp::halving_mpi(double prob) const
 			partition_id |= (2 & (((ex & (state >> _curr_subjs)) - ex) >> 31));
 
 			partition_id += ex * 4;
-			for(int i = 0; i < 16; i++){
+			for (int i = 0; i < 16; i++)
+			{
 				partition_mass[partition_id[i]] += _post_probs[s_iter];
 			}
 			ex -= experiment;
@@ -279,10 +326,10 @@ bin_enc Product_lattice_mp::halving_mpi(double prob) const
 	for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 	{
 		temp += std::abs(partition_mass[experiment * (1 << _variants)] - prob);
-		temp += std::abs(partition_mass[experiment * (1 << _variants)+1] - prob);
-		temp += std::abs(partition_mass[experiment * (1 << _variants)+2] - prob);
-		temp += std::abs(partition_mass[experiment * (1 << _variants)+3] - prob);
-		
+		temp += std::abs(partition_mass[experiment * (1 << _variants) + 1] - prob);
+		temp += std::abs(partition_mass[experiment * (1 << _variants) + 2] - prob);
+		temp += std::abs(partition_mass[experiment * (1 << _variants) + 3] - prob);
+
 		if (temp < min)
 		{
 			min = temp;
