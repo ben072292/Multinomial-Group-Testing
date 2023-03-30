@@ -55,46 +55,37 @@ void Product_lattice_mp::update_metadata(double thres_up, double thres_lo)
 	}
 }
 
-// not modified yet
 void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double thres_lo)
 {
 	bin_enc clas_atoms = (_pos_clas_atoms | _neg_clas_atoms); // same size as orig layout
 	bin_enc curr_clas_atoms = 0;							  // same size as curr layout
-	int curr_atoms = _curr_subjs * _variants;
-	bin_enc new_curr_clas_atoms = 0;
-	bin_enc new_pos_clas_atoms = 0;
-	bin_enc new_neg_clas_atoms = 0;
-
 	for (int i = 0; i < _orig_subjs * _variants; i++)
 	{
 		bin_enc orig_index = (1 << i);													 // binary index in decimal for original layout
 		bin_enc curr_index = orig_curr_ind_conv(i, _clas_subjs, _orig_subjs, _variants); // binary index in decimal for current layout
 		if ((clas_atoms & orig_index))
 		{
-			new_curr_clas_atoms |= curr_index;
+			curr_clas_atoms |= curr_index;
 		}
 		else
 		{
 			double prob_mass = get_atom_prob_mass(curr_index);
 			if (prob_mass < thres_lo)
 			{ // classified as positive
-				new_curr_clas_atoms |= curr_index;
-				new_pos_clas_atoms |= orig_index;
+				curr_clas_atoms |= curr_index;
+				_pos_clas_atoms |= orig_index;
 			}
 			else if (prob_mass > (1 - thres_up))
 			{ // classified as positive
-				new_curr_clas_atoms |= curr_index;
-				new_neg_clas_atoms |= orig_index;
+				curr_clas_atoms |= curr_index;
+				_neg_clas_atoms |= orig_index;
 			}
 		}
 	}
-	curr_clas_atoms = new_curr_clas_atoms;
-	_pos_clas_atoms |= new_pos_clas_atoms;
-	_neg_clas_atoms |= new_neg_clas_atoms;
-
 	curr_clas_atoms = curr_shrinkable_atoms(curr_clas_atoms, _curr_subjs, _variants);
 
-	int target_prob_size = (1 << ((_orig_subjs - __builtin_popcount(update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, _orig_subjs, _variants))) * _variants));
+	const int target_subj_size = _orig_subjs - __builtin_popcount(update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, _orig_subjs, _variants));
+	const int target_prob_size = (1 << (target_subj_size * _variants));
 	if (is_classified())
 	{ // if fully classified, update variables and return;
 		_clas_subjs = update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, _orig_subjs, _variants);
@@ -103,16 +94,72 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 		_post_probs = nullptr;
 		return;
 	}
-	// if data parallelism is achievable, i.e., each process has at least 1 state to work, performing model parallelism shrinking
-	if (curr_clas_atoms && target_prob_size / world_size > 0)
-		shrinking(curr_atoms, curr_clas_atoms);
-	// if model parallelism is not achievable, first shrinking the lattice model to the minimum achievable size of model parallelism
+	// if MP is achievable, i.e., each process has at least 1 state to work, performing MP shrinking
+	if (curr_clas_atoms && target_prob_size >= world_size)
+		shrinking(curr_atoms(), curr_clas_atoms);
+	// if MP is not achievable, first shrinking the lattice model to the minimum achievable size of MP
 	// then perform MP-DP conversion, improving performance and scalability than directly performing MP-DP conversion
-	else if (curr_clas_atoms && target_prob_size / world_size == 0)
+	else if (curr_clas_atoms && target_prob_size < world_size)
 	{
+		// Stage 1: MP shrinking to the minimum achievable size
+		// Stage 1.1: preparation on _pos_clas_atoms and _neg_clas_atoms
+		const int true_pos_clas_atoms = _pos_clas_atoms;
+		const int true_neg_clas_atoms = _neg_clas_atoms;
+		clas_atoms = (true_pos_clas_atoms | true_neg_clas_atoms);
+		const int intermediate_subj_size = (__builtin_popcount(world_size - 1)) / _variants + 1; // store intermediate subject size to shrink to;
+		const int subj_size_difference = intermediate_subj_size - target_subj_size;
+		int difference_counter = 0;
+		if (intermediate_subj_size == _curr_subjs)
+		{
+			goto stage_2_2;
+		}
+		for (int i = 0; i < _orig_subjs; i++)
+		{
+			if (subj_is_classified(clas_atoms, i, _orig_subjs, _variants) && !(_clas_subjs & (1 << i))) // make sure it's not already classified subject
+			{
+				clas_atoms -= (1 << i);
+				difference_counter++;
+			}
+			if (difference_counter == subj_size_difference)
+				break;
+		}
+		// pos and neg use the same is okay as we usually do pos|neg
+		_pos_clas_atoms = clas_atoms;
+		_neg_clas_atoms = clas_atoms;
+
+		// Stage 1.2: shrinking
+		curr_clas_atoms = 0;
+		for (int i = 0; i < _orig_subjs * _variants; i++)
+		{
+			bin_enc orig_index = (1 << i);													 // binary index in decimal for original layout
+			bin_enc curr_index = orig_curr_ind_conv(i, _clas_subjs, _orig_subjs, _variants); // binary index in decimal for current layout
+			if ((clas_atoms & orig_index))
+				curr_clas_atoms |= curr_index;
+		}
+		curr_clas_atoms = curr_shrinkable_atoms(curr_clas_atoms, _curr_subjs, _variants);
+		shrinking(curr_atoms(), curr_clas_atoms);
+
+		// Stage 2: real MP-DP conversion
+		// Stage 2.1: Preparation (revert true classification profile)
+		_pos_clas_atoms = true_pos_clas_atoms;
+		_neg_clas_atoms = true_neg_clas_atoms;
+		clas_atoms = (_pos_clas_atoms | _neg_clas_atoms);
+		curr_clas_atoms = 0;
+		for (int i = 0; i < _orig_subjs * _variants; i++)
+		{
+			bin_enc orig_index = (1 << i);													 // binary index in decimal for original layout
+			bin_enc curr_index = orig_curr_ind_conv(i, _clas_subjs, _orig_subjs, _variants); // binary index in decimal for current layout
+			if ((clas_atoms & orig_index))
+				curr_clas_atoms |= curr_index;
+		}
+		curr_clas_atoms = curr_shrinkable_atoms(curr_clas_atoms, _curr_subjs, _variants);
+
+	stage_2_2:
+	{
+		// Stage 2.2: real MP-DP conversion (The old MP-DP)
 		double *candidate_post_probs;
 		if (rank == 0)
-			candidate_post_probs = new double[(1 << curr_atoms)]{0.0};
+			candidate_post_probs = new double[(1 << curr_atoms())]{0.0};
 		else
 			candidate_post_probs = new double[target_prob_size]{0.0};
 		MPI_Gather(_post_probs, total_state_each(), MPI_DOUBLE, candidate_post_probs, total_state_each(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -120,7 +167,7 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 		{
 			double *temp = _post_probs;
 			_post_probs = candidate_post_probs;
-			Product_lattice::shrinking(curr_atoms, curr_clas_atoms);
+			Product_lattice::shrinking(curr_atoms(), curr_clas_atoms);
 			_post_probs = temp;
 		}
 		MPI_Bcast(candidate_post_probs, target_prob_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -134,6 +181,7 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 			_curr_subjs = _orig_subjs - __builtin_popcount(_clas_subjs);
 		}
 	}
+	}
 }
 
 void Product_lattice_mp::shrinking(int curr_atoms, bin_enc curr_clas_atoms)
@@ -141,7 +189,6 @@ void Product_lattice_mp::shrinking(int curr_atoms, bin_enc curr_clas_atoms)
 	int reduce_count = __builtin_popcount(curr_clas_atoms);
 	int base_count = curr_atoms - reduce_count;
 	int shrinked_total_state_each = (1 << base_count) / world_size;
-
 	MPI_Win_fence(0, win);
 	for (int i = 0; i < total_state_each(); i++)
 	{

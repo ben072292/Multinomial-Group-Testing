@@ -66,3 +66,13 @@ bin_enc update_clas_subj(bin_enc clas_atoms, int orig_subjs, int variants)
 	}
 	return ret;
 }
+
+bool subj_is_classified(bin_enc clas_atoms, int subj_pos, int orig_subjs, int variants)
+{
+	for (int i = 0; i < variants; i++)
+	{
+		if (!((1 << (i * orig_subjs + subj_pos)) & clas_atoms))
+			return false;
+	}
+	return true;
+}
