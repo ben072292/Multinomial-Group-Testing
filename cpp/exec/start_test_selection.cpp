@@ -1,8 +1,7 @@
-#include "../core.hpp"
-#include "../product_lattice_model/product_lattice.hpp"
-#include "../product_lattice_model/product_lattice_dilution.hpp"
-#include "../product_lattice_model/product_lattice_non_dilution.hpp"
-#include "tree/global_tree.hpp"
+#include "core.hpp"
+#include "product_lattice.hpp"
+#include "product_lattice_dilution.hpp"
+#include "product_lattice_non_dilution.hpp"
 
 int main(int argc, char *argv[])
 {

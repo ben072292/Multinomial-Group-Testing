@@ -13,12 +13,6 @@ Product_lattice_mp::Product_lattice_mp(int subjs, int variants, double *pi0)
 	prior_probs(pi0);
 }
 
-Product_lattice_mp::~Product_lattice_mp()
-{
-	if (_post_probs != nullptr)
-		delete[] _post_probs;
-}
-
 // For debugging purpose
 double Product_lattice_mp::posterior_prob(bin_enc state) const
 {
@@ -96,7 +90,7 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 	}
 	// if MP is achievable, i.e., each process has at least 1 state to work, performing MP shrinking
 	if (curr_clas_atoms && target_prob_size >= world_size)
-		shrinking(curr_atoms(), curr_clas_atoms);
+		shrinking(curr_clas_atoms);
 	// if MP is not achievable, first shrinking the lattice model to the minimum achievable size of MP
 	// then perform MP-DP conversion, improving performance and scalability than directly performing MP-DP conversion
 	else if (curr_clas_atoms && target_prob_size < world_size)
@@ -137,7 +131,7 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 				curr_clas_atoms |= curr_index;
 		}
 		curr_clas_atoms = curr_shrinkable_atoms(curr_clas_atoms, _curr_subjs, _variants);
-		shrinking(curr_atoms(), curr_clas_atoms);
+		shrinking(curr_clas_atoms);
 
 		// Stage 2: real MP-DP conversion
 		// Stage 2.1: Preparation (revert true classification profile)
@@ -167,7 +161,7 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 		{
 			double *temp = _post_probs;
 			_post_probs = candidate_post_probs;
-			Product_lattice::shrinking(curr_atoms(), curr_clas_atoms);
+			Product_lattice::shrinking(curr_clas_atoms);
 			_post_probs = temp;
 		}
 		MPI_Bcast(candidate_post_probs, target_prob_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -184,10 +178,10 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 	}
 }
 
-void Product_lattice_mp::shrinking(int curr_atoms, bin_enc curr_clas_atoms)
+void Product_lattice_mp::shrinking(bin_enc curr_clas_atoms)
 {
 	int reduce_count = __builtin_popcount(curr_clas_atoms);
-	int base_count = curr_atoms - reduce_count;
+	int base_count = curr_atoms() - reduce_count;
 	int shrinked_total_state_each = (1 << base_count) / world_size;
 	MPI_Win_fence(0, win);
 	for (int i = 0; i < total_state_each(); i++)
@@ -196,7 +190,7 @@ void Product_lattice_mp::shrinking(int curr_atoms, bin_enc curr_clas_atoms)
 		bin_enc shrinked_state = 0;
 		int pos = 0;
 		int reduce_index_counter = 0;
-		for (int j = 0; j < curr_atoms; j++)
+		for (int j = 0; j < curr_atoms(); j++)
 		{
 			if (curr_clas_atoms & (1 << j))
 			{
@@ -281,6 +275,10 @@ void Product_lattice_mp::calc_probs_in_place(bin_enc experiment, bin_enc respons
 	{
 		_post_probs[i] *= denominator_inv;
 	}
+}
+
+bin_enc Product_lattice_mp::halving(double prob) const {
+	return halving_hybrid(prob); 
 }
 
 bin_enc Product_lattice_mp::halving_mpi(double prob) const

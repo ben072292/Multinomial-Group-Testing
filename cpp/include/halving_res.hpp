@@ -1,5 +1,5 @@
 #pragma once
-#include "../../core.hpp"
+#include "core.hpp"
 
 typedef struct Halving_res
 {

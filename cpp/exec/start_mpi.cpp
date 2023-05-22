@@ -1,8 +1,8 @@
-#include "../core.hpp"
-#include "../product_lattice_model/halving_res/halving_res.hpp"
-#include "../product_lattice_model/product_lattice_mp_dilution.hpp"
-#include "../product_lattice_model/product_lattice_mp_non_dilution.hpp"
-#include "tree/global_tree_mpi.hpp"
+#include "core.hpp"
+#include "halving_res.hpp"
+#include "product_lattice_mp_dilution.hpp"
+#include "product_lattice_mp_non_dilution.hpp"
+#include "global_tree_mpi.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
     MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided_thread_level);
     if (provided_thread_level < MPI_THREAD_FUNNELED)
     {
-        std::cout << "The threading support level is lesser than that demanded.\n";
+        log_error("The threading support level is lesser than that demanded.");
         MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
     }
 

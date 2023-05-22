@@ -21,7 +21,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
-
+#include "log.h"
 // Differentiate binary encoded states from regular index
 typedef int bin_enc;
 

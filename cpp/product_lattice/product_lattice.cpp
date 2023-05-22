@@ -148,7 +148,6 @@ void Product_lattice::update_metadata_with_shrinking(double thres_up, double thr
 {
 	bin_enc clas_atoms = (_pos_clas_atoms | _neg_clas_atoms); // same size as orig layout
 	bin_enc curr_clas_atoms = 0;							  // same size as curr layout
-	int curr_atoms = _curr_subjs * _variants;
 	bin_enc new_curr_clas_atoms = 0;
 	bin_enc new_pos_clas_atoms = 0;
 	bin_enc new_neg_clas_atoms = 0;
@@ -183,18 +182,18 @@ void Product_lattice::update_metadata_with_shrinking(double thres_up, double thr
 
 	curr_clas_atoms = curr_shrinkable_atoms(curr_clas_atoms, _curr_subjs, _variants);
 	if (curr_clas_atoms)
-		shrinking(curr_atoms, curr_clas_atoms); // if there's new classifications, we perform the actual shrinkings
+		shrinking(curr_clas_atoms); // if there's new classifications, we perform the actual shrinkings
 }
 
-void Product_lattice::shrinking(int curr_atoms, int curr_clas_atoms)
-{
+void Product_lattice::shrinking(int curr_clas_atoms)
+{	
 	int reduce_count = __builtin_popcount(curr_clas_atoms);
-	int base_count = curr_atoms - reduce_count;
+	int base_count = curr_atoms() - reduce_count;
 	bin_enc *base_index = new bin_enc[base_count];
 	bin_enc *reduce_index = new bin_enc[reduce_count];
 	base_count = 0;
 	reduce_count = 0;
-	for (int i = 0; i < curr_atoms; i++)
+	for (int i = 0; i < curr_atoms(); i++)
 	{
 		if ((curr_clas_atoms & (1 << i)) != 0)
 			reduce_index[reduce_count++] = (1 << i);
@@ -338,7 +337,7 @@ void Product_lattice::calc_probs_in_place(bin_enc experiment, bin_enc response, 
 /**
  * Implementation V2
  */
-// int Product_lattice::halving(double prob) const{
+// int Product_lattice::halving_serial(double prob) const{
 // 	int candidate = 0;
 // 	int s_iter;
 // 	int experiment;
@@ -376,7 +375,7 @@ void Product_lattice::calc_probs_in_place(bin_enc experiment, bin_enc response, 
 /**
  * Implementation V3
  */
-// int Product_lattice::halving(double prob) const{
+// int Product_lattice::halving_serial(double prob) const{
 // 	int candidate = 0;
 // 	int s_iter;
 // 	int experiment;
@@ -415,7 +414,7 @@ void Product_lattice::calc_probs_in_place(bin_enc experiment, bin_enc response, 
 // 	return candidate;
 // }
 
-bin_enc Product_lattice::halving(double prob) const
+bin_enc Product_lattice::halving_serial(double prob) const
 {
 	bin_enc candidate = 0;
 	double min = 2.0;
@@ -505,46 +504,6 @@ bin_enc Product_lattice::halving_omp(double prob) const
 
 	return halving_res.candidate;
 }
-
-/**
- * Implementation V3
- */
-// void Product_lattice::halving(double prob, int rank, int world_size, Halving_res& halving_res) const{
-// 	halving_res.min = 2.0; // reset min
-// 	int partition_id = 0;
-// 	double partition_mass[(1 << variant_)];
-//     int start_experiment = (1 << curr_subj_) / world_size * rank;
-//     int stop_experiment = (1 << curr_subj_) / world_size * (rank+1);
-
-// 	for (int experiment = start_experiment; experiment < stop_experiment; experiment++) {
-// 		// reset partition_mass
-// 		for (int i = 0; i < (1 << variant_); i++)
-// 			partition_mass[i] = 0.0;
-// 		// tricky: for each state, check each variant of actively
-// 		// pooled subjects to see whether they are all 1.
-// 		for (int s_iter = 0; s_iter < (1 << (curr_subj_ * variant_)); s_iter++) {
-// 			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
-// 			for (int variant = 0; variant < variant_; variant++) {
-// 				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
-// 				//evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
-// 				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
-// 				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
-// 				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
-// 				partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * curr_subj_))) - experiment) >> 31));
-// 			}
-// 			partition_mass[partition_id] += post_probs_[s_iter];
-// 			partition_id = 0;
-// 		}
-// 		double temp = 0.0;
-// 		for (int i = 0; i < (1 << variant_); i++) {
-// 			temp += std::abs(partition_mass[i] - prob);
-// 		}
-// 		if (temp < halving_res.min) {
-// 			halving_res.min = temp;
-// 			halving_res.candidate = experiment;
-// 		}
-// 	}
-// }
 
 bin_enc Product_lattice::halving_mpi(double prob) const
 {
@@ -645,12 +604,12 @@ bin_enc Product_lattice::halving_hybrid(double prob) const
 	return halving_res.candidate;
 }
 
-bin_enc Product_lattice::halving_mp(double prob) const
+bin_enc Product_lattice::halving(double prob) const
 {
-	if ((1 << _curr_subjs) >= world_size)
-		return halving_mpi(prob);
+	if ((1 << curr_atoms()) >= world_size)
+		return halving_hybrid(prob);
 	else
-		return halving(prob);
+		return halving_omp(prob);
 }
 
 double **Product_lattice::generate_dilution(double alpha, double h) const

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../core.hpp"
+#include "core.hpp"
 typedef struct Tree_stat
 {
 private:
