@@ -1,5 +1,4 @@
 #include "product_lattice_non_dilution.hpp"
-#include <iostream>
 
 const static double negative_response = 0.99;
 

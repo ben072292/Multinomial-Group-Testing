@@ -1,5 +1,4 @@
 #include "tree_stat.hpp"
-#include <iostream>
 
 void Tree_stat::clear()
 {

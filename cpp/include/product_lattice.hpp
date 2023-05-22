@@ -1,7 +1,7 @@
 #pragma once
-#include "../core.hpp"
-#include "halving_res/halving_res.hpp"
-#include "lattice_shrinking/lattice_shrinking.hpp"
+#include "core.hpp"
+#include "halving_res.hpp"
+#include "lattice_shrinking.hpp"
 /*
  * READ BEFORE USE:
  * In this version of lattice model, state is represented using A0B0A1B1...
@@ -53,15 +53,35 @@ public:
 	virtual void calc_probs_in_place(bin_enc experiment, bin_enc response, double **dilution);
 	virtual void update_metadata(double thres_up, double thres_lo);
 	virtual void update_metadata_with_shrinking(double thres_up, double thres_lo);
-	virtual void shrinking(int curr_atoms, int curr_clas_atoms);
+	virtual void shrinking(int curr_clas_atoms);
 	virtual double get_prob_mass(bin_enc state) const;
 	virtual double get_atom_prob_mass(bin_enc atom) const;
-	virtual bin_enc halving(double prob) const;		   // serial halving algorithm
-	virtual bin_enc halving_omp(double prob) const;	   // OpenMP halving algorithm
-	virtual bin_enc halving_mpi(double prob) const;	   // MPI halving algorithm
+	virtual bin_enc halving(double prob) const;
+
+	/**
+	 * Serial
+	*/
+	virtual bin_enc halving_serial(double prob) const;		   
+
+	/**
+	 * Intra-node using OpenMP
+	*/
+	virtual bin_enc halving_omp(double prob) const;	   
+
+	/**
+	 * Inter-node using MPI
+	*/
+	virtual bin_enc halving_mpi(double prob) const;	   
+
+	/**
+	 * Inter-node using MPI + vectorization
+	*/
 	virtual bin_enc halving_mpi_vectorize(double prob) const;
-	virtual bin_enc halving_hybrid(double prob) const; // hybrid MPI + OpenMP halving algorithm
-	virtual bin_enc halving_mp(double prob) const;
+
+	/**
+	 * Inter-node using MPI + intra-node using OpenMP
+	*/
+	virtual bin_enc halving_hybrid(double prob) const;
 	virtual double response_prob(bin_enc experiment, bin_enc response, bin_enc true_state, double **dilution) const = 0;
 	double **generate_dilution(double alpha, double h) const;
 	virtual std::string type() const = 0;

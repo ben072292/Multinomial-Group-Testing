@@ -1,0 +1,72 @@
+CCX := mpicxx
+CFLAGS  := -std=c++11 -O3 -march=native -Wall -fopenmp -I./include
+DEBUG_CFLAGS := -std=c++11 -O0 -Wall -Werror -g3 -fopenmp -I./include
+LDFLAGS := ${LDFLAGS} -fopenmp
+ANALYSIS = statistical_analysis
+TREE = tree
+UTIL = util
+EXEC = exec
+LATTICE = product_lattice
+
+all: gtomp gtompdebug gtmpi gtmpi_ts gtts
+
+gtomp: start.o global_tree.o tree_stat.o product_lattice.o product_lattice_dilution.o product_lattice_non_dilution.o lattice_shrinking.o
+	$(CCX) -o $@ $^ ${LDFLAGS}
+
+gtompdebug:
+	$(CCX) -std=c++11 -O0 -Wall -Werror -g3 -fopenmp -I./include $(EXEC)/start.cpp $(ANALYSIS)/$(TREE)/global_tree.cpp $(ANALYSIS)/$(UTIL)/tree_stat.cpp $(LATTICE)/product_lattice.cpp $(LATTICE)/product_lattice_dilution.cpp $(LATTICE)/product_lattice_non_dilution.cpp $(LATTICE)/lattice_shrinking.cpp -o $@
+
+gtmpi: start_mpi.o global_tree.o global_tree_mpi.o tree_stat.o product_lattice.o product_lattice_mp.o product_lattice_mp_dilution.o product_lattice_mp_non_dilution.o product_lattice_dilution.o product_lattice_non_dilution.o lattice_shrinking.o
+	$(CCX) ${LDFLAGS} -o $@ $^
+
+gtmpi_ts: test_selection_mpi.o product_lattice.o product_lattice_mp.o product_lattice_mp_dilution.o product_lattice_mp_non_dilution.o product_lattice_dilution.o product_lattice_non_dilution.o lattice_shrinking.o
+	$(CCX) ${LDFLAGS} -o $@ $^
+
+gtts: start_test_selection.o product_lattice.o product_lattice_dilution.o product_lattice_non_dilution.o lattice_shrinking.o
+	$(CCX) ${LDFLAGS} -o $@ $^
+
+start.o: $(EXEC)/start.cpp
+	$(CCX) ${CFLAGS} ${LDFLAGS} -c $^
+
+start_mpi.o: $(EXEC)/start_mpi.cpp
+	$(CCX) ${CFLAGS} ${LDFLAGS} -c $^
+
+start_test_selection.o: $(EXEC)/start_test_selection.cpp
+	$(CCX) ${CFLAGS} ${LDFLAGS} -c $^
+
+test_selection_mpi.o: $(EXEC)/test_selection_mpi.cpp
+	$(CCX) ${CFLAGS} ${LDFLAGS} -c $^
+
+global_tree.o: $(ANALYSIS)/$(TREE)/global_tree.cpp
+	$(CCX) ${CFLAGS} ${LDFLAGS} -c $^
+
+global_tree_mpi.o: $(ANALYSIS)/$(TREE)/global_tree_mpi.cpp
+	$(CCX) ${CFLAGS} ${LDFLAGS} -c $^
+
+tree_stat.o: $(ANALYSIS)/$(UTIL)/tree_stat.cpp
+	$(CCX) ${CFLAGS} ${LDFLAGS} -c $^
+
+product_lattice.o: $(LATTICE)/product_lattice.cpp
+	$(CCX) ${CFLAGS} ${LDFLAGS} -c $^
+
+product_lattice_dilution.o: $(LATTICE)/product_lattice_dilution.cpp
+	$(CCX) ${CFLAGS} ${LDFLAGS} -c $^
+
+product_lattice_non_dilution.o: $(LATTICE)/product_lattice_non_dilution.cpp
+	$(CCX) ${CFLAGS} ${LDFLAGS} -c $^
+
+product_lattice_mp.o: $(LATTICE)/product_lattice_mp.cpp
+	$(CCX) ${CFLAGS} -c $^
+
+product_lattice_mp_dilution.o: $(LATTICE)/product_lattice_mp_dilution.cpp
+	$(CCX) ${CFLAGS} ${LDFLAGS} -c $^
+
+product_lattice_mp_non_dilution.o: $(LATTICE)/product_lattice_mp_non_dilution.cpp
+	$(CCX) ${CFLAGS} ${LDFLAGS} -c $^
+
+lattice_shrinking.o: $(LATTICE)/lattice_shrinking.cpp
+	$(CCX) ${CFLAGS} ${LDFLAGS} -c $^
+
+.PHONY: clean
+clean:
+	rm -rf gt* *.o

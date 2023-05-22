@@ -1,39 +1,41 @@
 #pragma once
 
-#include "../../core.hpp"
+#include "core.hpp"
 class Tree_perf
 {
 private:
-    int _atoms, _variants;
+    int _subjs, _variants;
     int **_count;
     std::chrono::nanoseconds *_halving_time;
+    int * _halving_count;
     std::chrono::nanoseconds **_update_time;
     std::chrono::nanoseconds **_mp_time;
     std::chrono::nanoseconds **_dp_time;
     std::chrono::nanoseconds **_mp_dp_time;
 
 public:
-    Tree_perf(int atoms) : _atoms(atoms)
+    Tree_perf(int subjs) : _subjs(subjs)
     {
-        _halving_time = new std::chrono::nanoseconds[atoms + 1]{std::chrono::nanoseconds::zero()};
-        _update_time = new std::chrono::nanoseconds *[atoms + 1];
-        _count = new int *[atoms + 1];
-        _mp_time = new std::chrono::nanoseconds *[atoms + 1];
-        _dp_time = new std::chrono::nanoseconds *[atoms + 1];
-        _mp_dp_time = new std::chrono::nanoseconds *[atoms + 1];
-        for (int i = 0; i <= atoms; i++)
+        _halving_time = new std::chrono::nanoseconds[subjs + 1]{std::chrono::nanoseconds::zero()};
+        _update_time = new std::chrono::nanoseconds *[subjs + 1];
+        _count = new int *[subjs + 1];
+        _halving_count = new int[subjs+1]{0};
+        _mp_time = new std::chrono::nanoseconds *[subjs + 1];
+        _dp_time = new std::chrono::nanoseconds *[subjs + 1];
+        _mp_dp_time = new std::chrono::nanoseconds *[subjs + 1];
+        for (int i = 0; i <= subjs; i++)
         {
-            _count[i] = new int[atoms + 1]{0};
-            _update_time[i] = new std::chrono::nanoseconds[atoms + 1]{std::chrono::nanoseconds::zero()};
-            _mp_time[i] = new std::chrono::nanoseconds[atoms + 1]{std::chrono::nanoseconds::zero()};
-            _dp_time[i] = new std::chrono::nanoseconds[atoms + 1]{std::chrono::nanoseconds::zero()};
-            _mp_dp_time[i] = new std::chrono::nanoseconds[atoms + 1]{std::chrono::nanoseconds::zero()};
+            _count[i] = new int[subjs + 1]{0};
+            _update_time[i] = new std::chrono::nanoseconds[subjs + 1]{std::chrono::nanoseconds::zero()};
+            _mp_time[i] = new std::chrono::nanoseconds[subjs + 1]{std::chrono::nanoseconds::zero()};
+            _dp_time[i] = new std::chrono::nanoseconds[subjs + 1]{std::chrono::nanoseconds::zero()};
+            _mp_dp_time[i] = new std::chrono::nanoseconds[subjs + 1]{std::chrono::nanoseconds::zero()};
         }
     }
 
     ~Tree_perf()
     {
-        for (int i = 0; i < _atoms; i++)
+        for (int i = 0; i < _subjs; i++)
         {
             delete[] _update_time[i];
             delete[] _count[i];
@@ -42,6 +44,7 @@ public:
             delete[] _mp_dp_time[i];
         }
         delete[] _halving_time;
+        delete[] _halving_count;
         delete[] _update_time;
         delete[] _count;
         delete[] _mp_time;
@@ -50,63 +53,63 @@ public:
     }
 
     inline int count(int prev, int curr) { return _count[prev][curr]; }
-    inline int per_atom_counts(int atom)
+    inline int per_subj_counts(int subj)
     {
         int ret = 0;
-        for (int i = 0; i <= _atoms; i++)
+        for (int i = 0; i <= _subjs; i++)
         {
-            ret += _count[atom][i];
+            ret += _count[subj][i];
         }
         return ret;
     }
     inline int total_counts()
     {
         int ret = 0;
-        for (int i = 0; i <= _atoms; i++)
+        for (int i = 0; i <= _subjs; i++)
         {
-            ret += per_atom_counts(i);
+            ret += per_subj_counts(i);
         }
         return ret;
     }
-    inline std::chrono::nanoseconds per_atom_halving_time(int atom)
+    inline std::chrono::nanoseconds per_subj_halving_time(int subj)
     {
-        return _halving_time[atom];
+        return _halving_time[subj];
     }
     inline std::chrono::nanoseconds total_halving_time()
     {
         std::chrono::nanoseconds ret = std::chrono::nanoseconds::zero();
-        for (int i = 0; i <= _atoms; i++)
+        for (int i = 0; i <= _subjs; i++)
         {
-            ret += per_atom_halving_time(i);
+            ret += per_subj_halving_time(i);
         }
         return ret;
     }
     inline std::chrono::nanoseconds update_time(int prev, int curr) { return _update_time[prev][curr]; }
-    inline std::chrono::nanoseconds per_atom_update_time(int atom)
+    inline std::chrono::nanoseconds per_subj_update_time(int subj)
     {
         std::chrono::nanoseconds ret = std::chrono::nanoseconds::zero();
-        for (int i = 0; i <= _atoms; i++)
+        for (int i = 0; i <= _subjs; i++)
         {
-            ret += _update_time[atom][i];
+            ret += _update_time[subj][i];
         }
         return ret;
     }
     inline std::chrono::nanoseconds total_update_time()
     {
         std::chrono::nanoseconds ret = std::chrono::nanoseconds::zero();
-        for (int i = 0; i <= _atoms; i++)
+        for (int i = 0; i <= _subjs; i++)
         {
-            ret += per_atom_update_time(i);
+            ret += per_subj_update_time(i);
         }
         return ret;
     }
     inline std::chrono::nanoseconds mp_time(int prev, int curr) { return _mp_time[prev][curr]; }
-    inline std::chrono::nanoseconds per_atom_mp_time(int atom)
+    inline std::chrono::nanoseconds per_subj_mp_time(int subj)
     {
         std::chrono::nanoseconds ret = std::chrono::nanoseconds::zero();
-        for (int i = 0; i <= _atoms; i++)
+        for (int i = 0; i <= _subjs; i++)
         {
-            ret += _mp_time[atom][i];
+            ret += _mp_time[subj][i];
         }
         return ret;
     }
@@ -114,75 +117,75 @@ public:
     inline std::chrono::nanoseconds total_mp_time()
     {
         std::chrono::nanoseconds ret = std::chrono::nanoseconds::zero();
-        for (int i = 0; i <= _atoms; i++)
+        for (int i = 0; i <= _subjs; i++)
         {
-            ret += per_atom_mp_time(i);
+            ret += per_subj_mp_time(i);
         }
         return ret;
     }
     inline std::chrono::nanoseconds dp_time(int prev, int curr) { return _dp_time[prev][curr]; }
-    inline std::chrono::nanoseconds per_atom_dp_time(int atom)
+    inline std::chrono::nanoseconds per_subj_dp_time(int subj)
     {
         std::chrono::nanoseconds ret = std::chrono::nanoseconds::zero();
-        for (int i = 0; i <= _atoms; i++)
+        for (int i = 0; i <= _subjs; i++)
         {
-            ret += _dp_time[atom][i];
+            ret += _dp_time[subj][i];
         }
         return ret;
     }
     inline std::chrono::nanoseconds total_dp_time()
     {
         std::chrono::nanoseconds ret = std::chrono::nanoseconds::zero();
-        for (int i = 0; i <= _atoms; i++)
+        for (int i = 0; i <= _subjs; i++)
         {
-            ret += per_atom_dp_time(i);
+            ret += per_subj_dp_time(i);
         }
         return ret;
     }
     inline std::chrono::nanoseconds mp_dp_time(int prev, int curr) { return _mp_dp_time[prev][curr]; }
-    inline std::chrono::nanoseconds per_atom_mp_dp_time(int atom)
+    inline std::chrono::nanoseconds per_subj_mp_dp_time(int subj)
     {
         std::chrono::nanoseconds ret = std::chrono::nanoseconds::zero();
-        for (int i = 0; i <= _atoms; i++)
+        for (int i = 0; i <= _subjs; i++)
         {
-            ret += _mp_dp_time[atom][i];
+            ret += _mp_dp_time[subj][i];
         }
         return ret;
     }
     inline std::chrono::nanoseconds total_mp_dp_time()
     {
         std::chrono::nanoseconds ret = std::chrono::nanoseconds::zero();
-        for (int i = 0; i <= _atoms; i++)
+        for (int i = 0; i <= _subjs; i++)
         {
-            ret += per_atom_mp_dp_time(i);
+            ret += per_subj_mp_dp_time(i);
         }
         return ret;
     }
 
     inline void accumulate_count(int prev, int curr) { _count[prev][curr]++; }
     inline void accumulate_update_time(int prev, int curr, std::chrono::nanoseconds val) { _update_time[prev][curr] += val; }
-    inline void accumulate_halving_time(int atom, std::chrono::nanoseconds val) { _halving_time[atom] += val; }
+    inline void accumulate_halving_time(int subj, std::chrono::nanoseconds val) { _halving_time[subj] += val; _halving_count[subj]++;}
     inline void accumulate_mp_time(int prev, int curr, std::chrono::nanoseconds val) { _mp_time[prev][curr] += val; }
     inline void accumulate_dp_time(int prev, int curr, std::chrono::nanoseconds val) { _dp_time[prev][curr] += val; }
     inline void accumulate_mp_dp_time(int prev, int curr, std::chrono::nanoseconds val) { _mp_dp_time[prev][curr] += val; }
     void output()
     {
         std::cout << "Previous Subjects,Current Subjects,Count,Halving Time,Update Time,MP Time,DP Time,MP-DP Time,Count Percentage,Halving Percentage,Update Percentage,MP Percentage,DP Percentage,MP-DP Percentage" << std::endl;
-        for (int i = 1; i <= _atoms; i++)
+        for (int i = 1; i <= _subjs; i++)
         {
             std::cout << i << ",,"
-                      << per_atom_counts(i) << ","
-                      << per_atom_halving_time(i).count()/1e9 << ","
-                      << per_atom_update_time(i).count()/1e9 << ","
-                      << per_atom_mp_time(i).count()/1e9 << ","
-                      << per_atom_dp_time(i).count()/1e9 << ","
-                      << per_atom_mp_dp_time(i).count()/1e9 << ","
-                      << ((double)per_atom_counts(i) / (double)total_counts() * 100) << "%,"
-                      << ((double)per_atom_halving_time(i).count() / total_halving_time().count() * 100) << "%,"
-                      << ((double)per_atom_update_time(i).count() / total_update_time().count() * 100) << "%,"
-                      << ((double)per_atom_mp_time(i).count() / total_mp_time().count() * 100) << "%,"
-                      << ((double)per_atom_dp_time(i).count() / total_dp_time().count() * 100) << "%,"
-                      << ((double)per_atom_mp_dp_time(i).count() / total_mp_dp_time().count() * 100) << "%\n";
+                      << per_subj_counts(i) << ","
+                      << per_subj_halving_time(i).count()/1e9 << ","
+                      << per_subj_update_time(i).count()/1e9 << ","
+                      << per_subj_mp_time(i).count()/1e9 << ","
+                      << per_subj_dp_time(i).count()/1e9 << ","
+                      << per_subj_mp_dp_time(i).count()/1e9 << ","
+                      << ((double)per_subj_counts(i) / (double)total_counts() * 100) << "%,"
+                      << ((double)per_subj_halving_time(i).count() / total_halving_time().count() * 100) << "%,"
+                      << ((double)per_subj_update_time(i).count() / total_update_time().count() * 100) << "%,"
+                      << ((double)per_subj_mp_time(i).count() / total_mp_time().count() * 100) << "%,"
+                      << ((double)per_subj_dp_time(i).count() / total_dp_time().count() * 100) << "%,"
+                      << ((double)per_subj_mp_dp_time(i).count() / total_mp_dp_time().count() * 100) << "%\n";
         }
         std::cout << "Total,,"
                   << total_counts() << ","
@@ -196,7 +199,7 @@ public:
     void output_verbose()
     {
         std::cout << "Previous Subjects,Current Subjects,Count,Halving Time,Update Time,MP Time,DP Time,MP-DP Transition Time,Count Percentage,Halving Percentage,Update Percentage,MP Percentage,DP Percentage,MP-DP Percentage" << std::endl;
-        for (int i = _atoms; i >= 0; i--)
+        for (int i = _subjs; i >= 0; i--)
         {
             for (int j = i; j >= 0; j--)
             {
@@ -213,18 +216,18 @@ public:
                           << ((double)_mp_dp_time[i][j].count() / total_mp_dp_time().count() * 100) << "%\n";
             }
             std::cout << "Subtotal,,"
-                      << per_atom_counts(i) << ","
-                      << per_atom_halving_time(i).count()/1e9 << ","
-                      << per_atom_update_time(i).count()/1e9 << ","
-                      << per_atom_mp_time(i).count()/1e9 << ","
-                      << per_atom_dp_time(i).count()/1e9 << ","
-                      << per_atom_mp_dp_time(i) .count()/1e9<< ","
-                      << ((double)per_atom_counts(i) / total_counts() * 100) << "%,"
-                      << ((double)per_atom_halving_time(i).count() / total_halving_time().count() * 100) << "%,"
-                      << ((double)per_atom_update_time(i).count() / total_update_time().count() * 100) << "%,"
-                      << ((double)per_atom_mp_time(i).count() / total_mp_time().count() * 100) << "%,"
-                      << ((double)per_atom_dp_time(i).count() / total_dp_time().count() * 100) << "%,"
-                      << ((double)per_atom_mp_dp_time(i).count() / total_mp_dp_time().count() * 100) << "%\n\n";
+                      << per_subj_counts(i) << " (halving: " << _halving_count[i] << "),"
+                      << per_subj_halving_time(i).count()/1e9 << ","
+                      << per_subj_update_time(i).count()/1e9 << ","
+                      << per_subj_mp_time(i).count()/1e9 << ","
+                      << per_subj_dp_time(i).count()/1e9 << ","
+                      << per_subj_mp_dp_time(i) .count()/1e9<< ","
+                      << ((double)per_subj_counts(i) / total_counts() * 100) << "%,"
+                      << ((double)per_subj_halving_time(i).count() / total_halving_time().count() * 100) << "%,"
+                      << ((double)per_subj_update_time(i).count() / total_update_time().count() * 100) << "%,"
+                      << ((double)per_subj_mp_time(i).count() / total_mp_time().count() * 100) << "%,"
+                      << ((double)per_subj_dp_time(i).count() / total_dp_time().count() * 100) << "%,"
+                      << ((double)per_subj_mp_dp_time(i).count() / total_mp_dp_time().count() * 100) << "%\n\n";
         }
         std::cout << "Total,,"
                   << total_counts() << ","

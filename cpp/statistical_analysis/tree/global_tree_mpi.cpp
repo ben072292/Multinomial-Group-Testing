@@ -7,12 +7,15 @@ Global_tree_mpi **Global_tree_mpi::sequence_tracer = nullptr;
 MPI_Datatype Global_tree_mpi::tree_stat_type;
 MPI_Op Global_tree_mpi::tree_stat_op;
 
+/**
+ * Single tree without perf
+*/
 Global_tree_mpi::Global_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double thres_up, double thres_lo, int stage, double **__restrict__ dilution) : Global_tree_mpi(lattice, ex, res, curr_stage)
 {
     if (!lattice->is_classified() && curr_stage < stage)
     {
         _children = new Global_tree *[1 << lattice->variants()];
-        bin_enc halving = lattice->halving_mp(1.0 / (1 << lattice->variants()));
+        bin_enc halving = lattice->halving(1.0 / (1 << lattice->variants()));
         bin_enc ex = true_ex(halving);
         for (int re = 0; re < (1 << lattice->variants()); re++)
         {
@@ -46,13 +49,16 @@ Global_tree_mpi::Global_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc r
     }
 }
 
+/**
+ * Single tree with Perf
+*/
 Global_tree_mpi::Global_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double thres_up, double thres_lo, int stage, double **__restrict__ dilution, bool perf) : Global_tree_mpi(lattice, ex, res, curr_stage)
 {
     auto halving_start = std::chrono::high_resolution_clock::now(), halving_end = halving_start;
     if (!lattice->is_classified() && curr_stage < stage)
     {
         _children = new Global_tree *[1 << lattice->variants()];
-        bin_enc halving = lattice->halving_mp(1.0 / (1 << lattice->variants())); // remember test selection as halving_res will change in depth-frist traversal
+        bin_enc halving = lattice->halving(1.0 / (1 << lattice->variants())); // remember test selection as halving_res will change in depth-frist traversal
         halving_end = std::chrono::high_resolution_clock::now();
         tree_perf->accumulate_halving_time(lattice->curr_subjs(), std::chrono::duration_cast<std::chrono::nanoseconds>(halving_end - halving_start)); 
         bin_enc ex = true_ex(halving);
@@ -118,15 +124,18 @@ Global_tree_mpi::Global_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc r
     }
 }
 
+/**
+ * Fusion Tree
+*/
 Global_tree_mpi::Global_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double thres_up, double thres_lo, int stage, double *pi0, double **__restrict__ dilution) : Global_tree_mpi(lattice, ex, res, curr_stage)
 {
     sequence_tracer[curr_stage] = this;
-    // std::cout << curr_stage << " " << node_tracer[curr_stage]->ex() << " " << node_tracer[curr_stage]->ex_res() << std::endl;
+    log_debug("sequence: %d %d %d.", curr_stage, sequence_tracer[curr_stage], sequence_tracer[curr_stage]->ex_res());
     auto halving_start = std::chrono::high_resolution_clock::now(), halving_end = halving_start;
     if (!lattice->is_classified() && curr_stage < stage)
     {
         _children = new Global_tree *[1 << lattice->variants()];
-        bin_enc halving = lattice->halving_mp(1.0 / (1 << lattice->variants())); // remember test selection as halving_res will change in depth-frist traversal
+        bin_enc halving = lattice->halving(1.0 / (1 << lattice->variants())); // remember test selection as halving_res will change in depth-frist traversal
         halving_end = std::chrono::high_resolution_clock::now();
         tree_perf->accumulate_halving_time(lattice->curr_subjs(), (halving_end - halving_start)); 
         bin_enc ex = true_ex(halving);
@@ -135,7 +144,7 @@ Global_tree_mpi::Global_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc r
             // Fusion tree pruning process
             double fusion_tree_branch_prob = fusion_branch_prob(ex, re, pi0, dilution);
             MPI_Allreduce(MPI_IN_PLACE, &fusion_tree_branch_prob, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-            // std::cout << fusion_tree_branch_prob << std::endl;
+            log_debug("Stage: %d, Prob: %f.", curr_stage, fusion_tree_branch_prob);
             if (fusion_tree_branch_prob < (1e-4 / (std::pow(4, curr_stage))))
             {
                 _children[re] = nullptr;

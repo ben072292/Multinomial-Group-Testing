@@ -1,10 +1,10 @@
-#include "../core.hpp"
-#include "../product_lattice_model/product_lattice.hpp"
-#include "../product_lattice_model/product_lattice_dilution.hpp"
-#include "../product_lattice_model/product_lattice_mp.hpp"
-#include "../product_lattice_model/product_lattice_mp_dilution.hpp"
-#include "../product_lattice_model/product_lattice_mp_non_dilution.hpp"
-#include "../product_lattice_model/product_lattice_non_dilution.hpp"
+#include "core.hpp"
+#include "product_lattice.hpp"
+#include "product_lattice_dilution.hpp"
+#include "product_lattice_mp.hpp"
+#include "product_lattice_mp_dilution.hpp"
+#include "product_lattice_mp_non_dilution.hpp"
+#include "product_lattice_non_dilution.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
     if (omp_enabled)
         p->halving_hybrid(0.25);
     else
-        p->halving_mpi(0.25);
+        p->halving_mpi_vectorize(0.25);
 
     auto end_halving = std::chrono::high_resolution_clock::now();
 

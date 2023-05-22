@@ -1,5 +1,5 @@
 #pragma once
-#include "../../core.hpp"
+#include "core.hpp"
 /**
  * Helper functions for lattice shrinking
  */
