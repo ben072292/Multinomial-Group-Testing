@@ -277,8 +277,9 @@ void Product_lattice_mp::calc_probs_in_place(bin_enc experiment, bin_enc respons
 	}
 }
 
-bin_enc Product_lattice_mp::halving(double prob) const {
-	return halving_hybrid(prob); 
+bin_enc Product_lattice_mp::halving(double prob) const
+{
+	return halving_hybrid(prob);
 }
 
 bin_enc Product_lattice_mp::halving_mpi(double prob) const
@@ -392,8 +393,7 @@ bin_enc Product_lattice_mp::halving_hybrid(double prob) const
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
 	double partition_mass[partition_size]{0.0};
 
-#pragma omp parallel for schedule(static) reduction(+ \
-													: partition_mass)
+#pragma omp parallel for schedule(static) reduction(+ : partition_mass)
 	// tricky: for each state, check each variant of actively
 	// pooled subjects to see whether they are all 1.
 	for (int s_iter = 0; s_iter < total_state_each(); s_iter++)
@@ -417,10 +417,8 @@ bin_enc Product_lattice_mp::halving_hybrid(double prob) const
 	}
 	MPI_Allreduce(MPI_IN_PLACE, partition_mass, partition_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-#pragma omp declare reduction(Halving_Min:Halving_res \
-							  : Halving_res::halving_min(omp_out, omp_in)) initializer(omp_priv = Halving_res())
-#pragma omp parallel for schedule(static) reduction(Halving_Min \
-													: halving_res)
+#pragma omp declare reduction(Halving_Min:Halving_res : Halving_res::halving_min(omp_out, omp_in)) initializer(omp_priv = Halving_res())
+#pragma omp parallel for schedule(static) reduction(Halving_Min : halving_res)
 	for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 	{
 		double temp = 0.0;

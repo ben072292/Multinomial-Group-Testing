@@ -1,8 +1,8 @@
 #include "core.hpp"
+#include "global_tree_mpi.hpp"
 #include "halving_res.hpp"
 #include "product_lattice_mp_dilution.hpp"
 #include "product_lattice_mp_non_dilution.hpp"
-#include "global_tree_mpi.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -84,15 +84,16 @@ int main(int argc, char *argv[])
     auto start_tree_construction = std::chrono::high_resolution_clock::now();
 
     // Fusion tree
-    // Global_tree *tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, pi0, dilution, halving_times, mp_update_times, dp_update_times, mp_dp_update_times);
-    // Global tree
+    // Global_tree *tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, pi0, dilution, 0.01, 0.0, 1e-6);
+    // Global tree without perf
     // Global_tree* tree = new Global_tree_mp(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
+    // Global tree with perf
     Global_tree *tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, true);
 
     auto stop_tree_construction = std::chrono::high_resolution_clock::now();
 
     Tree_stat prim(search_depth, 1);
-    Tree_stat temp(search_depth, 1); 
+    Tree_stat temp(search_depth, 1);
     Tree_stat summ(search_depth, 1);
 
     int total_st = p->total_state();
@@ -137,7 +138,8 @@ int main(int argc, char *argv[])
     {
         std::cout << "\n\nPerformance Statistics\n\n";
 
-        std::cout << tree->shrinking_stat() << std::endl << std::endl;
+        std::cout << tree->shrinking_stat() << std::endl
+                  << std::endl;
 
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_lattice_model_construction - start_lattice_model_construction);
         std::cout << "Initial Lattice Model Construction Time: " << duration.count() / 1e6 << "s." << std::endl;

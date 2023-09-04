@@ -2,14 +2,14 @@
 
 int Global_tree_mpi::rank = -1;
 int Global_tree_mpi::world_size = 0;
-Tree_perf* Global_tree_mpi::tree_perf;
+Tree_perf *Global_tree_mpi::tree_perf;
 Global_tree_mpi **Global_tree_mpi::sequence_tracer = nullptr;
 MPI_Datatype Global_tree_mpi::tree_stat_type;
 MPI_Op Global_tree_mpi::tree_stat_op;
 
 /**
  * Single tree without perf
-*/
+ */
 Global_tree_mpi::Global_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double thres_up, double thres_lo, int stage, double **__restrict__ dilution) : Global_tree_mpi(lattice, ex, res, curr_stage)
 {
     if (!lattice->is_classified() && curr_stage < stage)
@@ -19,27 +19,19 @@ Global_tree_mpi::Global_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc r
         bin_enc ex = true_ex(halving);
         for (int re = 0; re < (1 << lattice->variants()); re++)
         {
+            Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
             if (re != (1 << lattice->variants()) - 1)
-            {
-                Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
-                p->update_probs(halving, re, dilution);
-                p->update_metadata_with_shrinking(thres_up, thres_lo);
-                Product_lattice *p1 = p->clone(SHALLOW_COPY_PROB_DIST); // potentially switch from model parallelism to data parallelism
-                p->posterior_probs(nullptr);
-                delete p;
-                _children[re] = new Global_tree_mpi(p1, ex, re, k, _curr_stage + 1, thres_up, thres_lo, stage, dilution);
+            {                                       // reuse _post_probs in child to save memory
+                _lattice->posterior_probs(nullptr); // detach _post_probs from current lattice
+                p->update_probs_in_place(halving, re, dilution);
             }
             else
-            { // reuse post_prob_ array in child to save memory
-                Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
-                _lattice->posterior_probs(nullptr); // detach post_prob_ from current lattice
-                p->update_probs_in_place(halving, re, dilution);
-                p->update_metadata_with_shrinking(thres_up, thres_lo);
-                Product_lattice *p1 = p->clone(SHALLOW_COPY_PROB_DIST); // potentially switch from model parallelism to data parallelism
-                p->posterior_probs(nullptr);
-                delete p;
-                _children[re] = new Global_tree_mpi(p1, ex, re, k, _curr_stage + 1, thres_up, thres_lo, stage, dilution);
-            }
+                p->update_probs(halving, re, dilution);
+            p->update_metadata_with_shrinking(thres_up, thres_lo);
+            Product_lattice *p1 = p->clone(SHALLOW_COPY_PROB_DIST); // potentially switch from model parallelism to data parallelism
+            p->posterior_probs(nullptr);                            // detach _post_probs
+            delete p;
+            _children[re] = new Global_tree_mpi(p1, ex, re, k, _curr_stage + 1, thres_up, thres_lo, stage, dilution);
         }
     }
     else
@@ -51,7 +43,7 @@ Global_tree_mpi::Global_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc r
 
 /**
  * Single tree with Perf
-*/
+ */
 Global_tree_mpi::Global_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double thres_up, double thres_lo, int stage, double **__restrict__ dilution, bool perf) : Global_tree_mpi(lattice, ex, res, curr_stage)
 {
     auto halving_start = std::chrono::high_resolution_clock::now(), halving_end = halving_start;
@@ -60,61 +52,46 @@ Global_tree_mpi::Global_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc r
         _children = new Global_tree *[1 << lattice->variants()];
         bin_enc halving = lattice->halving(1.0 / (1 << lattice->variants())); // remember test selection as halving_res will change in depth-frist traversal
         halving_end = std::chrono::high_resolution_clock::now();
-        tree_perf->accumulate_halving_time(lattice->curr_subjs(), std::chrono::duration_cast<std::chrono::nanoseconds>(halving_end - halving_start)); 
+        tree_perf->accumulate_halving_time(lattice->curr_subjs(), std::chrono::duration_cast<std::chrono::nanoseconds>(halving_end - halving_start));
         bin_enc ex = true_ex(halving);
         for (int re = 0; re < (1 << lattice->variants()); re++)
         {
-            if (re != (1 << lattice->variants()) - 1)
-            {
-                Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
-                int old_parallelism = p->parallelism();
-                auto update_start = std::chrono::high_resolution_clock::now();
-                p->update_probs(halving, re, dilution);
-                auto update_end = std::chrono::high_resolution_clock::now();
-                auto shrink_start = std::chrono::high_resolution_clock::now();
-                p->update_metadata_with_shrinking(thres_up, thres_lo);
-                auto shrink_end = std::chrono::high_resolution_clock::now();
-                int new_parallelism = p->parallelism();
-                if (old_parallelism != new_parallelism)
-                {
-                    p = p->clone(SHALLOW_COPY_PROB_DIST);
-                }
-                tree_perf->accumulate_count(_lattice->curr_subjs(), p->curr_subjs());
-                tree_perf->accumulate_update_time(_lattice->curr_subjs(), p->curr_subjs(), std::chrono::duration_cast<std::chrono::nanoseconds>(update_end - update_start));
-                if (old_parallelism == MODEL_PARALLELISM && new_parallelism == MODEL_PARALLELISM)
-                    tree_perf->accumulate_mp_time(_lattice->curr_subjs(), p->curr_subjs(), std::chrono::duration_cast<std::chrono::nanoseconds>(shrink_end - shrink_start));
-                else if (old_parallelism == MODEL_PARALLELISM && new_parallelism == DATA_PARALLELISM)
-                    tree_perf->accumulate_mp_dp_time(_lattice->curr_subjs(), p->curr_subjs(), std::chrono::duration_cast<std::chrono::nanoseconds>(shrink_end - shrink_start));
-                else if (old_parallelism == DATA_PARALLELISM)
-                    tree_perf->accumulate_dp_time(_lattice->curr_subjs(), p->curr_subjs(), std::chrono::duration_cast<std::chrono::nanoseconds>(shrink_end - shrink_start));
-                _children[re] = new Global_tree_mpi(p, ex, re, k, _curr_stage + 1, thres_up, thres_lo, stage, dilution, true);
+            auto update_start = std::chrono::high_resolution_clock::now();
+            Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
+            int old_parallelism = p->parallelism();
+            if (re == (1 << lattice->variants()) - 1)
+            {                                       // reuse _post_probs in child to save memory
+                _lattice->posterior_probs(nullptr); // detach _post_probs from current lattice
+                p->update_probs_in_place(halving, re, dilution);
             }
             else
-            { // reuse post_prob_ array in child to save memory
-                auto update_start = std::chrono::high_resolution_clock::now();
-                Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
-                _lattice->posterior_probs(nullptr); // detach post_prob_ from current lattice
-                int old_parallelism = p->parallelism();
-                p->update_probs_in_place(halving, re, dilution);
-                auto update_end = std::chrono::high_resolution_clock::now();
-                auto shrink_start = std::chrono::high_resolution_clock::now();
-                p->update_metadata_with_shrinking(thres_up, thres_lo);
-                auto shrink_end = std::chrono::high_resolution_clock::now();
-                int new_parallelism = p->parallelism();
-                if (old_parallelism != new_parallelism)
-                {
-                    p = p->clone(SHALLOW_COPY_PROB_DIST);
-                }
-                tree_perf->accumulate_count(_lattice->curr_subjs(), p->curr_subjs());
-                tree_perf->accumulate_update_time(_lattice->curr_subjs(), p->curr_subjs(), std::chrono::duration_cast<std::chrono::nanoseconds>(update_end - update_start));
-                if (old_parallelism == MODEL_PARALLELISM && new_parallelism == MODEL_PARALLELISM)
-                    tree_perf->accumulate_mp_time(_lattice->curr_subjs(), p->curr_subjs(), std::chrono::duration_cast<std::chrono::nanoseconds>(shrink_end - shrink_start));
-                else if (old_parallelism == MODEL_PARALLELISM && new_parallelism == DATA_PARALLELISM)
-                    tree_perf->accumulate_mp_dp_time(_lattice->curr_subjs(), p->curr_subjs(), std::chrono::duration_cast<std::chrono::nanoseconds>(shrink_end - shrink_start));
-                else if (old_parallelism == DATA_PARALLELISM)
-                    tree_perf->accumulate_dp_time(_lattice->curr_subjs(), p->curr_subjs(), std::chrono::duration_cast<std::chrono::nanoseconds>(shrink_end - shrink_start));
-                _children[re] = new Global_tree_mpi(p, ex, re, k, _curr_stage + 1, thres_up, thres_lo, stage, dilution, true);
+                p->update_probs(halving, re, dilution);
+            auto update_end = std::chrono::high_resolution_clock::now();
+            auto shrink_start = std::chrono::high_resolution_clock::now();
+            p->update_metadata_with_shrinking(thres_up, thres_lo);
+            auto shrink_end = std::chrono::high_resolution_clock::now();
+            int new_parallelism = p->parallelism();
+            Product_lattice *p1;
+            if (old_parallelism != new_parallelism)
+            {
+                p1 = p->clone(SHALLOW_COPY_PROB_DIST); // switch type
+                p->posterior_probs(nullptr);           // detach _post_probs
+                delete p;
             }
+            else
+            {
+                p1 = p;
+                p = nullptr;
+            }
+            tree_perf->accumulate_count(_lattice->curr_subjs(), p1->curr_subjs());
+            tree_perf->accumulate_update_time(_lattice->curr_subjs(), p1->curr_subjs(), (update_end - update_start));
+            if (old_parallelism == MODEL_PARALLELISM && new_parallelism == MODEL_PARALLELISM)
+                tree_perf->accumulate_mp_time(_lattice->curr_subjs(), p1->curr_subjs(), (shrink_end - shrink_start));
+            else if (old_parallelism == MODEL_PARALLELISM && new_parallelism == DATA_PARALLELISM)
+                tree_perf->accumulate_mp_dp_time(_lattice->curr_subjs(), p1->curr_subjs(), (shrink_end - shrink_start));
+            else if (old_parallelism == DATA_PARALLELISM)
+                tree_perf->accumulate_dp_time(_lattice->curr_subjs(), p1->curr_subjs(), (shrink_end - shrink_start));
+            _children[re] = new Global_tree_mpi(p1, ex, re, k, _curr_stage + 1, thres_up, thres_lo, stage, dilution, true);
         }
     }
     else
@@ -126,88 +103,82 @@ Global_tree_mpi::Global_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc r
 
 /**
  * Fusion Tree
-*/
-Global_tree_mpi::Global_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double thres_up, double thres_lo, int stage, double *pi0, double **__restrict__ dilution) : Global_tree_mpi(lattice, ex, res, curr_stage)
+ */
+Global_tree_mpi::Global_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double thres_up, double thres_lo, int stage, double *pi0, double **__restrict__ dilution, double prun_thres_sum, double curr_prun_thres_sum, double prun_thres) : Global_tree_mpi(lattice, ex, res, curr_stage)
 {
     sequence_tracer[curr_stage] = this;
-    log_debug("sequence: %d %d %d.", curr_stage, sequence_tracer[curr_stage], sequence_tracer[curr_stage]->ex_res());
+    // log_debug("sequence: %d %d %d.", curr_stage, sequence_tracer[curr_stage], sequence_tracer[curr_stage]->ex_res());
     auto halving_start = std::chrono::high_resolution_clock::now(), halving_end = halving_start;
     if (!lattice->is_classified() && curr_stage < stage)
     {
         _children = new Global_tree *[1 << lattice->variants()];
         bin_enc halving = lattice->halving(1.0 / (1 << lattice->variants())); // remember test selection as halving_res will change in depth-frist traversal
         halving_end = std::chrono::high_resolution_clock::now();
-        tree_perf->accumulate_halving_time(lattice->curr_subjs(), (halving_end - halving_start)); 
+        tree_perf->accumulate_halving_time(lattice->curr_subjs(), (halving_end - halving_start));
         bin_enc ex = true_ex(halving);
         for (int re = 0; re < (1 << lattice->variants()); re++)
         {
             // Fusion tree pruning process
             double fusion_tree_branch_prob = fusion_branch_prob(ex, re, pi0, dilution);
             MPI_Allreduce(MPI_IN_PLACE, &fusion_tree_branch_prob, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-            log_debug("Stage: %d, Prob: %f.", curr_stage, fusion_tree_branch_prob);
-            if (fusion_tree_branch_prob < (1e-4 / (std::pow(4, curr_stage))))
+            // log_debug("Stage: %d, Prob: %f.", curr_stage, fusion_tree_branch_prob);
+            if (curr_prun_thres_sum < prun_thres_sum && fusion_tree_branch_prob < prun_thres && lattice->curr_atoms() >= lattice->orig_atoms()) // can be pruned through fusion tree
             {
-                _children[re] = nullptr;
-                // clean ``this'' if its last child has been evaluated
+                curr_prun_thres_sum += fusion_tree_branch_prob;
+                auto update_start = std::chrono::high_resolution_clock::now();
+                Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
                 if (re == (1 << lattice->variants()) - 1)
-                {
-                    delete[] lattice->posterior_probs();
-                    lattice->posterior_probs(nullptr);
-                    _lattice->posterior_probs(nullptr);
+                {                                       // reuse _post_probs in child to save memory
+                    _lattice->posterior_probs(nullptr); // detach _post_probs from current lattice
+                    p->update_probs_in_place(halving, re, dilution);
                 }
-                continue;
+                else
+                    p->update_probs(halving, re, dilution);
+                p->update_metadata(thres_up, thres_lo); // no need to shrink as only metadata matters
+                delete[] p->posterior_probs();
+                p->posterior_probs(nullptr);
+                _children[re] = new Global_tree_mpi(p, ex, re, curr_stage);
+                auto update_end = std::chrono::high_resolution_clock::now();
+                tree_perf->accumulate_update_time(_lattice->curr_subjs(), p->curr_subjs(), (update_end - update_start));
             }
-
-            if (re != (1 << lattice->variants()) - 1)
+            else // cannot be pruned
             {
                 auto update_start = std::chrono::high_resolution_clock::now();
                 Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
                 int old_parallelism = p->parallelism();
-                p->update_probs(halving, re, dilution);
+                if (re == (1 << lattice->variants()) - 1)
+                {                                       // reuse _post_probs in child to save memory
+                    _lattice->posterior_probs(nullptr); // detach _post_probs from current lattice
+                    p->update_probs_in_place(halving, re, dilution);
+                }
+                else
+                    p->update_probs(halving, re, dilution);
                 auto update_end = std::chrono::high_resolution_clock::now();
                 auto shrink_start = std::chrono::high_resolution_clock::now();
                 p->update_metadata_with_shrinking(thres_up, thres_lo);
                 auto shrink_end = std::chrono::high_resolution_clock::now();
                 int new_parallelism = p->parallelism();
+                Product_lattice *p1;
                 if (old_parallelism != new_parallelism)
                 {
-                    p = p->clone(SHALLOW_COPY_PROB_DIST);
+                    p1 = p->clone(SHALLOW_COPY_PROB_DIST); // switch type
+                    p->posterior_probs(nullptr);           // detach _post_probs
+                    delete p;
                 }
-                tree_perf->accumulate_count(_lattice->curr_subjs(), p->curr_subjs());
-                tree_perf->accumulate_update_time(_lattice->curr_subjs(), p->curr_subjs(), (update_end - update_start));
-                if (old_parallelism == MODEL_PARALLELISM && new_parallelism == MODEL_PARALLELISM)
-                    tree_perf->accumulate_mp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
-                else if (old_parallelism == MODEL_PARALLELISM && new_parallelism == DATA_PARALLELISM)
-                    tree_perf->accumulate_mp_dp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
-                else if (old_parallelism == DATA_PARALLELISM)
-                    tree_perf->accumulate_dp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
-                _children[re] = new Global_tree_mpi(p, ex, re, k, _curr_stage + 1, thres_up, thres_lo, stage, pi0, dilution);
-            }
-            else
-            { // reuse post_prob_ array in child to save memory
-                auto update_start = std::chrono::high_resolution_clock::now();
-                Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
-                _lattice->posterior_probs(nullptr); // detach post_prob_ from current lattice
-                int old_parallelism = p->parallelism();
-                p->update_probs(halving, re, dilution);
-                auto update_end = std::chrono::high_resolution_clock::now();
-                auto shrink_start = std::chrono::high_resolution_clock::now();
-                p->update_metadata_with_shrinking(thres_up, thres_lo);
-                auto shrink_end = std::chrono::high_resolution_clock::now();
-                int new_parallelism = p->parallelism();
-                if (old_parallelism != new_parallelism)
+                else
                 {
-                    p = p->clone(SHALLOW_COPY_PROB_DIST);
+                    p1 = p;
+                    p = nullptr;
                 }
-                tree_perf->accumulate_count(_lattice->curr_subjs(), p->curr_subjs());
-                tree_perf->accumulate_update_time(_lattice->curr_subjs(), p->curr_subjs(), (update_end - update_start));
+                tree_perf->accumulate_count(_lattice->curr_subjs(), p1->curr_subjs());
+                tree_perf->accumulate_update_time(_lattice->curr_subjs(), p1->curr_subjs(), (update_end - update_start));
                 if (old_parallelism == MODEL_PARALLELISM && new_parallelism == MODEL_PARALLELISM)
-                    tree_perf->accumulate_mp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
+                    tree_perf->accumulate_mp_time(_lattice->curr_subjs(), p1->curr_subjs(), (shrink_end - shrink_start));
                 else if (old_parallelism == MODEL_PARALLELISM && new_parallelism == DATA_PARALLELISM)
-                    tree_perf->accumulate_mp_dp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
+                    tree_perf->accumulate_mp_dp_time(_lattice->curr_subjs(), p1->curr_subjs(), (shrink_end - shrink_start));
                 else if (old_parallelism == DATA_PARALLELISM)
-                    tree_perf->accumulate_dp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
-                _children[re] = new Global_tree_mpi(p, ex, re, k, _curr_stage + 1, thres_up, thres_lo, stage, pi0, dilution);
+                    tree_perf->accumulate_dp_time(_lattice->curr_subjs(), p1->curr_subjs(), (shrink_end - shrink_start));
+                _children[re] = new Global_tree_mpi(p1, ex, re, k, _curr_stage + 1, thres_up, thres_lo, stage, pi0, dilution, prun_thres_sum, curr_prun_thres_sum, prun_thres);
             }
         }
     }

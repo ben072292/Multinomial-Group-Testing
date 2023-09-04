@@ -155,7 +155,7 @@ void Product_lattice::update_metadata_with_shrinking(double thres_up, double thr
 	// #pragma omp parallel for schedule(dynamic) reduction(+ : new_curr_clas_atoms, new_pos_clas_atoms, new_neg_clas_atoms)
 	for (int i = 0; i < _orig_subjs * _variants; i++)
 	{
-		bin_enc orig_index = (1 << i);													// binary index in decimal for original layout
+		bin_enc orig_index = (1 << i);													 // binary index in decimal for original layout
 		bin_enc curr_index = orig_curr_ind_conv(i, _clas_subjs, _orig_subjs, _variants); // binary index in decimal for current layout
 		if ((clas_atoms & orig_index))
 		{
@@ -186,7 +186,7 @@ void Product_lattice::update_metadata_with_shrinking(double thres_up, double thr
 }
 
 void Product_lattice::shrinking(int curr_clas_atoms)
-{	
+{
 	int reduce_count = __builtin_popcount(curr_clas_atoms);
 	int base_count = curr_atoms() - reduce_count;
 	bin_enc *base_index = new bin_enc[base_count];
@@ -463,9 +463,9 @@ bin_enc Product_lattice::halving_omp(double prob) const
 {
 	double partition_mass[(1 << _curr_subjs) * (1 << _variants)]{0.0};
 
-	// tricky: for each state, check each variant of actively
-	// pooled subjects to see whether they are all 1.
-	#pragma omp parallel for schedule(static) reduction(+ : partition_mass)
+// tricky: for each state, check each variant of actively
+// pooled subjects to see whether they are all 1.
+#pragma omp parallel for schedule(static) reduction(+ : partition_mass)
 	for (bin_enc s_iter = 0; s_iter < (1 << (_curr_subjs * _variants)); s_iter++)
 	{
 		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
@@ -486,8 +486,8 @@ bin_enc Product_lattice::halving_omp(double prob) const
 	}
 
 	Halving_res halving_res;
-	#pragma omp declare reduction(Halving_Min:Halving_res : Halving_res::halving_min(omp_out, omp_in)) initializer(omp_priv = Halving_res())
-	#pragma omp parallel for schedule(static) reduction(Halving_Min : halving_res)
+#pragma omp declare reduction(Halving_Min:Halving_res : Halving_res::halving_min(omp_out, omp_in)) initializer(omp_priv = Halving_res())
+#pragma omp parallel for schedule(static) reduction(Halving_Min : halving_res)
 	for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 	{
 		double temp = 0.0;
@@ -561,7 +561,7 @@ bin_enc Product_lattice::halving_hybrid(double prob) const
 	const bin_enc stop_experiment = (1 << _curr_subjs) / world_size * (rank + 1);
 	double partition_mass[(stop_experiment - start_experiment) * (1 << _variants)]{0.0};
 
-	#pragma omp parallel for schedule(static) reduction(+ : partition_mass)
+#pragma omp parallel for schedule(static) reduction(+ : partition_mass)
 	// tricky: for each state, check each variant of actively
 	// pooled subjects to see whether they are all 1.
 	for (bin_enc s_iter = 0; s_iter < (1 << (_curr_subjs * _variants)); s_iter++)
@@ -584,8 +584,8 @@ bin_enc Product_lattice::halving_hybrid(double prob) const
 		}
 	}
 
-	#pragma omp declare reduction(Halving_Min:Halving_res : Halving_res::halving_min(omp_out, omp_in)) initializer(omp_priv = Halving_res())
-	#pragma omp parallel for schedule(static) reduction(Halving_Min : halving_res)
+#pragma omp declare reduction(Halving_Min:Halving_res : Halving_res::halving_min(omp_out, omp_in)) initializer(omp_priv = Halving_res())
+#pragma omp parallel for schedule(static) reduction(Halving_Min : halving_res)
 	for (bin_enc experiment = start_experiment; experiment < stop_experiment; experiment++)
 	{
 		double temp = 0.0;

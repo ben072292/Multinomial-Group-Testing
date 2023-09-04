@@ -9,6 +9,7 @@
         func(args)
 #endif // end PROFAPI
 
+#include "log.h"
 #include <chrono>
 #include <cmath> // std:abs(double) support for older gcc
 #include <cstdlib>
@@ -21,28 +22,31 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include "log.h"
 // Differentiate binary encoded states from regular index
 typedef int bin_enc;
 
 // Vector types
-typedef int _mm512_si __attribute__ ((vector_size (16 * sizeof(int))));
-typedef double _mm512_d __attribute__((vector_size (8 * sizeof(double))));
+typedef int _mm512_si __attribute__((vector_size(16 * sizeof(int))));
+typedef double _mm512_d __attribute__((vector_size(8 * sizeof(double))));
 
-inline _mm512_si* __mm512_si_alloc(std::size_t n) {
-    void* tmp = 0;
-    if (posix_memalign(&tmp, sizeof(_mm512_si), sizeof(_mm512_si) * n)) {
+inline _mm512_si *__mm512_si_alloc(std::size_t n)
+{
+    void *tmp = 0;
+    if (posix_memalign(&tmp, sizeof(_mm512_si), sizeof(_mm512_si) * n))
+    {
         throw std::bad_alloc();
     }
-    return (_mm512_si*)tmp;
+    return (_mm512_si *)tmp;
 }
 
-inline _mm512_d* __mm512_d_alloc(std::size_t n) {
-    void* tmp = 0;
-    if (posix_memalign(&tmp, sizeof(_mm512_d), sizeof(_mm512_d) * n)) {
+inline _mm512_d *__mm512_d_alloc(std::size_t n)
+{
+    void *tmp = 0;
+    if (posix_memalign(&tmp, sizeof(_mm512_d), sizeof(_mm512_d) * n))
+    {
         throw std::bad_alloc();
     }
-    return (_mm512_d*)tmp;
+    return (_mm512_d *)tmp;
 }
 
 // Product_lattice type
