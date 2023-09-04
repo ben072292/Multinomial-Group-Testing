@@ -19,6 +19,7 @@ set(EXTERNAL_SOURCE_DIR "external")
 set(LIB_SOURCE_DIR lib) 
 
 include_directories(include)
+include_directories(${EXTERNAL_SOURCE_DIR}/include)
 
 # Recursively find all source files in the specified directories
 file(GLOB_RECURSE EXEC_SOURCES "${EXEC_SOURCE_DIR}/*.cpp")

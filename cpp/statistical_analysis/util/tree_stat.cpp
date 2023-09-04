@@ -78,7 +78,7 @@ void Tree_stat::output_detail() const
               << _unclas * 100
               << " %"
               << std::endl;
-    std::cout << "Total Probability Of Classified Sequences But With < .1 % Branch Probability:,"
+    std::cout << "Total Probability Of Classified Sequences But Below The Branch Probability Threshold:,"
               << (1 - _unclas - (correctSum + wrongSum)) * 100
               << " %"
               << std::endl;
@@ -119,8 +119,9 @@ void Tree_stat::create_tree_stat_type(MPI_Datatype *tree_stat_type, int depth, i
     MPI_Get_address(&dummy_tree_stat._fp, &displacements[10]);
     MPI_Get_address(&dummy_tree_stat._fn, &displacements[11]);
 
-    for(int i = 0; i < 12; i++){
-       displacements[i] = MPI_Aint_diff(displacements[i], base_address); 
+    for (int i = 0; i < 12; i++)
+    {
+        displacements[i] = MPI_Aint_diff(displacements[i], base_address);
     }
 
     MPI_Datatype types[12] = {MPI_INT, MPI_INT, MPI_INT, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE};

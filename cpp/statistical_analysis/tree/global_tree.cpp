@@ -7,7 +7,7 @@ Global_tree::Global_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int 
     _res = res;
     _curr_stage = curr_stage;
     _children = nullptr;
-    _branch_prob = 0.0; // must be 0.0 so that stat tree can generate correct info
+    _branch_prob = 0.0; // must be initialized to 0.0 so that stat tree can generate correct info
 }
 
 Global_tree::Global_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double thres_up, double thres_lo, int stage, double **dilution) : Global_tree(lattice, ex, res, curr_stage)
@@ -162,7 +162,7 @@ void Global_tree::parse(bin_enc true_state, const Product_lattice *org_lattice, 
         }
         else if (!leaf->is_classified())
         {
-            stat->unclassified(stat->unclassified() + leaf->_branch_prob * coef);
+            stat->unclassified(stat->unclassified() + leaf->_branch_prob);
         }
         stat->expected_stage(stat->expected_stage() + std::ceil((double)index / (double)k) * leaf->_branch_prob);
         stat->expected_test(stat->expected_test() + index * leaf->_branch_prob);
@@ -174,6 +174,7 @@ void Global_tree::parse(bin_enc true_state, const Product_lattice *org_lattice, 
         stat->stage_sd(std::pow((std::ceil((double)index / (double)k) - stat->expected_stage()), 2) * leaf->_branch_prob);
         stat->test_sd(std::pow(index - stat->expected_test(), 2) * leaf->_branch_prob);
     }
+    stat->unclassified(stat->unclassified() * coef);
     stat->stage_sd(std::sqrt(stat->stage_sd()) * coef);
     stat->test_sd(std::sqrt(stat->test_sd()) * coef);
     stat->expected_stage(stat->expected_stage() * coef);

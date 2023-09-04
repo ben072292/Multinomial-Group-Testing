@@ -1,8 +1,8 @@
 #include "core.hpp"
+#include "global_tree.hpp"
 #include "product_lattice.hpp"
 #include "product_lattice_dilution.hpp"
 #include "product_lattice_non_dilution.hpp"
-#include "global_tree.hpp"
 
 int main(int argc, char *argv[])
 {
