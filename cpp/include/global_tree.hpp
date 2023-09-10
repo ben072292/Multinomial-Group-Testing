@@ -33,6 +33,7 @@ public:
     inline int curr_subjs() const { return _lattice->curr_subjs(); }
     inline int variants() const { return _lattice->variants(); }
     inline double branch_prob() const { return _branch_prob; }
+    virtual Global_tree *parent() const { throw std::logic_error("Not Implemented."); }
     inline Global_tree **children() const { return _children; }
     inline bool is_classified() const { return _lattice->is_classified(); }
     void parse(bin_enc true_state, const Product_lattice *org_lattice, double *pi0, double thres_branch, double sym_coef, Tree_stat *ret) const;

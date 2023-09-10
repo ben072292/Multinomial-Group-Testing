@@ -53,6 +53,10 @@ add_executable(gtmpi
     ${EXEC_SOURCE_DIR}/start_mpi.cpp
 )
 
+add_executable(gtmpi_dbg
+    ${EXEC_SOURCE_DIR}/start_mpi_dbg.cpp
+)
+
 add_executable(gtmpi_ts
     ${EXEC_SOURCE_DIR}/test_selection_mpi.cpp
 )
@@ -64,6 +68,7 @@ add_executable(gtts
 add_dependencies(gtomp BMGT)
 add_dependencies(gtompdebug BMGT)
 add_dependencies(gtmpi BMGT)
+add_dependencies(gtmpi_dbg BMGT)
 add_dependencies(gtmpi_ts BMGT)
 add_dependencies(gtts BMGT)
 
@@ -76,6 +81,10 @@ target_link_libraries(gtompdebug
 )
 
 target_link_libraries(gtmpi
+    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
+)
+
+target_link_libraries(gtmpi_dbg
     ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
 )
 
