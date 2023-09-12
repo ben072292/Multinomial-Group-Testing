@@ -1,5 +1,5 @@
 #include "core.hpp"
-#include "global_tree_mpi.hpp"
+#include "fusion_tree_mpi.hpp"
 #include "halving_res.hpp"
 #include "product_lattice_mp_dilution.hpp"
 #include "product_lattice_mp_non_dilution.hpp"
@@ -37,11 +37,16 @@ int main(int argc, char *argv[])
     double thres_lo = 0.01;
     double thres_branch = 0.001;
 
+    Tree::thres_up(thres_up);
+    Tree::thres_lo(thres_lo);
+    Tree::thres_branch(thres_branch);
+    Tree::search_depth(search_depth);
+
     // Initialize product lattice MPI env
     Product_lattice::MPI_Product_lattice_Initialize();
 
     // Initialize product lattice MPI env
-    Global_tree_mpi::MPI_Global_tree_Initialize(subjs, search_depth, 1);
+    Fusion_tree_mpi::MPI_Fusion_tree_Initialize(subjs, 1);
 
     double pi0[subjs * variant];
     for (int i = 0; i < subjs * variant; i++)
@@ -77,18 +82,15 @@ int main(int argc, char *argv[])
 
     auto stop_lattice_model_construction = std::chrono::high_resolution_clock::now();
 
-    double **dilution = p->generate_dilution(0.99, 0.005);
+    double **dilution = generate_dilution(subjs, 0.99, 0.005);
+
+    Tree::dilution(dilution);
 
     Halving_res halving_res;
 
     auto start_tree_construction = std::chrono::high_resolution_clock::now();
-
-    // Fusion tree
-    // Global_tree *tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, pi0, dilution, 0.01, 0.0, 1e-6);
-    // Global tree without perf
-    // Global_tree* tree = new Global_tree_mp(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
-    // Global tree with perf
-    Global_tree *tree = new Global_tree_mpi(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, true);
+    /* Fusion tree */
+    Tree *tree = new Fusion_tree_mpi(p, -1, -1, 1, 0, 0.01, 0.0, 1e-6);
 
     auto stop_tree_construction = std::chrono::high_resolution_clock::now();
 
@@ -99,8 +101,8 @@ int main(int argc, char *argv[])
     int total_st = p->total_state();
     for (int i = total_st / world_size * rank; i < total_st / world_size * (rank + 1); i++)
     {
-        tree->apply_true_state(p, i, thres_branch, dilution);
-        tree->parse(i, p, pi0, thres_branch, 1.0, &temp);
+        tree->apply_true_state(p, i);
+        tree->parse(i, p, 1.0, &temp);
         prim.merge(&temp);
     }
 
@@ -109,7 +111,7 @@ int main(int argc, char *argv[])
     if (!rank)
     {
         std::stringstream file_name;
-        file_name << "Multinomial-" << p->type()
+        file_name << "FusionTree-" << p->type()
                   << "-N=" << subjs
                   << "-k=" << variant
                   << "-Prior=" << prior
@@ -167,7 +169,7 @@ int main(int argc, char *argv[])
     {
         Product_lattice_mp::MPI_Product_lattice_Free();
     }
-    Global_tree_mpi::MPI_Global_tree_Free();
+    Fusion_tree_mpi::MPI_Fusion_tree_Free();
 
     // Finalize MPI
     MPI_Finalize();

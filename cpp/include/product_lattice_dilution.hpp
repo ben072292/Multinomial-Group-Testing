@@ -16,5 +16,5 @@ public:
 
     double response_prob(bin_enc experiment, bin_enc response, bin_enc true_state, double **dilution) const override;
 
-    std::string type() const override { return "Dilution"; }
+    std::string type() const override { return "DataParallelism-Dilution"; }
 };

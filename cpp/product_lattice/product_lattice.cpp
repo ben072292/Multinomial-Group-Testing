@@ -4,6 +4,7 @@ int Product_lattice::rank;
 int Product_lattice::world_size;
 int Product_lattice::_orig_subjs;
 int Product_lattice::_variants;
+double *Product_lattice::_pi0;
 static MPI_Datatype halving_res_type;
 static MPI_Op halving_op;
 
@@ -11,6 +12,7 @@ Product_lattice::Product_lattice(int subjs, int variants, double *pi0)
 {
 	_curr_subjs = subjs;
 	_orig_subjs = subjs;
+	_pi0 = pi0;
 	_variants = variants;
 	_parallelism = DATA_PARALLELISM;
 	_post_probs = new double[(1 << (_curr_subjs * _variants))];
@@ -610,23 +612,6 @@ bin_enc Product_lattice::halving(double prob) const
 		return halving_hybrid(prob);
 	else
 		return halving_omp(prob);
-}
-
-double **Product_lattice::generate_dilution(double alpha, double h) const
-{
-	double **ret = new double *[_curr_subjs];
-	int k;
-	for (int rk = 1; rk <= _curr_subjs; rk++)
-	{
-		ret[rk - 1] = new double[rk + 1];
-		ret[rk - 1][0] = alpha;
-		for (int r = 1; r <= rk; r++)
-		{
-			k = rk - r;
-			ret[rk - 1][r] = 1 - alpha * r / (k * h + r);
-		}
-	}
-	return ret;
 }
 
 // Assign rank and world size as static member variable,

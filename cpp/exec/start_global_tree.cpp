@@ -8,7 +8,7 @@ int main(int argc, char *argv[])
 {
 
     // omp_set_num_threads(8);
-    int atom = std::atoi(argv[1]);
+    int subjs = std::atoi(argv[1]);
     int variant = std::atoi(argv[2]);
     double prior = std::atof(argv[3]);
     double thres_up = 0.01;
@@ -16,27 +16,32 @@ int main(int argc, char *argv[])
     double thres_branch = 0.001;
     int search_depth = std::atoi(argv[4]);
 
-    double pi0[atom * variant];
-    for (int i = 0; i < atom * variant; i++)
+    double pi0[subjs * variant];
+    for (int i = 0; i < subjs * variant; i++)
     {
         pi0[i] = prior;
     }
     auto start_lattice_model_construction = std::chrono::high_resolution_clock::now();
 
-    Product_lattice *p = new Product_lattice_non_dilution(atom, variant, pi0);
+    Product_lattice *p = new Product_lattice_non_dilution(subjs, variant, pi0);
 
-    double **dilution = p->generate_dilution(0.99, 0.005);
+    double **dilution = generate_dilution(subjs, 0.99, 0.005);
+
+    Tree::thres_up(thres_up);
+    Tree::thres_lo(thres_lo);
+    Tree::thres_branch(thres_branch);
+    Tree::search_depth(search_depth);
+    Tree::dilution(dilution);
+
+    std::chrono::nanoseconds halving_times[subjs + 1]{std::chrono::nanoseconds::zero()};
 
     auto start_tree_construction = std::chrono::high_resolution_clock::now();
 
-    std::chrono::nanoseconds halving_times[atom + 1]{std::chrono::nanoseconds::zero()};
-    Global_tree *tree = new Global_tree(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution, halving_times);
-
-    // Global_tree* tree = new Global_tree(p, -1, -1, 1, 0, thres_up, thres_lo, search_depth, dilution);
+    Global_tree *tree = new Global_tree(p, -1, -1, 1, 0, halving_times);
 
     auto stop_tree_construction = std::chrono::high_resolution_clock::now();
 
-    tree->apply_true_state(p, 0, thres_branch, dilution);
+    tree->apply_true_state(p, 0);
 
     Tree_stat *prim = new Tree_stat(search_depth, 1);
     Tree_stat *temp = new Tree_stat(search_depth, 1);
@@ -44,14 +49,14 @@ int main(int argc, char *argv[])
     int total_st = p->total_state();
     for (int i = 0; i < total_st; i++)
     {
-        tree->apply_true_state(p, i, thres_branch, dilution);
-        tree->parse(i, p, pi0, thres_branch, 1.0, temp);
+        tree->apply_true_state(p, i);
+        tree->parse(i, p, 1.0, temp);
         prim->merge(temp);
     }
 
     std::stringstream file_name;
-    file_name << "Multinomial-" << p->type() << "-N="
-              << atom << "-k=" << variant
+    file_name << "GlobalTree-" << p->type() << "-N="
+              << subjs << "-k=" << variant
               << "-Prior=" << prior
               << "-Depth=" << search_depth
               << "-Threads=" << omp_get_num_threads()
@@ -59,7 +64,7 @@ int main(int argc, char *argv[])
               << ".csv";
     freopen(file_name.str().c_str(), "w", stdout);
 
-    std::cout << "N = " << atom << ", k = " << variant << std::endl;
+    std::cout << "N = " << subjs << ", k = " << variant << std::endl;
     std::cout << "Prior: ";
     for (int i = 0; i < p->curr_atoms(); i++)
     {
@@ -76,7 +81,7 @@ int main(int argc, char *argv[])
     delete prim;
     delete temp;
 
-    for (int i = 0; i < atom; i++)
+    for (int i = 0; i < subjs; i++)
     {
         delete[] dilution[i];
     }
@@ -89,7 +94,7 @@ int main(int argc, char *argv[])
 
     std::cout << "\n\n Performance Statistics\n"
               << std::endl;
-    for (int i = 0; i < atom + 1; i++)
+    for (int i = 0; i < subjs + 1; i++)
     {
         std::cout << "Halving Time for lattice model size " << i << "," << halving_times[i].count() / 1e9 << " Second." << std::endl;
         total_MPI_time += halving_times[i];

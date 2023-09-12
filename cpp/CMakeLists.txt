@@ -42,48 +42,57 @@ set_target_properties(BMGT PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${LIB_SOURCE_DIR}
 )
 
-add_executable(gtomp
-    ${EXEC_SOURCE_DIR}/start.cpp
+add_executable(gt_omp
+    ${EXEC_SOURCE_DIR}/start_global_tree.cpp
 )
 
-add_executable(gtompdebug
-    ${EXEC_SOURCE_DIR}/start.cpp
+add_executable(gt_omp_debug
+    ${EXEC_SOURCE_DIR}/start_global_tree.cpp
 )
 
-add_executable(gtmpi
-    ${EXEC_SOURCE_DIR}/start_mpi.cpp
+add_executable(gt_mpi
+    ${EXEC_SOURCE_DIR}/start_global_tree_mpi.cpp
 )
 
-add_executable(gtmpi_ts
-    ${EXEC_SOURCE_DIR}/test_selection_mpi.cpp
+add_executable(ft_mpi
+    ${EXEC_SOURCE_DIR}/start_fusion_tree_mpi.cpp
 )
 
-add_executable(gtts
+add_executable(ts_mpi
+    ${EXEC_SOURCE_DIR}/start_test_selection_mpi.cpp
+)
+
+add_executable(ts
     ${EXEC_SOURCE_DIR}/start_test_selection.cpp
 )
 
-add_dependencies(gtomp BMGT)
-add_dependencies(gtompdebug BMGT)
-add_dependencies(gtmpi BMGT)
-add_dependencies(gtmpi_ts BMGT)
-add_dependencies(gtts BMGT)
+add_dependencies(gt_omp BMGT)
+add_dependencies(gt_omp_debug BMGT)
+add_dependencies(gt_mpi BMGT)
+add_dependencies(ft_mpi BMGT)
+add_dependencies(ts_mpi BMGT)
+add_dependencies(ts BMGT)
 
-target_link_libraries(gtomp
+target_link_libraries(gt_omp
     ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
 )
 
-target_link_libraries(gtompdebug
+target_link_libraries(gt_omp_debug
     ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
 )
 
-target_link_libraries(gtmpi
+target_link_libraries(gt_mpi
     ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
 )
 
-target_link_libraries(gtmpi_ts
+target_link_libraries(ft_mpi
     ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
 )
 
-target_link_libraries(gtts
+target_link_libraries(ts_mpi
+    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
+)
+
+target_link_libraries(ts
     ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
 )

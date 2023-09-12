@@ -19,5 +19,5 @@ public:
 
     Product_lattice *clone(int assert) const override;
 
-    std::string type() const override { return "Model-Parallelism-Dilution"; }
+    std::string type() const override { return "ModelParallelism-Dilution"; }
 };

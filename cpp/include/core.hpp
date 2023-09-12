@@ -10,6 +10,7 @@
 #endif // end PROFAPI
 
 #include "log.h"
+#include "dilution.hpp"
 #include <chrono>
 #include <cmath> // std:abs(double) support for older gcc
 #include <cstdlib>

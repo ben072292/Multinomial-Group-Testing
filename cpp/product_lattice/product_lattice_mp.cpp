@@ -9,6 +9,7 @@ Product_lattice_mp::Product_lattice_mp(int subjs, int variants, double *pi0)
 	_curr_subjs = subjs;
 	_orig_subjs = subjs;
 	_variants = variants;
+	_pi0 = pi0;
 	_post_probs = new double[total_state_each()];
 	prior_probs(pi0);
 }

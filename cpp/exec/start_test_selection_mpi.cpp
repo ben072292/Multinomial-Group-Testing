@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
     if (world_rank == 0)
     {
         std::stringstream file_name;
-        file_name << "Multinomial-" << p->type()
+        file_name << "TestSelection-" << p->type()
                   << "-N=" << atom
                   << "-k=" << variant
                   << "-Processes=" << world_size
