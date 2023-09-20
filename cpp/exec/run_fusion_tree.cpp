@@ -1,5 +1,5 @@
 #include "core.hpp"
-#include "fusion_tree_mpi.hpp"
+#include "fusion_tree.hpp"
 #include "halving_res.hpp"
 #include "product_lattice_mp_dilution.hpp"
 #include "product_lattice_mp_non_dilution.hpp"
@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
     Product_lattice::MPI_Product_lattice_Initialize();
 
     // Initialize product lattice MPI env
-    Fusion_tree_mpi::MPI_Fusion_tree_Initialize(subjs, 1);
+    Fusion_tree::MPI_Fusion_tree_Initialize(subjs, 1);
 
     double pi0[subjs * variant];
     for (int i = 0; i < subjs * variant; i++)
@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
 
     auto start_tree_construction = std::chrono::high_resolution_clock::now();
     /* Fusion tree */
-    Tree *tree = new Fusion_tree_mpi(p, -1, -1, 1, 0, 0.01, 0.0, 1e-6);
+    Tree *tree = new Fusion_tree(p, -1, -1, 1, 0, 0.01, 0.0, 1e-6);
 
     auto stop_tree_construction = std::chrono::high_resolution_clock::now();
 
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
     Tree_stat temp(search_depth, 1);
     Tree_stat summ(search_depth, 1);
 
-    int total_st = p->total_state();
+    int total_st = p->total_states();
     for (int i = total_st / world_size * rank; i < total_st / world_size * (rank + 1); i++)
     {
         tree->apply_true_state(p, i);
@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
         prim.merge(&temp);
     }
 
-    MPI_Reduce(&prim, &summ, 1, Global_tree_mpi::tree_stat_type, Global_tree_mpi::tree_stat_op, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&prim, &summ, 1, Global_tree::tree_stat_type, Global_tree::tree_stat_op, 0, MPI_COMM_WORLD);
 
     if (!rank)
     {
@@ -147,7 +147,7 @@ int main(int argc, char *argv[])
         std::cout << "Initial Lattice Model Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
 
-        Global_tree_mpi::tree_perf->output_verbose();
+        Global_tree::tree_perf->output_verbose();
 
         std::cout << "Global Tree Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - stop_tree_construction);
@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
     {
         Product_lattice_mp::MPI_Product_lattice_Free();
     }
-    Fusion_tree_mpi::MPI_Fusion_tree_Free();
+    Fusion_tree::MPI_Fusion_tree_Free();
 
     // Finalize MPI
     MPI_Finalize();

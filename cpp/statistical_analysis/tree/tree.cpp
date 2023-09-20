@@ -28,7 +28,8 @@ Tree::Tree(const Tree &other, bool deep)
     {
         if (other._children != nullptr)
         {
-            _children = new Tree *[1 << variants()]{ nullptr };
+            _children = new Tree *[1 << variants()]
+            { nullptr };
             for (int i = 0; i < (1 << variants()); i++)
             {
                 _children[i] = new Tree(*other.children()[i], deep); // TBD: this downcast is problematic, use virtual clone and create functions
@@ -221,7 +222,7 @@ void Tree::find_unclas_stat(const Tree *node, std::vector<const Tree *> *leaves)
     }
 }
 
-void apply_true_state_helper(const Product_lattice *__restrict__ org_lattice, Tree *__restrict__ node, bin_enc true_state, double prob, double thres_branch, double** dilution)
+void apply_true_state_helper(const Product_lattice *__restrict__ org_lattice, Tree *__restrict__ node, bin_enc true_state, double prob, double thres_branch, double **dilution)
 {
     if (node == nullptr)
         return;
@@ -296,4 +297,20 @@ std::string Tree::shrinking_stat() const
     ret += ",100%\n";
     delete[] stat;
     return ret;
+}
+
+unsigned long Tree::size_estimator()
+{
+    unsigned long my_size = sizeof(*this) + sizeof(*_lattice) + (_lattice->posterior_probs() == nullptr ? 0UL : sizeof(double) * (1 << (_lattice->curr_atoms())));
+    if (_children == nullptr)
+        return my_size;
+    else
+    {
+        for (int i = 0; i < (1 << variants()); i++)
+        {
+            if (_children[i] != nullptr)
+                my_size += _children[i]->size_estimator();
+        }
+    }
+    return my_size;
 }

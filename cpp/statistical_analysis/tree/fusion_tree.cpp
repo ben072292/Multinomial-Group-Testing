@@ -1,18 +1,19 @@
-#include "fusion_tree_mpi.hpp"
+#include "fusion_tree.hpp"
 
-Fusion_tree_mpi **Fusion_tree_mpi::sequence_tracer = nullptr;
+Fusion_tree **Fusion_tree::sequence_tracer = nullptr;
 
 /**
  * Fusion Tree
  */
-Fusion_tree_mpi::Fusion_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double prun_thres_sum, double curr_prun_thres_sum, double prun_thres) : Fusion_tree_mpi(lattice, ex, res, curr_stage)
+Fusion_tree::Fusion_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double prun_thres_sum, double curr_prun_thres_sum, double prun_thres) : Fusion_tree(lattice, ex, res, curr_stage)
 {
     sequence_tracer[curr_stage] = this;
     // log_debug("sequence: %d %d %d.", curr_stage, sequence_tracer[curr_stage], sequence_tracer[curr_stage]->ex_res());
     auto halving_start = std::chrono::high_resolution_clock::now(), halving_end = halving_start;
     if (!lattice->is_classified() && curr_stage < _search_depth)
     {
-        _children = new Tree *[1 << variants()]{ nullptr };
+        _children = new Tree *[1 << variants()]
+        { nullptr };
         bin_enc halving = lattice->halving(1.0 / (1 << variants())); // remember test selection as halving_res will change in depth-frist traversal
         halving_end = std::chrono::high_resolution_clock::now();
         tree_perf->accumulate_halving_time(lattice->curr_subjs(), (halving_end - halving_start));
@@ -38,7 +39,7 @@ Fusion_tree_mpi::Fusion_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc r
                 p->update_metadata(_thres_up, _thres_lo); // no need to shrink as only metadata matters
                 delete[] p->posterior_probs();
                 p->posterior_probs(nullptr);
-                _children[re] = new Fusion_tree_mpi(p, ex, re, curr_stage);
+                _children[re] = new Fusion_tree(p, ex, re, curr_stage);
                 auto update_end = std::chrono::high_resolution_clock::now();
                 tree_perf->accumulate_update_time(_lattice->curr_subjs(), p->curr_subjs(), (update_end - update_start));
             }
@@ -79,34 +80,33 @@ Fusion_tree_mpi::Fusion_tree_mpi(Product_lattice *lattice, bin_enc ex, bin_enc r
                     tree_perf->accumulate_mp_dp_time(_lattice->curr_subjs(), p1->curr_subjs(), (shrink_end - shrink_start));
                 else if (old_parallelism == DATA_PARALLELISM)
                     tree_perf->accumulate_dp_time(_lattice->curr_subjs(), p1->curr_subjs(), (shrink_end - shrink_start));
-                _children[re] = new Fusion_tree_mpi(p1, ex, re, k, _curr_stage + 1, prun_thres_sum, curr_prun_thres_sum, prun_thres);
+                _children[re] = new Fusion_tree(p1, ex, re, k, _curr_stage + 1, prun_thres_sum, curr_prun_thres_sum, prun_thres);
             }
         }
     }
     else
     { // clean in advance to save memory
-        delete[] lattice->posterior_probs();
-        lattice->posterior_probs(nullptr);
-        _lattice->posterior_probs(nullptr);
+        destroy_posterior_probs();
     }
 }
 
-Fusion_tree_mpi::Fusion_tree_mpi(const Tree &other, bool deep) : Global_tree_mpi(other, false)
+Fusion_tree::Fusion_tree(const Tree &other, bool deep) : Global_tree(other, false)
 {
     if (deep)
     {
         if (other.children() != nullptr)
         {
-            _children = new Tree *[1 << variants()] { nullptr };
+            _children = new Tree *[1 << variants()]
+            { nullptr };
             for (int i = 0; i < (1 << variants()); i++)
             {
-                _children[i] = new Fusion_tree_mpi(*(other.children()[i]), deep); // TBD: this downcast is problematic, use virtual clone and create functions
+                _children[i] = new Fusion_tree(*(other.children()[i]), deep); // TBD: this downcast is problematic, use virtual clone and create functions
             }
         }
     }
 }
 
-double Fusion_tree_mpi::fusion_branch_prob(int ex, int res)
+double Fusion_tree::fusion_branch_prob(int ex, int res)
 {
     double ret = 0.0;
     for (int i = (1 << _lattice->orig_atoms()) / world_size * rank; i < (1 << _lattice->orig_atoms()) / world_size * (rank + 1); i++)
@@ -123,13 +123,13 @@ double Fusion_tree_mpi::fusion_branch_prob(int ex, int res)
     return ret;
 }
 
-void Fusion_tree_mpi::MPI_Fusion_tree_Initialize(int subjs, int k)
+void Fusion_tree::MPI_Fusion_tree_Initialize(int subjs, int k)
 {
     MPI_Global_tree_Initialize(subjs, k);
-    sequence_tracer = new Fusion_tree_mpi *[_search_depth + 1];
+    sequence_tracer = new Fusion_tree *[_search_depth + 1];
 }
 
-void Fusion_tree_mpi::MPI_Fusion_tree_Free()
+void Fusion_tree::MPI_Fusion_tree_Free()
 {
     MPI_Global_tree_Free();
     delete[] sequence_tracer;

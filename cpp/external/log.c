@@ -68,6 +68,23 @@ static void stdout_callback(log_Event *ev) {
   fflush(ev->udata);
 }
 
+static void stdout_callback_simple(log_Event *ev) {
+  char buf[16];
+  buf[strftime(buf, sizeof(buf), "%H:%M:%S", ev->time)] = '\0';
+#ifdef LOG_USE_COLOR
+  fprintf(
+    ev->udata, "%s %s%-4s\x1b[0m :\x1b[0m ",
+    buf, level_colors[ev->level], level_strings[ev->level]);
+#else
+  fprintf(
+    ev->udata, "%s %-4s: ",
+    buf, level_strings[ev->level]);
+#endif
+  vfprintf(ev->udata, ev->fmt, ev->ap);
+  fprintf(ev->udata, "\n");
+  fflush(ev->udata);
+}
+
 
 static void file_callback(log_Event *ev) {
   char buf[64];
@@ -151,6 +168,36 @@ void log_log(int level, const char *file, int line, const char *fmt, ...) {
     init_event(&ev, stderr);
     va_start(ev.ap, fmt);
     stdout_callback(&ev);
+    va_end(ev.ap);
+  }
+
+  for (int i = 0; i < MAX_CALLBACKS && L.callbacks[i].fn; i++) {
+    Callback *cb = &L.callbacks[i];
+    if (level >= cb->level) {
+      init_event(&ev, cb->udata);
+      va_start(ev.ap, fmt);
+      cb->fn(&ev);
+      va_end(ev.ap);
+    }
+  }
+
+  unlock();
+}
+
+void log_simple(int level, const char *file, int line, const char *fmt, ...) {
+  log_Event ev = {
+    .fmt   = fmt,
+    .file  = file,
+    .line  = line,
+    .level = level,
+  };
+
+  lock();
+
+  if (!L.quiet && level >= L.level) {
+    init_event(&ev, stderr);
+    va_start(ev.ap, fmt);
+    stdout_callback_simple(&ev);
     va_end(ev.ap);
   }
 

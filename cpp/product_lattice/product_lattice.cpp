@@ -93,7 +93,7 @@ void Product_lattice::generate_power_set_adder(bin_enc *add_index, int index_len
 
 void Product_lattice::prior_probs(double *pi0)
 {
-	int index = total_state();
+	int index = total_states();
 	for (int i = 0; i < index; i++)
 	{
 		_post_probs[i] = prior_prob(i, pi0);

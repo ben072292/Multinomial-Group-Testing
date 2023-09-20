@@ -1,5 +1,5 @@
 #include "core.hpp"
-#include "global_tree.hpp"
+#include "global_tree_intra.hpp"
 #include "product_lattice.hpp"
 #include "product_lattice_dilution.hpp"
 #include "product_lattice_non_dilution.hpp"
@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
 
     auto start_tree_construction = std::chrono::high_resolution_clock::now();
 
-    Global_tree *tree = new Global_tree(p, -1, -1, 1, 0, halving_times);
+    Global_tree_intra *tree = new Global_tree_intra(p, -1, -1, 1, 0, halving_times);
 
     auto stop_tree_construction = std::chrono::high_resolution_clock::now();
 
@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
     Tree_stat *prim = new Tree_stat(search_depth, 1);
     Tree_stat *temp = new Tree_stat(search_depth, 1);
 
-    int total_st = p->total_state();
+    int total_st = p->total_states();
     for (int i = 0; i < total_st; i++)
     {
         tree->apply_true_state(p, i);
@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
     }
 
     std::stringstream file_name;
-    file_name << "GlobalTree-" << p->type() << "-N="
+    file_name << "GlobalTreeIntra-" << p->type() << "-N="
               << subjs << "-k=" << variant
               << "-Prior=" << prior
               << "-Depth=" << search_depth

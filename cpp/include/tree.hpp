@@ -45,7 +45,11 @@ public:
     inline static double **dilution() { return _dilution; }
     inline static void dilution(double **dilution) { _dilution = dilution; }
     inline Tree **children() const { return _children; }
-    inline void children(int num) { _children = new Tree *[num]{ nullptr }; }
+    inline void children(int num)
+    {
+        _children = new Tree *[num]
+        { nullptr };
+    }
     inline bool is_classified() const { return _lattice->is_classified(); }
     void parse(bin_enc true_state, const Product_lattice *org_lattice, double sym_coef, Tree_stat *ret) const;
     inline double total_positive() const { return __builtin_popcount(_lattice->pos_clas_atoms()); }
@@ -60,4 +64,6 @@ public:
     void apply_true_state(const Product_lattice *org_lattice, bin_enc true_state);
     std::string shrinking_stat() const;
     virtual std::string type() { return "Base Tree"; }
+    unsigned long size_estimator();
+    inline void destroy_posterior_probs() { delete[] _lattice->posterior_probs(); _lattice->posterior_probs(nullptr);}
 };

@@ -14,7 +14,7 @@ class Product_lattice_mp : public virtual Product_lattice
 protected:
 	static double* temp_post_prob_holder;
 	static MPI_Win win;
-	inline bin_enc total_state_each() const { return total_state() / world_size; }
+	inline bin_enc total_state_each() const { return total_states() / world_size; }
 	inline int state_to_offset(bin_enc state) const { return state % total_state_each(); }
 	inline int state_to_rank(bin_enc state) const { return state / total_state_each(); }
 	inline bin_enc offset_to_state(int offset) const { return offset + total_state_each() * rank; }

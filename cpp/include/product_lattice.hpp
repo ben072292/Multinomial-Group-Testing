@@ -38,7 +38,7 @@ public:
 	inline int orig_atoms() const { return _orig_subjs * _variants; }
 	inline static int orig_subjs() { return _orig_subjs; }
 	inline bin_enc clas_subjs() const { return _clas_subjs; }
-	inline int total_state() const { return (1 << (_curr_subjs * _variants)); }
+	inline int total_states() const { return (1 << (_curr_subjs * _variants)); }
 	inline double *posterior_probs() const { return _post_probs; };
 	virtual double posterior_prob(bin_enc state) const;
 	inline void posterior_probs(double *post_probs) { _post_probs = post_probs; }
