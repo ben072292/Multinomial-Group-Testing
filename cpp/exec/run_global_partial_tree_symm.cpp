@@ -3,7 +3,7 @@
 #include "halving_res.hpp"
 #include "product_lattice_mp_dilution.hpp"
 #include "product_lattice_mp_non_dilution.hpp"
-#include "tree_trim.hpp"
+#include "tree_symm.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
 
     int type = std::atoi(argv[1]);
     int subjs = std::atoi(argv[2]);
-    int variant = std::atoi(argv[3]);
+    int variants = std::atoi(argv[3]);
     double prior = std::atof(argv[4]);
     int search_depth = std::atoi(argv[5]);
     double thres_up = 0.01;
@@ -45,8 +45,8 @@ int main(int argc, char *argv[])
     // Initialize product lattice MPI env
     Global_partial_tree::MPI_Distributed_tree_Initialize(subjs, 1, search_depth);
 
-    double pi0[subjs * variant];
-    for (int i = 0; i < subjs * variant; i++)
+    double pi0[subjs * variants];
+    for (int i = 0; i < subjs * variants; i++)
     {
         pi0[i] = prior;
     }
@@ -68,13 +68,13 @@ int main(int argc, char *argv[])
     Product_lattice *p;
     if (type == MP_NON_DILUTION)
     {
-        Product_lattice_mp::MPI_Product_lattice_Initialize(subjs, variant);
-        p = new Product_lattice_mp_non_dilution(subjs, variant, pi0);
+        Product_lattice_mp::MPI_Product_lattice_Initialize(subjs, variants);
+        p = new Product_lattice_mp_non_dilution(subjs, variants, pi0);
     }
     else if (type == MP_DILUTION)
     {
-        Product_lattice_mp::MPI_Product_lattice_Initialize(subjs, variant);
-        p = new Product_lattice_mp_dilution(subjs, variant, pi0);
+        Product_lattice_mp::MPI_Product_lattice_Initialize(subjs, variants);
+        p = new Product_lattice_mp_dilution(subjs, variants, pi0);
     }
     else
     {
@@ -82,14 +82,13 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    int trim_size;
-    double trim_prob = 1; // trim 1%
-    Product_lattice_non_dilution *pp = new Product_lattice_non_dilution(subjs, variant, pi0);
-    int *trimmed_true_state = trim_true_states(pp->posterior_probs(), pp->total_states(), trim_prob, trim_size);
-    delete pp;
+    int symm_size = 0;
+    bin_enc *symm_true_states(nullptr);
+    int *symm_coefficients(nullptr);
+    generate_symmetric_true_states(subjs, variants, symm_size, symm_true_states, symm_coefficients);
 
     if (!rank)
-        log_info("%d true states after trimming %.1f%%", trim_size, trim_prob);
+        log_info("%d true states using symmetric property", symm_size);
 
     Global_partial_tree *tree = new Global_partial_tree(p, -1, -1, -1, 0, 1.0);
     auto stop_lattice_gen = std::chrono::high_resolution_clock::now();
@@ -97,31 +96,35 @@ int main(int argc, char *argv[])
     auto start_evaluation = std::chrono::high_resolution_clock::now();
     auto stop_evaluation = start_evaluation;
 
-    for (int i = 0; i < trim_size; i++)
+    for (int i = 0; i < symm_size; i++)
     {
         auto start_timer = std::chrono::high_resolution_clock::now();
-        tree->lazy_eval(tree, p, trimmed_true_state[i]);
-        tree->parse(trimmed_true_state[i], p, 1.0, &temp);
+        tree->lazy_eval(tree, p, symm_true_states[i]);
+        tree->parse(symm_true_states[i], p, symm_coefficients[i], &temp);
         prim.merge(&temp);
 
         auto stop_timer = std::chrono::high_resolution_clock::now();
         auto time = std::chrono::duration_cast<std::chrono::microseconds>(stop_timer - start_timer);
         if (!rank)
         {
-            log_info("True state %d / %d finishes, took %.2f s.", i, trim_size, time.count() / 1e6);
-            log_info("Rank %d: Tree size is %.2fMB", rank, static_cast<double>(tree->size_estimator()) / 1024 / 1024);
-            log_info("%s", tree->shrinking_stat().c_str());
+            log_info("True state %d / %d finishes, took %.2f s.", i + 1, symm_size, time.count() / 1e6);
+            if ((i + 1) % 100 == 0)
+            {
+                log_info("Rank %d: Tree size is %.2fMB", rank, static_cast<double>(tree->size_estimator()) / 1024 / 1024);
+                log_info("%s", tree->shrinking_stat().c_str());
+            }
         }
     }
 
-    delete[] trimmed_true_state;
+    delete[] symm_true_states;
+    delete[] symm_coefficients;
 
     if (!rank) // master generates statistics
     {
         std::stringstream file_name;
-        file_name << "GlobalPartialTreeTrim-" << p->type()
+        file_name << "GlobalPartialTreeSymm-" << p->type()
                   << "-N=" << subjs
-                  << "-k=" << variant
+                  << "-k=" << variants
                   << "-Prior=" << prior
                   << "-Depth=" << search_depth
                   << "-Processes=" << world_size
@@ -129,7 +132,7 @@ int main(int argc, char *argv[])
                   << "-" << get_curr_time()
                   << ".csv";
         freopen(file_name.str().c_str(), "w", stdout);
-        std::cout << "N = " << subjs << ", k = " << variant << std::endl;
+        std::cout << "N = " << subjs << ", k = " << variants << std::endl;
         std::cout << "Prior: ";
         for (int i = 0; i < p->curr_atoms(); i++)
         {
@@ -138,15 +141,12 @@ int main(int argc, char *argv[])
         std::cout << "\nNegative classification threshold: " << thres_up << std::endl;
         std::cout << "Positive classification threshold: " << thres_lo << std::endl;
         std::cout << "Branch elimination threshold: " << thres_branch << std::endl;
-        std::cout << "Trim percent: " << trim_prob << "%" << std::endl;
-        std::cout << "Number of true states: " << trim_size << std::endl;
-
+        std::cout << "Number of true states: " << symm_size << std::endl;
         prim.output_detail();
-    }
-    auto stop_time = std::chrono::high_resolution_clock::now();
-
-    if (!rank)
-    {
+        auto stop_time = std::chrono::high_resolution_clock::now();
+        std::cout << "\n\nPerformance Statistics\n\n";
+        std::cout << tree->shrinking_stat() << std::endl
+                  << std::endl;
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_lattice_gen - start_lattice_gen);
         std::cout << "Initial Lattice Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_evaluation - start_evaluation);

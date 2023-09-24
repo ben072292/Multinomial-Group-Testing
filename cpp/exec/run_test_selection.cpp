@@ -30,24 +30,24 @@ int main(int argc, char *argv[])
     int parallelism_type = std::atoi(argv[1]);
     int omp_enabled = std::atoi(argv[2]);
     int atom = std::atoi(argv[3]);
-    int variant = std::atoi(argv[4]);
+    int variants = std::atoi(argv[4]);
 
-    double pi0[atom * variant];
-    for (int i = 0; i < atom * variant; i++)
+    double pi0[atom * variants];
+    for (int i = 0; i < atom * variants; i++)
     {
-        pi0[i] = 0.02;
+        pi0[i] = 0.1;
     }
 
     Product_lattice *p;
     auto start_lattice_construction = std::chrono::high_resolution_clock::now();
     if (parallelism_type == MP_NON_DILUTION)
-        p = new Product_lattice_mp_non_dilution(atom, variant, pi0);
+        p = new Product_lattice_mp_non_dilution(atom, variants, pi0);
     else if (parallelism_type == MP_DILUTION)
-        p = new Product_lattice_mp_dilution(atom, variant, pi0);
+        p = new Product_lattice_mp_dilution(atom, variants, pi0);
     else if (parallelism_type == DP_NON_DILUTION)
-        p = new Product_lattice_non_dilution(atom, variant, pi0);
+        p = new Product_lattice_non_dilution(atom, variants, pi0);
     else if (parallelism_type == DP_DILUTION)
-        p = new Product_lattice_dilution(atom, variant, pi0);
+        p = new Product_lattice_dilution(atom, variants, pi0);
     else
         exit(1);
 
@@ -55,9 +55,9 @@ int main(int argc, char *argv[])
     auto start_halving = std::chrono::high_resolution_clock::now();
 
     if (omp_enabled)
-        p->halving_hybrid(0.25);
+        std::cout << p->halving_hybrid(1.0 / (1 << variants)) << std::endl;
     else
-        p->halving_mpi_vectorize(0.25);
+        std::cout << p->halving_mpi(1.0 / (1 << variants)) << std::endl;
 
     auto end_halving = std::chrono::high_resolution_clock::now();
 
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
         std::stringstream file_name;
         file_name << "TestSelection-" << p->type()
                   << "-N=" << atom
-                  << "-k=" << variant
+                  << "-k=" << variants
                   << "-Processes=" << world_size
                   << "-Threads=" << omp_get_num_threads()
                   << "-" << get_curr_time()

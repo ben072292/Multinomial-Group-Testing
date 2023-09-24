@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
 
     int type = std::atoi(argv[1]);
     int subjs = std::atoi(argv[2]);
-    int variant = std::atoi(argv[3]);
+    int variants = std::atoi(argv[3]);
     double prior = std::atof(argv[4]);
     int search_depth = std::atoi(argv[5]);
     int workload_granularity = std::atoi(argv[6]);
@@ -45,8 +45,8 @@ int main(int argc, char *argv[])
     // Initialize product lattice MPI env
     Distributed_tree::MPI_Distributed_tree_Initialize(subjs, 1, search_depth);
 
-    double pi0[subjs * variant];
-    for (int i = 0; i < subjs * variant; i++)
+    double pi0[subjs * variants];
+    for (int i = 0; i < subjs * variants; i++)
     {
         pi0[i] = prior;
     }
@@ -92,12 +92,12 @@ int main(int argc, char *argv[])
         int worker_rank;
         while (fin_count != world_size - 1)
         {
-            if (workload_count < (1 << (subjs * variant)))
+            if (workload_count < (1 << (subjs * variants)))
             {
                 MPI_Recv(&worker_rank, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 MPI_Send(&workload_count, 1, MPI_INT, worker_rank, 0, MPI_COMM_WORLD);
                 workload_count += workload_granularity;
-                log_info("New workload patches to rank %d. Progress: %f %", worker_rank, (double)workload_count / (1 << (subjs * variant)) * 100);
+                log_info("New workload patches to rank %d. Progress: %f %", worker_rank, (double)workload_count / (1 << (subjs * variants)) * 100);
             }
             else
             {
@@ -115,11 +115,11 @@ int main(int argc, char *argv[])
     {
         if (type == DP_NON_DILUTION)
         {
-            p = new Product_lattice_non_dilution(subjs, variant, pi0);
+            p = new Product_lattice_non_dilution(subjs, variants, pi0);
         }
         else if (type == DP_DILUTION)
         {
-            p = new Product_lattice_dilution(subjs, variant, pi0);
+            p = new Product_lattice_dilution(subjs, variants, pi0);
         }
         else
         {
@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
         std::stringstream file_name;
         file_name << "DistributedTree-" << p->type()
                   << "-N=" << subjs
-                  << "-k=" << variant
+                  << "-k=" << variants
                   << "-Prior=" << prior
                   << "-Depth=" << search_depth
                   << "-Processes=" << world_size
@@ -164,7 +164,7 @@ int main(int argc, char *argv[])
                   << "-" << get_curr_time()
                   << ".csv";
         freopen(file_name.str().c_str(), "w", stdout);
-        std::cout << "N = " << subjs << ", k = " << variant << std::endl;
+        std::cout << "N = " << subjs << ", k = " << variants << std::endl;
         std::cout << "Prior: ";
         for (int i = 0; i < p->curr_atoms(); i++)
         {
@@ -173,13 +173,8 @@ int main(int argc, char *argv[])
         std::cout << "\nNegative classification threshold: " << thres_up << std::endl;
         std::cout << "Positive classification threshold: " << thres_lo << std::endl;
         std::cout << "Branch elimination threshold: " << thres_branch << std::endl;
-
         summ.output_detail();
-    }
-    auto stop_time = std::chrono::high_resolution_clock::now();
-
-    if (!rank)
-    {
+        auto stop_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
         std::cout << "Distributed Tree Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
         std::cout << "Statistical Analysis Time: " << duration.count() / 1e6 << "s." << std::endl;

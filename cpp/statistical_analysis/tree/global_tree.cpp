@@ -27,11 +27,9 @@ Global_tree::Global_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int 
             }
             else
                 p->update_probs(halving, re, _dilution);
-            p->update_metadata_with_shrinking(_thres_up, _thres_lo);
-            Product_lattice *p1 = p->clone(SHALLOW_COPY_PROB_DIST); // potentially switch from model parallelism to data parallelism
-            p->posterior_probs(nullptr);                            // detach _post_probs
-            delete p;
-            _children[re] = new Global_tree(p1, ex, re, k, _curr_stage + 1);
+            if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
+                p = p->convert_parallelism();
+            _children[re] = new Global_tree(p, ex, re, k, _curr_stage + 1);
         }
     }
     else
@@ -68,30 +66,19 @@ Global_tree::Global_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int 
                 p->update_probs(halving, re, _dilution);
             auto update_end = std::chrono::high_resolution_clock::now();
             auto shrink_start = std::chrono::high_resolution_clock::now();
-            p->update_metadata_with_shrinking(_thres_up, _thres_lo);
+            if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
+                p = p->convert_parallelism();
             auto shrink_end = std::chrono::high_resolution_clock::now();
             int new_parallelism = p->parallelism();
-            Product_lattice *p1;
-            if (old_parallelism != new_parallelism)
-            {
-                p1 = p->clone(SHALLOW_COPY_PROB_DIST); // switch type
-                p->posterior_probs(nullptr);           // detach _post_probs
-                delete p;
-            }
-            else
-            {
-                p1 = p;
-                p = nullptr;
-            }
-            tree_perf->accumulate_count(_lattice->curr_subjs(), p1->curr_subjs());
-            tree_perf->accumulate_update_time(_lattice->curr_subjs(), p1->curr_subjs(), (update_end - update_start));
+            tree_perf->accumulate_count(_lattice->curr_subjs(), p->curr_subjs());
+            tree_perf->accumulate_update_time(_lattice->curr_subjs(), p->curr_subjs(), (update_end - update_start));
             if (old_parallelism == MODEL_PARALLELISM && new_parallelism == MODEL_PARALLELISM)
-                tree_perf->accumulate_mp_time(_lattice->curr_subjs(), p1->curr_subjs(), (shrink_end - shrink_start));
+                tree_perf->accumulate_mp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
             else if (old_parallelism == MODEL_PARALLELISM && new_parallelism == DATA_PARALLELISM)
-                tree_perf->accumulate_mp_dp_time(_lattice->curr_subjs(), p1->curr_subjs(), (shrink_end - shrink_start));
+                tree_perf->accumulate_mp_dp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
             else if (old_parallelism == DATA_PARALLELISM)
-                tree_perf->accumulate_dp_time(_lattice->curr_subjs(), p1->curr_subjs(), (shrink_end - shrink_start));
-            _children[re] = new Global_tree(p1, ex, re, k, _curr_stage + 1, true);
+                tree_perf->accumulate_dp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
+            _children[re] = new Global_tree(p, ex, re, k, _curr_stage + 1, true);
         }
     }
     else

@@ -85,7 +85,7 @@ void Tree::parse(bin_enc true_state, const Product_lattice *org_lattice, double 
     for (int i = 0; i < size; i++)
     {
         const Tree *leaf = (*leaves)[i];
-        int index = leaf->ex_count();
+        int index = leaf->curr_stage();
         if (leaf->is_classified() && leaf->is_correct_clas(true_state))
         {
             stat->correct()[index] += leaf->_branch_prob * coef;
@@ -106,7 +106,7 @@ void Tree::parse(bin_enc true_state, const Product_lattice *org_lattice, double 
     for (int i = 0; i < size; i++)
     {
         const Tree *leaf = (*leaves)[i];
-        int index = leaf->ex_count();
+        int index = leaf->curr_stage();
         stat->stage_sd(std::pow((std::ceil((double)index / (double)k) - stat->expected_stage()), 2) * leaf->_branch_prob);
         stat->test_sd(std::pow(index - stat->expected_test(), 2) * leaf->_branch_prob);
     }
@@ -301,7 +301,7 @@ std::string Tree::shrinking_stat() const
 
 unsigned long Tree::size_estimator()
 {
-    unsigned long my_size = sizeof(*this) + sizeof(*_lattice) + (_lattice->posterior_probs() == nullptr ? 0UL : sizeof(double) * (1 << (_lattice->curr_atoms())));
+    unsigned long my_size = sizeof(*this) + sizeof(*_lattice) + (_lattice->posterior_probs() == nullptr ? 0UL : sizeof(double) * _lattice->total_states());
     if (_children == nullptr)
         return my_size;
     else

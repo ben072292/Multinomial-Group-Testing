@@ -47,21 +47,6 @@ inline _mm512_d *__mm512_d_alloc(std::size_t n)
     return (_mm512_d *)tmp;
 }
 
-// Product_lattice type
-#define MP_NON_DILUTION 1
-#define MP_DILUTION 2
-#define DP_NON_DILUTION 3
-#define DP_DILUTION 4
-
-// Product_lattice copy operation
-#define NO_COPY_PROB_DIST 0
-#define SHALLOW_COPY_PROB_DIST 1
-#define DEEP_COPY_PROB_DIST 2
-
-// Product_lattice parallelism
-#define DATA_PARALLELISM 0
-#define MODEL_PARALLELISM 1
-
 inline std::string to_binary(bin_enc n, int len)
 {
     std::string r;

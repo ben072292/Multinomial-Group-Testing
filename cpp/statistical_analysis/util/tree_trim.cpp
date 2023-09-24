@@ -36,29 +36,3 @@ int *trim_true_states(double *values, int n, double percent, int &resultSize)
     delete[] indexed_values;
     return remainingIndices;
 }
-
-int *symmetric_true_state(int atoms)
-{
-    int *ret = new int[atoms + 1]{0};
-    for (int i = 0; i <= atoms; i++)
-    {
-        ret[i] = (1 << i) - 1;
-    }
-    return ret;
-}
-
-double n_choose_k(int n, int k) {
-    if (k < 0 || k > n) {
-        return 0; // Invalid input
-    }
-
-    unsigned long result = 1;
-
-    // Calculate C(n, k) using the formula C(n, k) = n! / (k! * (n - k)!)
-    for (int i = 0; i < k; ++i) {
-        result *= (n - i);
-        result /= (i + 1);
-    }
-
-    return static_cast<double>(result);
-}

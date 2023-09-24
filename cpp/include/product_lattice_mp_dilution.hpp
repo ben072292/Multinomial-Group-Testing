@@ -13,11 +13,21 @@ public:
     // class is called by default even if the parent classes explicitly call parameterized constructor. How to call the
     // parameterized constructor of the ‘Person’ class? The constructor has to be called in ‘TA’ class. For example, see
     // the following program. "
-    Product_lattice_mp_dilution(Product_lattice_mp const &other, int copy_op) : Product_lattice(other, copy_op) {}
+    Product_lattice_mp_dilution(Product_lattice_mp const &other, copy_op_t copy_op) : Product_lattice(other, copy_op) {}
 
     Product_lattice *create(int n_atom, int n_variant, double *pi0) const override { return new Product_lattice_mp_dilution(n_atom, n_variant, pi0); }
 
-    Product_lattice *clone(int assert) const override;
+    Product_lattice *clone(copy_op_t op) const override { return new Product_lattice_mp_dilution(*this, op); };
+
+    Product_lattice *convert_parallelism() override
+    {
+        Product_lattice *p = new Product_lattice_dilution(*this, SHALLOW_COPY_PROB_DIST);
+        _post_probs = nullptr;
+        delete this;
+        return p;
+    }
+
+    enum dilution dilution() const override { return DILUTION; }
 
     std::string type() const override { return "ModelParallelism-Dilution"; }
 };

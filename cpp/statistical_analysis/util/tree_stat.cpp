@@ -2,7 +2,7 @@
 
 void Tree_stat::clear()
 {
-    for (int i = 0; i < 20; i++)
+    for (int i = 0; i < 30; i++)
     {
         _correct[i] = 0.0;
         _incorrect[i] = 0.0;
@@ -95,7 +95,7 @@ void Tree_stat::tree_stat_reduce(Tree_stat *in, Tree_stat *inout, int *len, MPI_
 
 void Tree_stat::create_tree_stat_type(MPI_Datatype *tree_stat_type, int depth, int k)
 {
-    int lengths[12] = {1, 1, 1, 1, 1, 1, 1, 1, 20, 20, 20, 20};
+    int lengths[12] = {1, 1, 1, 1, 1, 1, 1, 1, 30, 30, 30, 30};
 
     // Calculate displacements
     // In C, by default padding can be inserted between fields. MPI_Get_address will allow

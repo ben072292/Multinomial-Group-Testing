@@ -37,11 +37,9 @@ void Global_partial_tree::eval(Tree *node, Product_lattice *orig_lattice, bin_en
                 }
                 else
                     p->update_probs(halving, re, _dilution);
-                p->update_metadata_with_shrinking(_thres_up, _thres_lo);
-                Product_lattice *p1 = p->clone(SHALLOW_COPY_PROB_DIST); // potentially switch from model parallelism to data parallelism
-                p->posterior_probs(nullptr);                            // detach _post_probs
-                delete p;
-                node->children()[re] = new Global_partial_tree(p1, halving, ex, re, node->curr_stage() + 1, child_prob);
+                if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
+                    p = p->convert_parallelism();
+                node->children()[re] = new Global_partial_tree(p, halving, ex, re, node->curr_stage() + 1, child_prob);
                 eval(node->children()[re], orig_lattice, true_state);
             }
         }
@@ -144,11 +142,9 @@ void Global_partial_tree::lazy_eval(Tree *node, Product_lattice *orig_lattice, b
                 }
                 else
                     p->update_probs(halving, re, _dilution);
-                p->update_metadata_with_shrinking(_thres_up, _thres_lo);
-                Product_lattice *p1 = p->clone(SHALLOW_COPY_PROB_DIST); // potentially switch from model parallelism to data parallelism
-                p->posterior_probs(nullptr);                            // detach _post_probs
-                delete p;
-                node->children()[re] = new Global_partial_tree(p1, halving, ex, re, node->curr_stage() + 1, child_prob);
+                if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
+                    p = p->convert_parallelism();
+                node->children()[re] = new Global_partial_tree(p, halving, ex, re, node->curr_stage() + 1, child_prob);
                 lazy_eval(node->children()[re], orig_lattice, true_state);
             }
         }

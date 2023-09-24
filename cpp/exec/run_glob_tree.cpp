@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
 
     int type = std::atoi(argv[1]);
     int subjs = std::atoi(argv[2]);
-    int variant = std::atoi(argv[3]);
+    int variants = std::atoi(argv[3]);
     double prior = std::atof(argv[4]);
     int search_depth = std::atoi(argv[5]);
     double thres_up = 0.01;
@@ -43,8 +43,8 @@ int main(int argc, char *argv[])
     // Initialize product lattice MPI env
     Global_tree::MPI_Global_tree_Initialize(subjs, 1);
 
-    double pi0[subjs * variant];
-    for (int i = 0; i < subjs * variant; i++)
+    double pi0[subjs * variants];
+    for (int i = 0; i < subjs * variants; i++)
     {
         pi0[i] = prior;
     }
@@ -54,21 +54,21 @@ int main(int argc, char *argv[])
     Product_lattice *p;
     if (type == MP_NON_DILUTION)
     {
-        Product_lattice_mp::MPI_Product_lattice_Initialize(subjs, variant);
-        p = new Product_lattice_mp_non_dilution(subjs, variant, pi0);
+        Product_lattice_mp::MPI_Product_lattice_Initialize(subjs, variants);
+        p = new Product_lattice_mp_non_dilution(subjs, variants, pi0);
     }
     else if (type == MP_DILUTION)
     {
-        Product_lattice_mp::MPI_Product_lattice_Initialize(subjs, variant);
-        p = new Product_lattice_mp_dilution(subjs, variant, pi0);
+        Product_lattice_mp::MPI_Product_lattice_Initialize(subjs, variants);
+        p = new Product_lattice_mp_dilution(subjs, variants, pi0);
     }
     else if (type == DP_NON_DILUTION)
     {
-        p = new Product_lattice_non_dilution(subjs, variant, pi0);
+        p = new Product_lattice_non_dilution(subjs, variants, pi0);
     }
     else if (type == DP_DILUTION)
     {
-        p = new Product_lattice_dilution(subjs, variant, pi0);
+        p = new Product_lattice_dilution(subjs, variants, pi0);
     }
     else
     {
@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
     auto stop_lattice_model_construction = std::chrono::high_resolution_clock::now();
 
     double **dilution = generate_dilution(subjs, 0.99, 0.005);
-    
+
     Tree::thres_up(thres_up);
     Tree::thres_lo(thres_lo);
     Tree::thres_branch(thres_branch);
@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
 
     /* Global tree without perf */
     // Global_tree* tree = new Global_tree(p, -1, -1, 0);
-    
+
     /* Global tree with perf */
     Tree *tree = new Global_tree(p, -1, -1, 1, 0, true);
 
@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
         std::stringstream file_name;
         file_name << "GlobalTree-" << p->type()
                   << "-N=" << subjs
-                  << "-k=" << variant
+                  << "-k=" << variants
                   << "-Prior=" << prior
                   << "-Depth=" << search_depth
                   << "-Processes=" << world_size
@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
                   << "-" << get_curr_time()
                   << ".csv";
         freopen(file_name.str().c_str(), "w", stdout);
-        std::cout << "N = " << subjs << ", k = " << variant << std::endl;
+        std::cout << "N = " << subjs << ", k = " << variants << std::endl;
         std::cout << "Prior: ";
         for (int i = 0; i < p->curr_atoms(); i++)
         {
@@ -137,23 +137,14 @@ int main(int argc, char *argv[])
         std::cout << "Branch elimination threshold: " << thres_branch << std::endl;
 
         summ.output_detail();
-    }
-
-    auto stop_statistical_analysis = std::chrono::high_resolution_clock::now();
-
-    if (rank == 0)
-    {
+        auto stop_statistical_analysis = std::chrono::high_resolution_clock::now();
         std::cout << "\n\nPerformance Statistics\n\n";
-
         std::cout << tree->shrinking_stat() << std::endl
                   << std::endl;
-
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_lattice_model_construction - start_lattice_model_construction);
         std::cout << "Initial Lattice Model Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
-
         Global_tree::tree_perf->output_verbose();
-
         std::cout << "Global Tree Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - stop_tree_construction);
         std::cout << "Statistical Analysis Time: " << duration.count() / 1e6 << "s." << std::endl;

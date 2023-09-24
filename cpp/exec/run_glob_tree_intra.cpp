@@ -9,21 +9,21 @@ int main(int argc, char *argv[])
 
     // omp_set_num_threads(8);
     int subjs = std::atoi(argv[1]);
-    int variant = std::atoi(argv[2]);
+    int variants = std::atoi(argv[2]);
     double prior = std::atof(argv[3]);
     double thres_up = 0.01;
     double thres_lo = 0.01;
     double thres_branch = 0.001;
     int search_depth = std::atoi(argv[4]);
 
-    double pi0[subjs * variant];
-    for (int i = 0; i < subjs * variant; i++)
+    double pi0[subjs * variants];
+    for (int i = 0; i < subjs * variants; i++)
     {
         pi0[i] = prior;
     }
     auto start_lattice_model_construction = std::chrono::high_resolution_clock::now();
 
-    Product_lattice *p = new Product_lattice_non_dilution(subjs, variant, pi0);
+    Product_lattice *p = new Product_lattice_non_dilution(subjs, variants, pi0);
 
     double **dilution = generate_dilution(subjs, 0.99, 0.005);
 
@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
 
     std::stringstream file_name;
     file_name << "GlobalTreeIntra-" << p->type() << "-N="
-              << subjs << "-k=" << variant
+              << subjs << "-k=" << variants
               << "-Prior=" << prior
               << "-Depth=" << search_depth
               << "-Threads=" << omp_get_num_threads()
@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
               << ".csv";
     freopen(file_name.str().c_str(), "w", stdout);
 
-    std::cout << "N = " << subjs << ", k = " << variant << std::endl;
+    std::cout << "N = " << subjs << ", k = " << variants << std::endl;
     std::cout << "Prior: ";
     for (int i = 0; i < p->curr_atoms(); i++)
     {

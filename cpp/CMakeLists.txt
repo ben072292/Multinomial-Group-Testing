@@ -79,7 +79,15 @@ add_executable(dt_gt_symm
 )
 
 add_executable(gpt_trim
-    ${EXEC_SOURCE_DIR}/run_global_partial_tree.cpp
+    ${EXEC_SOURCE_DIR}/run_global_partial_tree_trim.cpp
+)
+
+add_executable(gpt_symm
+    ${EXEC_SOURCE_DIR}/run_global_partial_tree_symm.cpp
+)
+
+add_executable(gpt_trim_misspecification
+    ${EXEC_SOURCE_DIR}/run_global_partial_tree_trim_misspecification.cpp
 )
 
 add_executable(ts_intra
@@ -100,6 +108,8 @@ add_dependencies(dt_gt BMGT)
 add_dependencies(dt_gt_trim BMGT)
 add_dependencies(dt_gt_symm BMGT)
 add_dependencies(gpt_trim BMGT)
+add_dependencies(gpt_trim_misspecification BMGT)
+add_dependencies(gpt_symm BMGT)
 add_dependencies(ts_intra BMGT)
 add_dependencies(ts BMGT)
 
@@ -140,6 +150,14 @@ target_link_libraries(dt_gt_symm
 )
 
 target_link_libraries(gpt_trim
+    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
+)
+
+target_link_libraries(gpt_trim_misspecification
+    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
+)
+
+target_link_libraries(gpt_symm
     ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
 )
 

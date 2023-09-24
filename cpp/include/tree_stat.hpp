@@ -6,10 +6,10 @@ typedef struct Tree_stat
 private:
     int _depth, _k, _total_leaves;
     double _unclas, _exp_stage, _exp_test, _stage_sd, _test_sd;
-    double _correct[20];
-    double _incorrect[20];
-    double _fp[20];
-    double _fn[20];
+    double _correct[30];
+    double _incorrect[30];
+    double _fp[30];
+    double _fn[30];
 
 public:
     Tree_stat(int depth, int k)

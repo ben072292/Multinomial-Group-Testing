@@ -3,7 +3,7 @@
 #include "halving_res.hpp"
 #include "product_lattice_dilution.hpp"
 #include "product_lattice_non_dilution.hpp"
-#include "tree_trim.hpp"
+#include "tree_symm.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
 
     int type = std::atoi(argv[1]);
     int subjs = std::atoi(argv[2]);
-    int variant = std::atoi(argv[3]);
+    int variants = std::atoi(argv[3]);
     double prior = std::atof(argv[4]);
     int global_tree_depth = std::atoi(argv[5]);
     int search_depth = std::atoi(argv[6]);
@@ -47,8 +47,8 @@ int main(int argc, char *argv[])
     // Initialize product lattice MPI env
     Distributed_tree::MPI_Distributed_tree_Initialize(subjs, 1, search_depth);
 
-    double pi0[subjs * variant];
-    for (int i = 0; i < subjs * variant; i++)
+    double pi0[subjs * variants];
+    for (int i = 0; i < subjs * variants; i++)
     {
         pi0[i] = prior;
     }
@@ -72,11 +72,11 @@ int main(int argc, char *argv[])
     Product_lattice *p;
     if (type == DP_NON_DILUTION)
     {
-        p = new Product_lattice_non_dilution(subjs, variant, pi0);
+        p = new Product_lattice_non_dilution(subjs, variants, pi0);
     }
     else if (type == DP_DILUTION)
     {
-        p = new Product_lattice_dilution(subjs, variant, pi0);
+        p = new Product_lattice_dilution(subjs, variants, pi0);
     }
     else
     {
@@ -84,8 +84,10 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    int* symm_true_state = symmetric_true_state(subjs * variant);
-    int trim_size = subjs * variant + 1;
+    int symm_size = 0;
+    bin_enc *symm_true_states(nullptr);
+    int *symm_coefficients(nullptr);
+    generate_symmetric_true_states(subjs, variants, symm_size, symm_true_states, symm_coefficients);
 
     auto start_glob_tree = std::chrono::high_resolution_clock::now();
     Distributed_tree *tree = new Distributed_tree(p, -1, -1, -1, 1, 0, global_tree_depth);
@@ -105,7 +107,7 @@ int main(int argc, char *argv[])
         int worker_rank;
         while (fin_count != world_size - 1)
         {
-            if (workload_count >= trim_size)
+            if (workload_count >= symm_size)
             {
                 MPI_Recv(&worker_rank, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 log_info("Master: Received new workload request from rank %d", worker_rank);
@@ -118,7 +120,7 @@ int main(int argc, char *argv[])
                 MPI_Recv(&worker_rank, 1, MPI_INT, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 log_info("Mater: Received new workload request from rank %d", worker_rank);
                 MPI_Send(&workload_count, 1, MPI_INT, worker_rank, 0, MPI_COMM_WORLD);
-                log_info("Master: New workload %d to %d patches to rank %d. Progress: %.2f %%", workload_count, std::min(workload_count + workload_granularity - 1, trim_size - 1), worker_rank, static_cast<double>(std::min(workload_count + workload_granularity - 1, trim_size - 1)) / (trim_size - 1) * 100);
+                log_info("Master: New workload %d to %d patches to rank %d. Progress: %.2f %%", workload_count, std::min(workload_count + workload_granularity - 1, symm_size - 1), worker_rank, static_cast<double>(std::min(workload_count + workload_granularity - 1, symm_size - 1)) / (symm_size - 1) * 100);
                 workload_count += workload_granularity;
             }
         }
@@ -141,26 +143,27 @@ int main(int argc, char *argv[])
             }
             else
             {
-                log_info("Rank %d, Round %d: Received workload %d to %d from master", rank, round, recv_workload, std::min(recv_workload + workload_granularity, trim_size));
+                log_info("Rank %d, Round %d: Received workload %d to %d from master", rank, round, recv_workload, std::min(recv_workload + workload_granularity - 1, symm_size));
             }
 
             auto start_timer = std::chrono::high_resolution_clock::now();
-            for (int i = recv_workload; i < std::min(recv_workload + workload_granularity, trim_size); i++)
+            for (int i = recv_workload; i < std::min(recv_workload + workload_granularity, symm_size); i++)
             {
-                tree->lazy_eval(tree, p, symm_true_state[i]);
-                tree->parse(symm_true_state[i], p, n_choose_k(subjs * variant, i), &temp);
+                tree->lazy_eval(tree, p, symm_true_states[i]);
+                tree->parse(symm_true_states[i], p, symm_coefficients[i], &temp);
                 prim.merge(&temp);
             }
             auto stop_timer = std::chrono::high_resolution_clock::now();
             auto time = std::chrono::duration_cast<std::chrono::microseconds>(stop_timer - start_timer);
-            log_info("Rank %d, Round %d: Workload %d to %d finishes, took %.2f s, requesting new workload from master", rank, round, recv_workload, std::min(recv_workload + workload_granularity - 1, trim_size), time.count() / 1e6);
+            log_info("Rank %d, Round %d: Workload %d to %d finishes, took %.2f s, requesting new workload from master", rank, round, recv_workload, std::min(recv_workload + workload_granularity - 1, symm_size), time.count() / 1e6);
             round++;
         }
         log_info("Rank %d: Tree size is %.2fMB", rank, static_cast<double>(tree->size_estimator()) / 1024 / 1024);
         log_info("%s", tree->shrinking_stat().c_str());
         // delete tree; // TBD delete here causes issue
     }
-    delete[] symm_true_state;
+    delete[] symm_true_states;
+    delete[] symm_coefficients;
 
     MPI_Reduce(&prim, &summ, 1, Distributed_tree::tree_stat_type, Distributed_tree::tree_stat_op, 0, MPI_COMM_WORLD);
 
@@ -169,7 +172,7 @@ int main(int argc, char *argv[])
         std::stringstream file_name;
         file_name << "DistributedGlobalTreeSymmetric-" << p->type()
                   << "-N=" << subjs
-                  << "-k=" << variant
+                  << "-k=" << variants
                   << "-Prior=" << prior
                   << "-Depth=" << search_depth
                   << "-Processes=" << world_size
@@ -177,7 +180,7 @@ int main(int argc, char *argv[])
                   << "-" << get_curr_time()
                   << ".csv";
         freopen(file_name.str().c_str(), "w", stdout);
-        std::cout << "N = " << subjs << ", k = " << variant << std::endl;
+        std::cout << "N = " << subjs << ", k = " << variants << std::endl;
         std::cout << "Prior: ";
         for (int i = 0; i < p->curr_atoms(); i++)
         {
@@ -188,11 +191,11 @@ int main(int argc, char *argv[])
         std::cout << "Branch elimination threshold: " << thres_branch << std::endl;
 
         summ.output_detail();
-    }
-    auto stop_time = std::chrono::high_resolution_clock::now();
+        auto stop_time = std::chrono::high_resolution_clock::now();
+        std::cout << "\n\nPerformance Statistics\n\n";
+        std::cout << tree->shrinking_stat() << std::endl
+                  << std::endl;
 
-    if (!rank)
-    {
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_glob_tree - start_glob_tree);
         std::cout << "Global Tree Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_evaluation - start_evaluation);

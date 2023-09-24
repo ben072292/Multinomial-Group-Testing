@@ -14,28 +14,25 @@ Product_lattice::Product_lattice(int subjs, int variants, double *pi0)
 	_orig_subjs = subjs;
 	_pi0 = pi0;
 	_variants = variants;
-	_parallelism = DATA_PARALLELISM;
 	_post_probs = new double[(1 << (_curr_subjs * _variants))];
 	prior_probs(pi0);
 }
 
-Product_lattice::Product_lattice(const Product_lattice &other, int copy_op)
+Product_lattice::Product_lattice(const Product_lattice &other, copy_op_t op)
 {
-	_parallelism = other._parallelism;
 	_curr_subjs = other._curr_subjs;
 	_pos_clas_atoms = other._pos_clas_atoms;
 	_neg_clas_atoms = other._neg_clas_atoms;
-	_test_ct = other._test_ct;
 	_clas_subjs = other._clas_subjs;
-	if (copy_op == SHALLOW_COPY_PROB_DIST)
+	if (op == SHALLOW_COPY_PROB_DIST)
 	{
 		posterior_probs(other._post_probs);
 	}
-	else if (copy_op == DEEP_COPY_PROB_DIST)
+	else if (op == DEEP_COPY_PROB_DIST)
 	{
 		posterior_probs(other._post_probs);
 	}
-	else if (copy_op == NO_COPY_PROB_DIST)
+	else if (op == NO_COPY_PROB_DIST)
 	{
 		_post_probs = nullptr;
 	}
@@ -116,13 +113,11 @@ double Product_lattice::prior_prob(bin_enc state, double *pi0) const
 void Product_lattice::update_probs(bin_enc experiment, bin_enc response, double **dilution)
 {
 	_post_probs = calc_probs(experiment, response, dilution);
-	_test_ct++;
 }
 
 void Product_lattice::update_probs_in_place(bin_enc experiment, bin_enc response, double **dilution)
 {
 	calc_probs_in_place(experiment, response, dilution);
-	_test_ct++;
 }
 
 void Product_lattice::update_metadata(double thres_up, double thres_lo)
@@ -146,7 +141,7 @@ void Product_lattice::update_metadata(double thres_up, double thres_lo)
 	}
 }
 
-void Product_lattice::update_metadata_with_shrinking(double thres_up, double thres_lo)
+bool Product_lattice::update_metadata_with_shrinking(double thres_up, double thres_lo)
 {
 	bin_enc clas_atoms = (_pos_clas_atoms | _neg_clas_atoms); // same size as orig layout
 	bin_enc curr_clas_atoms = 0;							  // same size as curr layout
@@ -185,6 +180,7 @@ void Product_lattice::update_metadata_with_shrinking(double thres_up, double thr
 	curr_clas_atoms = curr_shrinkable_atoms(curr_clas_atoms, _curr_subjs, _variants);
 	if (curr_clas_atoms)
 		shrinking(curr_clas_atoms); // if there's new classifications, we perform the actual shrinkings
+	return false; // data parallelism will not covert parallelism so always return false;
 }
 
 void Product_lattice::shrinking(int curr_clas_atoms)
@@ -345,25 +341,25 @@ void Product_lattice::calc_probs_in_place(bin_enc experiment, bin_enc response, 
 // 	int experiment;
 // 	double min = 2.0;
 // 	int partition_id = 0;
-// 	double partition_mass[(1 << variant_)];
-// 	for (experiment = 0; experiment < (1 << curr_subj_); experiment++) {
+// 	double partition_mass[(1 << _variants)];
+// 	for (experiment = 0; experiment < (1 << _curr_subjs); experiment++) {
 // 		// reset partition_mass
-// 		for (int i = 0; i < (1 << variant_); i++)
+// 		for (int i = 0; i < (1 << _variants); i++)
 // 			partition_mass[i] = 0.0;
 // 		// tricky: for each state, check each variant of actively
 // 		// pooled subjects to see whether they are all 1.
-// 		for (s_iter = 0; s_iter < (1 << (curr_subj_ * variant_)); s_iter++) {
-// 			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
-// 			for (int variant = 0; variant < variant_; variant++) {
-// 				if ((experiment & (s_iter >> (variant * curr_subj_))) != experiment) {
+// 		for (s_iter = 0; s_iter < (1 << (_curr_subjs * _variants)); s_iter++) {
+// 			__builtin_prefetch((_post_probs + s_iter + 10), 0, 0);
+// 			for (int variant = 0; variant < _variants; variant++) {
+// 				if ((experiment & (s_iter >> (variant * _curr_subjs))) != experiment) {
 // 					partition_id |= (1 << variant);
 // 				}
 // 			}
-// 			partition_mass[partition_id] += post_probs_[s_iter];
+// 			partition_mass[partition_id] += _post_probs[s_iter];
 // 			partition_id = 0;
 // 		}
 // 		double temp = 0.0;
-// 		for (int i = 0; i < (1 << variant_); i++) {
+// 		for (int i = 0; i < (1 << _variants); i++) {
 // 			temp += std::abs(partition_mass[i] - prob);
 // 		}
 // 		if (temp < min) {

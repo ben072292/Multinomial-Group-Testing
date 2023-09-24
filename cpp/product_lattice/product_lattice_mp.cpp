@@ -1,16 +1,16 @@
 #include "product_lattice_mp.hpp"
+#include "BBPA_unroll.hpp"
 
 double *Product_lattice_mp::temp_post_prob_holder = nullptr;
 MPI_Win Product_lattice_mp::win;
 
 Product_lattice_mp::Product_lattice_mp(int subjs, int variants, double *pi0)
 {
-	_parallelism = MODEL_PARALLELISM;
 	_curr_subjs = subjs;
 	_orig_subjs = subjs;
 	_variants = variants;
 	_pi0 = pi0;
-	_post_probs = new double[total_state_each()];
+	_post_probs = new double[total_states_per_rank()];
 	prior_probs(pi0);
 }
 
@@ -28,7 +28,7 @@ double Product_lattice_mp::posterior_prob(bin_enc state) const
 
 void Product_lattice_mp::prior_probs(double *pi0)
 {
-	for (int i = 0; i < total_state_each(); i++)
+	for (int i = 0; i < total_states_per_rank(); i++)
 	{
 		_post_probs[i] = prior_prob(offset_to_state(i), pi0);
 	}
@@ -50,7 +50,7 @@ void Product_lattice_mp::update_metadata(double thres_up, double thres_lo)
 	}
 }
 
-void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double thres_lo)
+bool Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double thres_lo)
 {
 	bin_enc clas_atoms = (_pos_clas_atoms | _neg_clas_atoms); // same size as orig layout
 	bin_enc curr_clas_atoms = 0;							  // same size as curr layout
@@ -87,11 +87,14 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 		_curr_subjs = _orig_subjs - __builtin_popcount(_clas_subjs);
 		delete[] _post_probs;
 		_post_probs = nullptr;
-		return;
+		return false;
 	}
 	// if MP is achievable, i.e., each process has at least 1 state to work, performing MP shrinking
 	if (curr_clas_atoms && target_prob_size >= world_size)
+	{
 		shrinking(curr_clas_atoms);
+		return false;
+	}
 	// if MP is not achievable, first shrinking the lattice model to the minimum achievable size of MP
 	// then perform MP-DP conversion, improving performance and scalability than directly performing MP-DP conversion
 	else if (curr_clas_atoms && target_prob_size < world_size)
@@ -157,7 +160,7 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 			candidate_post_probs = new double[(1 << curr_atoms())]{0.0};
 		else
 			candidate_post_probs = new double[target_prob_size]{0.0};
-		MPI_Gather(_post_probs, total_state_each(), MPI_DOUBLE, candidate_post_probs, total_state_each(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+		MPI_Gather(_post_probs, total_states_per_rank(), MPI_DOUBLE, candidate_post_probs, total_states_per_rank(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 		if (rank == 0)
 		{
 			double *temp = _post_probs;
@@ -169,14 +172,15 @@ void Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 		delete[] _post_probs;
 		_post_probs = candidate_post_probs;
 		candidate_post_probs = nullptr;
-		_parallelism = DATA_PARALLELISM;
 		if (rank != 0)
 		{
 			_clas_subjs = update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, _orig_subjs, _variants);
 			_curr_subjs = _orig_subjs - __builtin_popcount(_clas_subjs);
 		}
 	}
+	return true; // signal MP-DP conversion
 	}
+	return false; // no classified subjects so no shrinking
 }
 
 void Product_lattice_mp::shrinking(bin_enc curr_clas_atoms)
@@ -185,7 +189,7 @@ void Product_lattice_mp::shrinking(bin_enc curr_clas_atoms)
 	int base_count = curr_atoms() - reduce_count;
 	int shrinked_total_state_each = (1 << base_count) / world_size;
 	MPI_Win_fence(0, win);
-	for (int i = 0; i < total_state_each(); i++)
+	for (int i = 0; i < total_states_per_rank(); i++)
 	{
 		bin_enc state = offset_to_state(i);
 		bin_enc shrinked_state = 0;
@@ -225,7 +229,7 @@ double Product_lattice_mp::get_atom_prob_mass(bin_enc atom) const
 {
 	double ret = 0.0;
 	// #pragma omp parallel for reduction(+ : ret)
-	for (int i = 0; i < total_state_each(); i++)
+	for (int i = 0; i < total_states_per_rank(); i++)
 	{
 		if ((offset_to_state(i) & atom) == atom)
 		{
@@ -242,10 +246,10 @@ double Product_lattice_mp::get_atom_prob_mass(bin_enc atom) const
  */
 double *Product_lattice_mp::calc_probs(bin_enc experiment, bin_enc response, double **dilution)
 {
-	double *ret = new double[total_state_each()];
+	double *ret = new double[total_states_per_rank()];
 	double denominator = 0.0;
 	// #pragma omp parallel for reduction(+ : denominator) // INVESTIGATE: slowdown than serial
-	for (int i = 0; i < total_state_each(); i++)
+	for (int i = 0; i < total_states_per_rank(); i++)
 	{
 		ret[i] = _post_probs[i] * response_prob(experiment, response, offset_to_state(i), dilution);
 		denominator += ret[i];
@@ -253,7 +257,7 @@ double *Product_lattice_mp::calc_probs(bin_enc experiment, bin_enc response, dou
 	MPI_Allreduce(MPI_IN_PLACE, &denominator, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 	double denominator_inv = 1 / denominator; // division has much higher instruction latency and throughput than multiplication (however latency is not that important since we have many independent divison operations)
 	// #pragma omp parallel for
-	for (int i = 0; i < total_state_each(); i++)
+	for (int i = 0; i < total_states_per_rank(); i++)
 	{
 		ret[i] *= denominator_inv;
 	}
@@ -264,7 +268,7 @@ void Product_lattice_mp::calc_probs_in_place(bin_enc experiment, bin_enc respons
 {
 	double denominator = 0.0;
 	// #pragma omp parallel for schedule(static) reduction(+ : denominator)
-	for (int i = 0; i < total_state_each(); i++)
+	for (int i = 0; i < total_states_per_rank(); i++)
 	{
 		_post_probs[i] *= response_prob(experiment, response, offset_to_state(i), dilution);
 		denominator += _post_probs[i];
@@ -272,7 +276,7 @@ void Product_lattice_mp::calc_probs_in_place(bin_enc experiment, bin_enc respons
 	MPI_Allreduce(MPI_IN_PLACE, &denominator, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 	double denominator_inv = 1 / denominator; // division has much higher instruction latency and throughput than multiplication (however latency is not that important since we have many independent divison operations)
 	// #pragma omp parallel for schedule(static)
-	for (int i = 0; i < total_state_each(); i++)
+	for (int i = 0; i < total_states_per_rank(); i++)
 	{
 		_post_probs[i] *= denominator_inv;
 	}
@@ -280,6 +284,11 @@ void Product_lattice_mp::calc_probs_in_place(bin_enc experiment, bin_enc respons
 
 bin_enc Product_lattice_mp::halving(double prob) const
 {
+	/** Enable vectorization, since we currently target 512 bit register width,
+	 *  the minimum number of subject we can accept is sqrt(512 / 8 / sizeof(bin_enc) ),
+	 *  thus the minimum lattice size it can accpet is 2^(sqrt(512 / 8 / sizeof(bin_enc)) * _variants)
+	*/
+	// return std::pow(64 / sizeof(bin_enc), _variants) <= total_states() ? halving_mpi_vectorize(prob) : halving_hybrid(prob);
 	return halving_hybrid(prob);
 }
 
@@ -291,7 +300,7 @@ bin_enc Product_lattice_mp::halving_mpi(double prob) const
 
 	// tricky: for each state, check each variant of actively
 	// pooled subjects to see whether they are all 1.
-	for (int s_iter = 0; s_iter < total_state_each(); s_iter++)
+	for (int s_iter = 0; s_iter < total_states_per_rank(); s_iter++)
 	{
 		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
 		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
@@ -305,6 +314,7 @@ bin_enc Product_lattice_mp::halving_mpi(double prob) const
 				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
 				partition_id |= ((1 << variant) & (((experiment & (offset_to_state(s_iter) >> (variant * _curr_subjs))) - experiment) >> 31));
 			}
+			// BBPA_UNROLL(2, partition_id, experiment, s_iter, _curr_subjs)
 			partition_mass[experiment * (1 << _variants) + partition_id] += _post_probs[s_iter];
 			partition_id = 0;
 		}
@@ -330,9 +340,8 @@ bin_enc Product_lattice_mp::halving_mpi(double prob) const
 	return candidate;
 }
 
-// only work for k = 2 because of loop unrolling
-// SIMD compatible with both AVX2 and AVX-512 using vector type
-// MP-DP need to switch when total states <= 256 (2^8)
+/** SIMD using vector type
+    MP-DP need to switch based on number of states, see bin_enc halving(prob) */
 bin_enc Product_lattice_mp::halving_mpi_vectorize(double prob) const
 {
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
@@ -342,22 +351,30 @@ bin_enc Product_lattice_mp::halving_mpi_vectorize(double prob) const
 
 	// tricky: for each state, check each variant of actively
 	// pooled subjects to see whether they are all 1.
-	for (int s_iter = 0; s_iter < total_state_each(); s_iter++)
+	for (int s_iter = 0; s_iter < total_states_per_rank(); s_iter++)
 	{
-		bin_enc state = offset_to_state(s_iter);
-		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+		// __builtin_prefetch((_post_probs + s_iter + 4), 0, 0);
 		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment += 16)
 		{
 			ex += experiment;
-			// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
-			// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
-			// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
-			// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
-			// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
-			partition_id |= (1 & (((ex & (state >> 0)) - ex) >> 31));
-			partition_id |= (2 & (((ex & (state >> _curr_subjs)) - ex) >> 31));
 
-			partition_id += ex * 4;
+			/** No Unrolling*/
+			for (int variant = 0; variant < _variants; variant++)
+			{
+				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
+				// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
+				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
+				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
+				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
+				partition_id |= ((1 << variant) & (((ex & (offset_to_state(s_iter) >> (variant * _curr_subjs))) - ex) >> 31));
+			}
+
+			/** Example of BBPA_UNROLL(2) */
+			// partition_id |= (1 & (((ex & (offset_to_state(s_iter) >> 0)) - ex) >> 31));
+			// partition_id |= (2 & (((ex & (offset_to_state(s_iter) >> _curr_subjs)) - ex) >> 31));
+
+			// BBPA_UNROLL(2, partition_id, ex, s_iter, _curr_subjs)
+			partition_id += ex * (1 << _variants);
 			for (int i = 0; i < 16; i++)
 			{
 				partition_mass[partition_id[i]] += _post_probs[s_iter];
@@ -397,21 +414,23 @@ bin_enc Product_lattice_mp::halving_hybrid(double prob) const
 #pragma omp parallel for schedule(static) reduction(+ : partition_mass)
 	// tricky: for each state, check each variant of actively
 	// pooled subjects to see whether they are all 1.
-	for (int s_iter = 0; s_iter < total_state_each(); s_iter++)
+	for (int s_iter = 0; s_iter < total_states_per_rank(); s_iter++)
 	{
 		int partition_id = 0;
 		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
 		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 		{
-			for (int variant = 0; variant < _variants; variant++)
-			{
-				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
-				// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
-				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
-				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
-				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
-				partition_id |= ((1 << variant) & (((experiment & (offset_to_state(s_iter) >> (variant * _curr_subjs))) - experiment) >> 31));
-			}
+			// #pragma GCC_ivdep
+			// for (int variant = 0; variant < _variants; variant++)
+			// {
+			// 	// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
+			// 	// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
+			// 	// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
+			// 	// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
+			// 	// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
+			// 	partition_id |= ((1 << variant) & (((experiment & (offset_to_state(s_iter) >> (variant * _curr_subjs))) - experiment) >> 31));
+			// }
+			BBPA_UNROLL(2, partition_id, experiment, s_iter, _curr_subjs)
 			partition_mass[experiment * (1 << _variants) + partition_id] += _post_probs[s_iter];
 			partition_id = 0;
 		}

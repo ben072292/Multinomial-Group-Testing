@@ -8,15 +8,15 @@ int main(int argc, char *argv[])
 {
     int type = std::atoi(argv[1]);
     int subjs = std::atoi(argv[2]);
-    int variant = std::atoi(argv[3]);
+    int variants = std::atoi(argv[3]);
     double prior = std::atof(argv[4]);
     int search_depth = std::atoi(argv[5]);
     double thres_up = 0.01;
     double thres_lo = 0.01;
     double thres_branch = 0.001;
 
-    double pi0[subjs * variant];
-    for (int i = 0; i < subjs * variant; i++)
+    double pi0[subjs * variants];
+    for (int i = 0; i < subjs * variants; i++)
     {
         pi0[i] = prior;
     }
@@ -27,11 +27,11 @@ int main(int argc, char *argv[])
 
     if (type == DP_NON_DILUTION)
     {
-        p = new Product_lattice_non_dilution(subjs, variant, pi0);
+        p = new Product_lattice_non_dilution(subjs, variants, pi0);
     }
     else if (type == DP_DILUTION)
     {
-        p = new Product_lattice_dilution(subjs, variant, pi0);
+        p = new Product_lattice_dilution(subjs, variants, pi0);
     }
     else
     {
@@ -69,14 +69,14 @@ int main(int argc, char *argv[])
     std::stringstream file_name;
     file_name << "DistributedTreeIntra-" << p->type()
               << "-N=" << subjs
-              << "-k=" << variant
+              << "-k=" << variants
               << "-Prior=" << prior
               << "-Depth=" << search_depth
               << "-Threads=" << omp_get_num_threads()
               << "-" << get_curr_time()
               << ".csv";
     freopen(file_name.str().c_str(), "w", stdout);
-    std::cout << "N = " << subjs << ", k = " << variant << std::endl;
+    std::cout << "N = " << subjs << ", k = " << variants << std::endl;
     std::cout << "Prior: ";
     for (int i = 0; i < p->curr_atoms(); i++)
     {

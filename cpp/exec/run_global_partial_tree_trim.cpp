@@ -1,11 +1,13 @@
 #include "core.hpp"
-#include "fusion_tree.hpp"
+#include "global_partial_tree.hpp"
 #include "halving_res.hpp"
 #include "product_lattice_mp_dilution.hpp"
 #include "product_lattice_mp_non_dilution.hpp"
+#include "tree_trim.hpp"
 
 int main(int argc, char *argv[])
 {
+    auto start_time = std::chrono::high_resolution_clock::now();
     // Initialize the MPI environment
     int provided_thread_level;
     MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided_thread_level);
@@ -37,16 +39,11 @@ int main(int argc, char *argv[])
     double thres_lo = 0.01;
     double thres_branch = 0.001;
 
-    Tree::thres_up(thres_up);
-    Tree::thres_lo(thres_lo);
-    Tree::thres_branch(thres_branch);
-    Tree::search_depth(search_depth);
-
     // Initialize product lattice MPI env
     Product_lattice::MPI_Product_lattice_Initialize();
 
     // Initialize product lattice MPI env
-    Fusion_tree::MPI_Fusion_tree_Initialize(subjs, 1);
+    Global_partial_tree::MPI_Distributed_tree_Initialize(subjs, 1, search_depth);
 
     double pi0[subjs * variants];
     for (int i = 0; i < subjs * variants; i++)
@@ -54,8 +51,20 @@ int main(int argc, char *argv[])
         pi0[i] = prior;
     }
 
-    auto start_lattice_model_construction = std::chrono::high_resolution_clock::now();
+    double **dilution = generate_dilution(subjs, 0.99, 0.005);
 
+    Tree::thres_up(thres_up);
+    Tree::thres_lo(thres_lo);
+    Tree::thres_branch(thres_branch);
+    Tree::search_depth(search_depth);
+    Tree::dilution(dilution);
+
+    Halving_res halving_res;
+
+    Tree_stat prim(search_depth, 1);
+    Tree_stat temp(search_depth, 1);
+
+    auto start_lattice_gen = std::chrono::high_resolution_clock::now();
     Product_lattice *p;
     if (type == MP_NON_DILUTION)
     {
@@ -67,51 +76,53 @@ int main(int argc, char *argv[])
         Product_lattice_mp::MPI_Product_lattice_Initialize(subjs, variants);
         p = new Product_lattice_mp_dilution(subjs, variants, pi0);
     }
-    else if (type == DP_NON_DILUTION)
-    {
-        p = new Product_lattice_non_dilution(subjs, variants, pi0);
-    }
-    else if (type == DP_DILUTION)
-    {
-        p = new Product_lattice_dilution(subjs, variants, pi0);
-    }
     else
     {
+        log_error("Wrong lattice type specifier! Exiting...");
         exit(1);
     }
 
-    auto stop_lattice_model_construction = std::chrono::high_resolution_clock::now();
-
-    double **dilution = generate_dilution(subjs, 0.99, 0.005);
-
-    Tree::dilution(dilution);
-
-    Halving_res halving_res;
-
-    auto start_tree_construction = std::chrono::high_resolution_clock::now();
-    /* Fusion tree */
-    Tree *tree = new Fusion_tree(p, -1, -1, 1, 0, 0.01, 0.0, 1e-6);
-
-    auto stop_tree_construction = std::chrono::high_resolution_clock::now();
-
-    Tree_stat prim(search_depth, 1);
-    Tree_stat temp(search_depth, 1);
-    Tree_stat summ(search_depth, 1);
-
-    int total_st = p->total_states();
-    for (int i = total_st / world_size * rank; i < total_st / world_size * (rank + 1); i++)
-    {
-        tree->apply_true_state(p, i);
-        tree->parse(i, p, 1.0, &temp);
-        prim.merge(&temp);
-    }
-
-    MPI_Reduce(&prim, &summ, 1, Global_tree::tree_stat_type, Global_tree::tree_stat_op, 0, MPI_COMM_WORLD);
+    int trim_size;
+    double trim_prob = 1; // trim 1%
+    Product_lattice_non_dilution *pp = new Product_lattice_non_dilution(subjs, variants, pi0);
+    int *trimmed_true_state = trim_true_states(pp->posterior_probs(), pp->total_states(), trim_prob, trim_size);
+    delete pp;
 
     if (!rank)
+        log_info("%d true states after trimming %.1f%%", trim_size, trim_prob);
+
+    Global_partial_tree *tree = new Global_partial_tree(p, -1, -1, -1, 0, 1.0);
+    auto stop_lattice_gen = std::chrono::high_resolution_clock::now();
+
+    auto start_evaluation = std::chrono::high_resolution_clock::now();
+    auto stop_evaluation = start_evaluation;
+
+    for (int i = 0; i < trim_size; i++)
+    {
+        auto start_timer = std::chrono::high_resolution_clock::now();
+        tree->lazy_eval(tree, p, trimmed_true_state[i]);
+        tree->parse(trimmed_true_state[i], p, 1.0, &temp);
+        prim.merge(&temp);
+
+        auto stop_timer = std::chrono::high_resolution_clock::now();
+        auto time = std::chrono::duration_cast<std::chrono::microseconds>(stop_timer - start_timer);
+        if (!rank)
+        {
+            log_info("True state %d / %d finishes, took %.2f s.", i + 1, trim_size, time.count() / 1e6);
+            if ((i + 1) % 100 == 0)
+            {
+                log_info("Rank %d: Tree size is %.2fMB", rank, static_cast<double>(tree->size_estimator()) / 1024 / 1024);
+                log_info("%s", tree->shrinking_stat().c_str());
+            }
+        }
+    }
+
+    delete[] trimmed_true_state;
+
+    if (!rank) // master generates statistics
     {
         std::stringstream file_name;
-        file_name << "FusionTree-" << p->type()
+        file_name << "GlobalPartialTreeTrim-" << p->type()
                   << "-N=" << subjs
                   << "-k=" << variants
                   << "-Prior=" << prior
@@ -130,22 +141,20 @@ int main(int argc, char *argv[])
         std::cout << "\nNegative classification threshold: " << thres_up << std::endl;
         std::cout << "Positive classification threshold: " << thres_lo << std::endl;
         std::cout << "Branch elimination threshold: " << thres_branch << std::endl;
-        summ.output_detail();
-        auto stop_statistical_analysis = std::chrono::high_resolution_clock::now();
+        std::cout << "Trim percent: " << trim_prob << "%" << std::endl;
+        std::cout << "Number of true states: " << trim_size << std::endl;
+        prim.output_detail();
+        auto stop_time = std::chrono::high_resolution_clock::now();
         std::cout << "\n\nPerformance Statistics\n\n";
-
         std::cout << tree->shrinking_stat() << std::endl
                   << std::endl;
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_lattice_model_construction - start_lattice_model_construction);
-        std::cout << "Initial Lattice Model Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
-        duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
 
-        Global_tree::tree_perf->output_verbose();
-
-        std::cout << "Global Tree Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
-        duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - stop_tree_construction);
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_lattice_gen - start_lattice_gen);
+        std::cout << "Initial Lattice Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
+        duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_evaluation - start_evaluation);
+        std::cout << "Distributed Tree Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
         std::cout << "Statistical Analysis Time: " << duration.count() / 1e6 << "s." << std::endl;
-        duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - start_lattice_model_construction);
+        duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_time - start_time);
         std::cout << "Total Time: " << duration.count() / 1e6 << "s." << std::endl;
     }
 
@@ -162,7 +171,7 @@ int main(int argc, char *argv[])
     {
         Product_lattice_mp::MPI_Product_lattice_Free();
     }
-    Fusion_tree::MPI_Fusion_tree_Free();
+    Global_partial_tree::MPI_Distributed_tree_Free();
 
     // Finalize MPI
     MPI_Finalize();

@@ -1,18 +1,16 @@
 #pragma once
 #include "core.hpp"
 #include "product_lattice.hpp"
-#include "product_lattice_dilution.hpp"
-#include "product_lattice_non_dilution.hpp"
 #include "tree_perf.hpp"
 #include "tree_stat.hpp"
 
 class Tree
 {
 protected:
-    Product_lattice *_lattice;
     bin_enc _ex, _res;
     int _curr_stage;
     double _branch_prob;
+    Product_lattice *_lattice;
     Tree **_children;
     static int _search_depth;
     static double _thres_up, _thres_lo, _thres_branch;
@@ -28,7 +26,6 @@ public:
     inline bin_enc ex() const { return _ex; }
     bin_enc true_ex(bin_enc halving);
     inline bin_enc ex_res() const { return _res; }
-    inline int ex_count() const { return _lattice->test_count(); }
     inline int curr_stage() const { return _curr_stage; }
     inline int curr_subjs() const { return _lattice->curr_subjs(); }
     inline static int variants() { return Product_lattice::variants(); }
