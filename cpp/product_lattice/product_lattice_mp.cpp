@@ -240,11 +240,7 @@ double Product_lattice_mp::get_atom_prob_mass(bin_enc atom) const
 	return ret;
 }
 
-/**
- * experiment is an integer with range (0, 2^N)
- * response is an integer with range [0, 2^k)
- */
-double *Product_lattice_mp::calc_probs(bin_enc experiment, bin_enc response, double **dilution)
+void Product_lattice_mp::update_probs(bin_enc experiment, bin_enc response, double **dilution)
 {
 	double *ret = new double[total_states_per_rank()];
 	double denominator = 0.0;
@@ -261,10 +257,11 @@ double *Product_lattice_mp::calc_probs(bin_enc experiment, bin_enc response, dou
 	{
 		ret[i] *= denominator_inv;
 	}
-	return ret;
+	_post_probs = ret;
+	ret = nullptr;
 }
 
-void Product_lattice_mp::calc_probs_in_place(bin_enc experiment, bin_enc response, double **__restrict__ dilution)
+void Product_lattice_mp::update_probs_in_place(bin_enc experiment, bin_enc response, double **dilution)
 {
 	double denominator = 0.0;
 	// #pragma omp parallel for schedule(static) reduction(+ : denominator)

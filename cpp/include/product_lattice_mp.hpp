@@ -25,8 +25,8 @@ public:
 	Product_lattice_mp(const Product_lattice &other, copy_op_t op) : Product_lattice(other, op){};
 	double posterior_prob(bin_enc state) const override;
 	void prior_probs(double *pi0) override;
-	double *calc_probs(bin_enc experiment, bin_enc response, double **dilution) override;
-	void calc_probs_in_place(bin_enc experiment, bin_enc response, double **dilution) override;
+	void update_probs(bin_enc experiment, bin_enc response, double **dilution) override;
+	void update_probs_in_place(bin_enc experiment, bin_enc response, double **dilution) override;
 	void update_metadata(double thres_up, double thres_lo) override;
 	bool update_metadata_with_shrinking(double thres_up, double thres_lo) override;
 	void shrinking(int curr_clas_atoms) override;

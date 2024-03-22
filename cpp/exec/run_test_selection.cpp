@@ -55,9 +55,9 @@ int main(int argc, char *argv[])
     auto start_halving = std::chrono::high_resolution_clock::now();
 
     if (omp_enabled)
-        std::cout << p->halving_hybrid(1.0 / (1 << variants)) << std::endl;
+        p->halving_hybrid(1.0 / (1 << variants));
     else
-        std::cout << p->halving_mpi(1.0 / (1 << variants)) << std::endl;
+        p->halving_mpi_vectorize(1.0 / (1 << variants));
 
     auto end_halving = std::chrono::high_resolution_clock::now();
 
@@ -73,8 +73,14 @@ int main(int argc, char *argv[])
                   << ".csv";
         freopen(file_name.str().c_str(), "w", stdout);
 
-        std::cout << "Construction Time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end_lattice_construction - start_lattice_construction).count() / 1e9 << "s\n";
-        std::cout << "Halving Time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end_halving - start_halving).count() / 1e9 << "s\n";
+        std::cout << "N," << atom 
+                  << ",k," << variants 
+                  << ",parallelism," << ((parallelism_type == MP_NON_DILUTION || parallelism_type == MP_DILUTION) ? "distributed" : "replicated") 
+                  << ",dilution," << ((parallelism_type == MP_NON_DILUTION || parallelism_type == DP_NON_DILUTION) ? "no dilution" : "dilution")
+                  << ",OpenMP," << omp_enabled
+                  << std::endl;
+        std::cout << "Model Construction Time," << std::chrono::duration_cast<std::chrono::nanoseconds>(end_lattice_construction - start_lattice_construction).count() / 1e9 << "s\n";
+        std::cout << "BBPA Halving Time," << std::chrono::duration_cast<std::chrono::nanoseconds>(end_halving - start_halving).count() / 1e9 << "s\n";
     }
 
     // Free product lattice MPI env

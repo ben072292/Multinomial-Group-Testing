@@ -75,10 +75,10 @@ public:
 	void generate_power_set_adder(bin_enc *add_index, int index_len, bin_enc state, bin_enc *ret) const;
 	virtual void prior_probs(double *pi0);
 	double prior_prob(bin_enc state, double *pi0) const;
-	void update_probs(bin_enc experiment, bin_enc response, double **dilution);
-	void update_probs_in_place(bin_enc experiment, bin_enc response, double **dilution);
-	virtual double *calc_probs(bin_enc experiment, bin_enc response, double **dilution);
-	virtual void calc_probs_in_place(bin_enc experiment, bin_enc response, double **dilution);
+	virtual void update_probs(bin_enc experiment, bin_enc response, double **dilution);
+	virtual void update_probs_in_place(bin_enc experiment, bin_enc response, double **dilution);
+	virtual double response_prob(bin_enc experiment, bin_enc response, bin_enc true_state, double **dilution) const = 0;
+	virtual std::string type() const = 0;
 	virtual void update_metadata(double thres_up, double thres_lo);
 	virtual bool update_metadata_with_shrinking(double thres_up, double thres_lo);
 	virtual void shrinking(int curr_clas_atoms);
@@ -113,8 +113,6 @@ public:
 	 * Inter-node using MPI + intra-node using OpenMP
 	 */
 	virtual bin_enc halving_hybrid(double prob) const;
-	virtual double response_prob(bin_enc experiment, bin_enc response, bin_enc true_state, double **dilution) const = 0;
-	virtual std::string type() const = 0;
 
 	static void MPI_Product_lattice_Initialize();
 	static void MPI_Product_lattice_Free();

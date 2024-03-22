@@ -112,12 +112,40 @@ double Product_lattice::prior_prob(bin_enc state, double *pi0) const
 
 void Product_lattice::update_probs(bin_enc experiment, bin_enc response, double **dilution)
 {
-	_post_probs = calc_probs(experiment, response, dilution);
+	bin_enc total_state = 1 << (_curr_subjs * _variants);
+	double *ret = new double[total_state];
+	double denominator = 0.0;
+	// #pragma omp parallel for reduction (+ : denominator) // INVESTIGATE: slowdown than serial
+	for (bin_enc i = 0; i < total_state; i++)
+	{
+		ret[i] = _post_probs[i] * response_prob(experiment, response, i, dilution);
+		denominator += ret[i];
+	}
+	double denominator_inv = 1 / denominator; // division has much higher instruction latency and throughput than multiplication (however latency is not that important since we have many independent divison operations)
+	// #pragma omp parallel for
+	for (bin_enc i = 0; i < total_state; i++)
+	{
+		ret[i] *= denominator_inv;
+	}
+	_post_probs = ret;
+	ret = nullptr;
 }
 
 void Product_lattice::update_probs_in_place(bin_enc experiment, bin_enc response, double **dilution)
 {
-	calc_probs_in_place(experiment, response, dilution);
+	double denominator = 0.0;
+	bin_enc total_state = 1 << (_curr_subjs * _variants);
+	// #pragma omp parallel for schedule(static) reduction (+ : denominator)
+	for (bin_enc i = 0; i < total_state; i++)
+	{
+		_post_probs[i] *= response_prob(experiment, response, i, dilution);
+		denominator += _post_probs[i];
+	}
+	// #pragma omp parallel for schedule(static)
+	for (bin_enc i = 0; i < total_state; i++)
+	{
+		_post_probs[i] /= denominator;
+	}
 }
 
 void Product_lattice::update_metadata(double thres_up, double thres_lo)
@@ -180,7 +208,7 @@ bool Product_lattice::update_metadata_with_shrinking(double thres_up, double thr
 	curr_clas_atoms = curr_shrinkable_atoms(curr_clas_atoms, _curr_subjs, _variants);
 	if (curr_clas_atoms)
 		shrinking(curr_clas_atoms); // if there's new classifications, we perform the actual shrinkings
-	return false; // data parallelism will not covert parallelism so always return false;
+	return false;					// data parallelism will not covert parallelism so always return false;
 }
 
 void Product_lattice::shrinking(int curr_clas_atoms)
@@ -289,47 +317,6 @@ double Product_lattice::get_atom_prob_mass(bin_enc atom) const
 		}
 	}
 	return ret;
-}
-
-/**
- * experiment is an integer with range (0, 2^N)
- * response is an integer with range [0, 2^k)
- */
-double *Product_lattice::calc_probs(bin_enc experiment, bin_enc response, double **dilution)
-{
-	bin_enc total_state = 1 << (_curr_subjs * _variants);
-	double *ret = new double[total_state];
-	double denominator = 0.0;
-	// #pragma omp parallel for reduction (+ : denominator) // INVESTIGATE: slowdown than serial
-	for (bin_enc i = 0; i < total_state; i++)
-	{
-		ret[i] = _post_probs[i] * response_prob(experiment, response, i, dilution);
-		denominator += ret[i];
-	}
-	double denominator_inv = 1 / denominator; // division has much higher instruction latency and throughput than multiplication (however latency is not that important since we have many independent divison operations)
-	// #pragma omp parallel for
-	for (bin_enc i = 0; i < total_state; i++)
-	{
-		ret[i] *= denominator_inv;
-	}
-	return ret;
-}
-
-void Product_lattice::calc_probs_in_place(bin_enc experiment, bin_enc response, double **__restrict__ dilution)
-{
-	double denominator = 0.0;
-	bin_enc total_state = 1 << (_curr_subjs * _variants);
-	// #pragma omp parallel for schedule(static) reduction (+ : denominator)
-	for (bin_enc i = 0; i < total_state; i++)
-	{
-		_post_probs[i] *= response_prob(experiment, response, i, dilution);
-		denominator += _post_probs[i];
-	}
-	// #pragma omp parallel for schedule(static)
-	for (bin_enc i = 0; i < total_state; i++)
-	{
-		_post_probs[i] /= denominator;
-	}
 }
 
 /**
