@@ -87,19 +87,21 @@ static void getHostName(char *hostname, int maxlen)
     }
 }
 
-typedef int bin_enc;
+typedef int64_t bin_enc;
 
-__device__ bin_enc offset_to_state(int offset, int rank, int nranks){
-    return (1 << (N * K)) * rank / nranks + offset;
+__device__ bin_enc offset_to_state(int64_t offset, int rank, int nranks){
+    return (static_cast<int64_t>(1) << (N * K)) * rank / nranks + offset;
 }
 
 template <int n, int k, int p>
 __global__ void set_prior_probs(float *_post_probs, int rank, int nranks)
 {
-    const float pi0[30] = {0.01f, 0.02f, 0.03f, 0.04f, 0.05f, 0.06f, 0.07f, 0.08f, 0.09f, 0.1f,
+    const float pi0[50] = {0.01f, 0.02f, 0.03f, 0.04f, 0.05f, 0.06f, 0.07f, 0.08f, 0.09f, 0.1f,
                            0.11f, 0.12f, 0.13f, 0.14f, 0.15f, 0.16f, 0.17f, 0.18f, 0.19f, 0.2f,
-                           0.21f, 0.22f, 0.23f, 0.24f, 0.25f, 0.26f, 0.27f, 0.28f, 0.29f, 0.3f};
-    int s_iter = blockIdx.x * blockDim.x + threadIdx.x;
+                           0.21f, 0.22f, 0.23f, 0.24f, 0.25f, 0.26f, 0.27f, 0.28f, 0.29f, 0.3f,
+                           0.01f, 0.02f, 0.03f, 0.04f, 0.05f, 0.06f, 0.07f, 0.08f, 0.09f, 0.1f,
+                           0.11f, 0.12f, 0.13f, 0.14f, 0.15f, 0.16f, 0.17f, 0.18f, 0.19f, 0.2f};
+    int64_t s_iter = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
     float prob = 1.0f;
     for (int i = 0; i < n * k; i++)
     {
@@ -119,17 +121,17 @@ __global__ void halving(const float *probs, float *mass, int rank, int nranks)
 {
     float r_mass[1 << k];
     memset(r_mass, 0, (1 << k) * sizeof(float));
-    int ex = (blockIdx.x * blockDim.x + threadIdx.x) % (1 << n);
-    int iter = (blockIdx.x * blockDim.x + threadIdx.x) / (1 << n);
-    int iters = (1 << (n * k - f)) / nranks;
-    for (int s_iter = 0; s_iter < iters; s_iter++)
+    int64_t ex = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) % (static_cast<int64_t>(1) << n);
+    int64_t iter = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) / (static_cast<int64_t>(1) << n);
+    int64_t iters = (static_cast<int64_t>(1) << (n * k - f)) / nranks;
+    for (int64_t s_iter = 0; s_iter < iters; s_iter++)
     {
-        int state = iter * iters + s_iter;
+        int64_t state = iter * iters + s_iter;
         int partition_id = 0;
 #pragma unroll k
         for (int variant = 0; variant < k; variant++)
         {
-            partition_id |= ((1 << variant) & (((ex & (offset_to_state(state, rank, nranks) >> (variant * n))) - ex) >> 31));
+            partition_id |= ((1 << variant) & (((ex & (offset_to_state(state, rank, nranks) >> (variant * n))) - ex) >> 63));
         }
         // partition_id |= (1 & (((ex & state) - ex) >> 31));
         // partition_id |= (2 & (((ex & (state >> n)) - ex) >> 31));
@@ -174,7 +176,7 @@ int main(int argc, char *argv[])
     cudaStream_t s;
     float *d_probs, *d_mass;
     bin_enc *d_candidate;
-    int numElements = (1 << (N * K)) / nRanks;
+    int64_t numElements = (static_cast<int64_t>(1) << (N * K)) / nRanks;
     cudaMalloc((void **)&d_candidate, sizeof(bin_enc));
     dim3 blockDims(B);                                          // Adjust block dimensions as needed
     dim3 gridDims((numElements + blockDims.x - 1) / blockDims.x); // Calculate grid dimensions
@@ -186,8 +188,8 @@ int main(int argc, char *argv[])
 
     // picking a GPU based on localRank, allocate device buffers
     CUDACHECK(cudaSetDevice(localRank));
-    CUDACHECK(cudaMalloc((void **)&d_probs, (1 << (N * K)) * sizeof(float) / nRanks));
-    CUDACHECK(cudaMalloc((void **)&d_mass, (1 << (N + K)) * sizeof(float)));
+    CUDACHECK(cudaMalloc((void **)&d_probs, (static_cast<int64_t>(1) << (N * K)) * sizeof(float) / nRanks));
+    CUDACHECK(cudaMalloc((void **)&d_mass, (static_cast<int64_t>(1) << (N + K)) * sizeof(float)));
     // CUDACHECK(cudaMemset(mins, 0, (1 << curr_subjs) * sizeof(float)));
     CUDACHECK(cudaStreamCreate(&s));
 
@@ -212,7 +214,7 @@ int main(int argc, char *argv[])
     if (!myRank)
         std::cout << "Prior kernel execution time: " << elapsedSeconds.count() << " seconds" << std::endl;
 
-    numElements = (1 << (N + F));
+    numElements = (static_cast<int64_t>(1) << (N + F));
     dim3 gridDims1((numElements + blockDims.x - 1) / blockDims.x); // Calculate grid dimensions
 
     start = std::chrono::system_clock::now();
