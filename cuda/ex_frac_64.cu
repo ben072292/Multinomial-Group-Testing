@@ -228,8 +228,10 @@ int main(int argc, char *argv[])
         std::cout << "BBPA kernel execution time: " << elapsedSeconds.count() << " seconds" << std::endl;
 
     // communicating using NCCL
+    ncclGroupStart();
     NCCLCHECK(ncclAllReduce((const void *)d_mass, (void *)d_mass, (1 << (N + K)), ncclFloat, ncclSum,
                             comm, s));
+    ncclGroupEnd();
 
     CUDACHECK(cudaStreamSynchronize(s));
 
