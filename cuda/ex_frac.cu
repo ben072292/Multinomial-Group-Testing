@@ -200,26 +200,29 @@ int main(int argc, char *argv[])
         std::cout << "Number of GPUs: " << nRanks << std::endl;
     }
 
-    std::chrono::time_point<std::chrono::system_clock> start, end;
+    std::chrono::time_point<std::chrono::system_clock> start, end_1, end_2, end_3;
     start = std::chrono::system_clock::now();
 
     set_prior_probs<N, K, P><<<gridDims, blockDims, 0, s>>>(d_probs, myRank, nRanks);
 
     CUDACHECK(cudaStreamSynchronize(s));
 
-    end = std::chrono::system_clock::now();
-    std::chrono::duration<float> elapsedSeconds = end - start;
+    end_1 = std::chrono::system_clock::now();
+    std::chrono::duration<float> elapsedSeconds = end_1 - start;
     if (!myRank)
         std::cout << "Prior kernel execution time: " << elapsedSeconds.count() << " seconds" << std::endl;
 
     numElements = (1 << (N + F));
     dim3 gridDims1((numElements + blockDims.x - 1) / blockDims.x); // Calculate grid dimensions
 
-    start = std::chrono::system_clock::now();
-
     halving<N, K, F><<<gridDims1, blockDims, 0, s>>>(d_probs, d_mass, myRank, nRanks);
 
     CUDACHECK(cudaStreamSynchronize(s));
+
+    end_2 = std::chrono::system_clock::now();
+    elapsedSeconds = end_2 - end_1;
+    if (!myRank)
+        std::cout << "BBPA kernel execution time: " << elapsedSeconds.count() << " seconds" << std::endl;
 
     // communicating using NCCL
     NCCLCHECK(ncclAllReduce((const void *)d_mass, (void *)d_mass, (1 << (N + K)), ncclFloat, ncclSum,
@@ -227,14 +230,18 @@ int main(int argc, char *argv[])
 
     CUDACHECK(cudaStreamSynchronize(s));
 
-    end = std::chrono::system_clock::now();
-    elapsedSeconds = end - start;
+    end_3 = std::chrono::system_clock::now();
+    elapsedSeconds = end_3 - end_2;
     if (!myRank)
-        std::cout << "BBPA kernel execution time: " << elapsedSeconds.count() << " seconds" << std::endl;
+        std::cout << "BBPA kernel Allreduce time: " << elapsedSeconds.count() << " seconds" << std::endl;
 
+    elapsedSeconds = end_3 - end_1;
+    if (!myRank)
+        std::cout << "BBPA kernel total execution time: " << elapsedSeconds.count() << " seconds" << std::endl;
+    
     // Copy the result back from the GPU
-    float *h_partition_mass = new float[1 << (N + K)];
-    CUDACHECK(cudaMemcpy(h_partition_mass, d_mass, (1 << (N + K)) * sizeof(float), cudaMemcpyDeviceToHost));
+    float *h_partition_mass = new float[10 * (1 << K)];
+    CUDACHECK(cudaMemcpy(h_partition_mass, d_mass, (1 << K) * sizeof(float) * 10, cudaMemcpyDeviceToHost));
 
     if (!myRank)
     {
