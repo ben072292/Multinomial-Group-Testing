@@ -5,8 +5,8 @@ int Product_lattice::world_size;
 int Product_lattice::_orig_subjs;
 int Product_lattice::_variants;
 double *Product_lattice::_pi0;
-static MPI_Datatype halving_res_type;
-static MPI_Op halving_op;
+static MPI_Datatype BBPA_res_type;
+static MPI_Op BBPA_op;
 
 Product_lattice::Product_lattice(int subjs, int variants, double *pi0)
 {
@@ -319,87 +319,101 @@ double Product_lattice::get_atom_prob_mass(bin_enc atom) const
 	return ret;
 }
 
+#ifdef BBPA_SERIAL_V2
 /**
  * Implementation V2
  */
-// int Product_lattice::halving_serial(double prob) const{
-// 	int candidate = 0;
-// 	int s_iter;
-// 	int experiment;
-// 	double min = 2.0;
-// 	int partition_id = 0;
-// 	double partition_mass[(1 << _variants)];
-// 	for (experiment = 0; experiment < (1 << _curr_subjs); experiment++) {
-// 		// reset partition_mass
-// 		for (int i = 0; i < (1 << _variants); i++)
-// 			partition_mass[i] = 0.0;
-// 		// tricky: for each state, check each variant of actively
-// 		// pooled subjects to see whether they are all 1.
-// 		for (s_iter = 0; s_iter < (1 << (_curr_subjs * _variants)); s_iter++) {
-// 			__builtin_prefetch((_post_probs + s_iter + 10), 0, 0);
-// 			for (int variant = 0; variant < _variants; variant++) {
-// 				if ((experiment & (s_iter >> (variant * _curr_subjs))) != experiment) {
-// 					partition_id |= (1 << variant);
-// 				}
-// 			}
-// 			partition_mass[partition_id] += _post_probs[s_iter];
-// 			partition_id = 0;
-// 		}
-// 		double temp = 0.0;
-// 		for (int i = 0; i < (1 << _variants); i++) {
-// 			temp += std::abs(partition_mass[i] - prob);
-// 		}
-// 		if (temp < min) {
-// 			min = temp;
-// 			candidate = experiment;
-// 		}
-// 	}
-// 	return candidate;
-// }
+int Product_lattice::BBPA_serial(double prob) const
+{
+	int candidate = 0;
+	int s_iter;
+	int experiment;
+	double min = 2.0;
+	int partition_id = 0;
+	double partition_mass[(1 << _variants)];
+	for (experiment = 0; experiment < (1 << _curr_subjs); experiment++)
+	{
+		// reset partition_mass
+		for (int i = 0; i < (1 << _variants); i++)
+			partition_mass[i] = 0.0;
+		// tricky: for each state, check each variant of actively
+		// pooled subjects to see whether they are all 1.
+		for (s_iter = 0; s_iter < (1 << (_curr_subjs * _variants)); s_iter++)
+		{
+			__builtin_prefetch((_post_probs + s_iter + 10), 0, 0);
+			for (int variant = 0; variant < _variants; variant++)
+			{
+				if ((experiment & (s_iter >> (variant * _curr_subjs))) != experiment)
+				{
+					partition_id |= (1 << variant);
+				}
+			}
+			partition_mass[partition_id] += _post_probs[s_iter];
+			partition_id = 0;
+		}
+		double temp = 0.0;
+		for (int i = 0; i < (1 << _variants); i++)
+		{
+			temp += std::abs(partition_mass[i] - prob);
+		}
+		if (temp < min)
+		{
+			min = temp;
+			candidate = experiment;
+		}
+	}
+	return candidate;
+}
 
+#elif defined(BBPA_SERIAL_V3)
 /**
  * Implementation V3
  */
-// int Product_lattice::halving_serial(double prob) const{
-// 	int candidate = 0;
-// 	int s_iter;
-// 	int experiment;
-// 	double min = 2.0;
-// 	int partition_id = 0;
-// 	double partition_mass[(1 << variant_)];
-// 	for (experiment = 0; experiment < (1 << curr_subj_); experiment++) {
-// 		// reset partition_mass
-// 		for (int i = 0; i < (1 << variant_); i++)
-// 			partition_mass[i] = 0.0;
-// 		// tricky: for each state, check each variant of actively
-// 		// pooled subjects to see whether they are all 1.
-// 		for (s_iter = 0; s_iter < (1 << (curr_subj_ * variant_)); s_iter++) {
-// 			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
-// 			for (int variant = 0; variant < variant_; variant++) {
-// 				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
-// 				// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
-// 				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
-// 				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
-// 				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
-// 				partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * curr_subj_))) - experiment) >> 31));
-
-// 			}
-// 			partition_mass[partition_id] += post_probs_[s_iter];
-// 			partition_id = 0;
-// 		}
-// 		double temp = 0.0;
-// 		for (int i = 0; i < (1 << variant_); i++) {
-// 			temp += std::abs(partition_mass[i] - prob);
-// 		}
-// 		if (temp < min) {
-// 			min = temp;
-// 			candidate = experiment;
-// 		}
-// 	}
-// 	return candidate;
-// }
-
-bin_enc Product_lattice::halving_serial(double prob) const
+int Product_lattice::BBPA_serial(double prob) const
+{
+	int candidate = 0;
+	int s_iter;
+	int experiment;
+	double min = 2.0;
+	int partition_id = 0;
+	double partition_mass[(1 << variant_)];
+	for (experiment = 0; experiment < (1 << curr_subj_); experiment++)
+	{
+		// reset partition_mass
+		for (int i = 0; i < (1 << variant_); i++)
+			partition_mass[i] = 0.0;
+		// tricky: for each state, check each variant of actively
+		// pooled subjects to see whether they are all 1.
+		for (s_iter = 0; s_iter < (1 << (curr_subj_ * variant_)); s_iter++)
+		{
+			// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+			for (int variant = 0; variant < variant_; variant++)
+			{
+				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
+				// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
+				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
+				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
+				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
+				partition_id |= ((1 << variant) & (((experiment & (s_iter >> (variant * curr_subj_))) - experiment) >> 31));
+			}
+			partition_mass[partition_id] += post_probs_[s_iter];
+			partition_id = 0;
+		}
+		double temp = 0.0;
+		for (int i = 0; i < (1 << variant_); i++)
+		{
+			temp += std::abs(partition_mass[i] - prob);
+		}
+		if (temp < min)
+		{
+			min = temp;
+			candidate = experiment;
+		}
+	}
+	return candidate;
+}
+#else
+bin_enc Product_lattice::BBPA_serial(double prob) const
 {
 	bin_enc candidate = 0;
 	double min = 2.0;
@@ -443,8 +457,9 @@ bin_enc Product_lattice::halving_serial(double prob) const
 
 	return candidate;
 }
+#endif
 
-bin_enc Product_lattice::halving_omp(double prob) const
+bin_enc Product_lattice::BBPA_omp(double prob) const
 {
 	double partition_mass[(1 << _curr_subjs) * (1 << _variants)]{0.0};
 
@@ -470,9 +485,9 @@ bin_enc Product_lattice::halving_omp(double prob) const
 		}
 	}
 
-	Halving_res halving_res;
-#pragma omp declare reduction(Halving_Min:Halving_res : Halving_res::halving_min(omp_out, omp_in)) initializer(omp_priv = Halving_res())
-#pragma omp parallel for schedule(static) reduction(Halving_Min : halving_res)
+	BBPA_res res;
+#pragma omp declare reduction(BBPA_Min : BBPA_res : BBPA_res::BBPA_min(omp_out, omp_in)) initializer(omp_priv = BBPA_res())
+#pragma omp parallel for schedule(static) reduction(BBPA_Min : res)
 	for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 	{
 		double temp = 0.0;
@@ -480,19 +495,19 @@ bin_enc Product_lattice::halving_omp(double prob) const
 		{
 			temp += std::abs(partition_mass[experiment * (1 << _variants) + i] - prob);
 		}
-		if (temp < halving_res.min)
+		if (temp < res.min)
 		{
-			halving_res.min = temp;
-			halving_res.candidate = experiment;
+			res.min = temp;
+			res.candidate = experiment;
 		}
 	}
 
-	return halving_res.candidate;
+	return res.candidate;
 }
 
-bin_enc Product_lattice::halving_mpi(double prob) const
+bin_enc Product_lattice::BBPA_mpi(double prob) const
 {
-	Halving_res halving_res;
+	BBPA_res BBPA_res;
 	int partition_id = 0;
 	const bin_enc start_experiment = (1 << _curr_subjs) / world_size * rank;
 	const bin_enc stop_experiment = (1 << _curr_subjs) / world_size * (rank + 1);
@@ -525,23 +540,21 @@ bin_enc Product_lattice::halving_mpi(double prob) const
 		{
 			temp += std::abs(partition_mass[(experiment - start_experiment) * (1 << _variants) + i] - prob);
 		}
-		if (temp < halving_res.min)
+		if (temp < BBPA_res.min)
 		{
-			halving_res.min = temp;
-			halving_res.candidate = experiment;
+			BBPA_res.min = temp;
+			BBPA_res.candidate = experiment;
 		}
 		temp = 0.0;
 	}
-	MPI_Allreduce(MPI_IN_PLACE, &halving_res, 1, halving_res_type, halving_op, MPI_COMM_WORLD);
+	MPI_Allreduce(MPI_IN_PLACE, &BBPA_res, 1, BBPA_res_type, BBPA_op, MPI_COMM_WORLD);
 
-	return halving_res.candidate;
+	return BBPA_res.candidate;
 }
 
-bin_enc Product_lattice::halving_mpi_vectorize(double prob) const { throw std::logic_error("Not Implemented."); }
-
-bin_enc Product_lattice::halving_hybrid(double prob) const
+bin_enc Product_lattice::BBPA_mpi_omp(double prob) const
 {
-	Halving_res halving_res;
+	BBPA_res res;
 	const bin_enc start_experiment = (1 << _curr_subjs) / world_size * rank;
 	const bin_enc stop_experiment = (1 << _curr_subjs) / world_size * (rank + 1);
 	double partition_mass[(stop_experiment - start_experiment) * (1 << _variants)]{0.0};
@@ -569,8 +582,8 @@ bin_enc Product_lattice::halving_hybrid(double prob) const
 		}
 	}
 
-#pragma omp declare reduction(Halving_Min:Halving_res : Halving_res::halving_min(omp_out, omp_in)) initializer(omp_priv = Halving_res())
-#pragma omp parallel for schedule(static) reduction(Halving_Min : halving_res)
+#pragma omp declare reduction(BBPA_Min : BBPA_res : BBPA_res::BBPA_min(omp_out, omp_in)) initializer(omp_priv = BBPA_res())
+#pragma omp parallel for schedule(static) reduction(BBPA_Min : res)
 	for (bin_enc experiment = start_experiment; experiment < stop_experiment; experiment++)
 	{
 		double temp = 0.0;
@@ -578,23 +591,23 @@ bin_enc Product_lattice::halving_hybrid(double prob) const
 		{
 			temp += std::abs(partition_mass[(experiment - start_experiment) * (1 << _variants) + i] - prob);
 		}
-		if (temp < halving_res.min)
+		if (temp < res.min)
 		{
-			halving_res.min = temp;
-			halving_res.candidate = experiment;
+			res.min = temp;
+			res.candidate = experiment;
 		}
 		temp = 0.0;
 	}
-	MPI_Allreduce(MPI_IN_PLACE, &halving_res, 1, halving_res_type, halving_op, MPI_COMM_WORLD);
-	return halving_res.candidate;
+	MPI_Allreduce(MPI_IN_PLACE, &res, 1, BBPA_res_type, BBPA_op, MPI_COMM_WORLD);
+	return res.candidate;
 }
 
-bin_enc Product_lattice::halving(double prob) const
+bin_enc Product_lattice::BBPA(double prob) const
 {
 	if ((1 << _curr_subjs) >= world_size)
-		return halving_hybrid(prob);
+		return BBPA_mpi_omp(prob);
 	else
-		return halving_omp(prob);
+		return BBPA_omp(prob);
 }
 
 // Assign rank and world size as static member variable,
@@ -606,17 +619,17 @@ void Product_lattice::MPI_Product_lattice_Initialize()
 	// Get the rank of the process
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-	Halving_res::create_halving_res_type(&halving_res_type);
-	MPI_Type_commit(&halving_res_type);
-	MPI_Op_create((MPI_User_function *)&Halving_res::halving_reduce, true, &halving_op);
+	BBPA_res::create_BBPA_res_type(&BBPA_res_type);
+	MPI_Type_commit(&BBPA_res_type);
+	MPI_Op_create((MPI_User_function *)&BBPA_res::BBPA_reduce, true, &BBPA_op);
 }
 
 // free MPI datatypes and collective ops for product lattice
 void Product_lattice::MPI_Product_lattice_Free()
 {
 	// Free datatype
-	MPI_Type_free(&halving_res_type);
+	MPI_Type_free(&BBPA_res_type);
 	// Free reduce op
-	MPI_Op_free(&halving_op);
+	MPI_Op_free(&BBPA_op);
 	// Finalize the MPI environment.
 }

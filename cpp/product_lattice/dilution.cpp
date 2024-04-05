@@ -1,4 +1,4 @@
-#include "dilution.hpp"
+#include "product_lattice.hpp"
 
 double **generate_dilution(int n, double alpha, double h)
 {

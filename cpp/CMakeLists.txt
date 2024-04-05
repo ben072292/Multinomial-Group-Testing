@@ -15,11 +15,11 @@ set(ANALYSIS_SOURCE_DIR "statistical_analysis")
 set(LATTICE_SOURCE_DIR "product_lattice")
 set(TREE_SOURCE_DIR "${ANALYSIS_SOURCE_DIR}/tree")
 set(UTIL_SOURCE_DIR "${ANALYSIS_SOURCE_DIR}/util")
-set(EXTERNAL_SOURCE_DIR "external")
+set(3RD_PARTY_SOURCE_DIR "3rd-party")
 set(LIB_SOURCE_DIR lib) 
 
 include_directories(include)
-include_directories(${EXTERNAL_SOURCE_DIR}/include)
+include_directories(${3RD_PARTY_SOURCE_DIR}/include)
 
 # Recursively find all source files in the specified directories
 file(GLOB_RECURSE EXEC_SOURCES "${EXEC_SOURCE_DIR}/*.cpp")
@@ -27,7 +27,7 @@ file(GLOB_RECURSE ANALYSIS_SOURCES "${ANALYSIS_SOURCE_DIR}/*.cpp")
 file(GLOB_RECURSE TREE_SOURCES "${TREE_SOURCE_DIR}/*.cpp")
 file(GLOB_RECURSE UTIL_SOURCES "${UTIL_SOURCE_DIR}/*.cpp")
 file(GLOB_RECURSE LATTICE_SOURCES "${LATTICE_SOURCE_DIR}/*.cpp")
-file(GLOB_RECURSE EXTERNAL_SOURCES "${EXTERNAL_SOURCE_DIR}/*.c*")
+file(GLOB_RECURSE EXTERNAL_SOURCES "${3RD_PARTY_SOURCE_DIR}/*.c*")
 
 add_library(BMGT STATIC
     ${ANALYSIS_SOURCES}

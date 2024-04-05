@@ -1,8 +1,6 @@
 #include "core.hpp"
-#include "distributed_tree.hpp"
-#include "halving_res.hpp"
-#include "product_lattice_mp_dilution.hpp"
-#include "product_lattice_mp_non_dilution.hpp"
+#include "product_lattice.hpp"
+#include "tree.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -58,8 +56,6 @@ int main(int argc, char *argv[])
     Tree::thres_branch(thres_branch);
     Tree::search_depth(search_depth);
     Tree::dilution(dilution);
-
-    Halving_res halving_res;
 
     auto start_tree_construction = std::chrono::high_resolution_clock::now();
     auto stop_tree_construction = start_tree_construction;
@@ -192,7 +188,7 @@ int main(int argc, char *argv[])
     Product_lattice::MPI_Product_lattice_Free();
     if (type == MP_NON_DILUTION || type == MP_DILUTION)
     {
-        Product_lattice_mp::MPI_Product_lattice_Free();
+        Product_lattice_dist::MPI_Product_lattice_Free();
     }
     Distributed_tree::MPI_Distributed_tree_Free();
 

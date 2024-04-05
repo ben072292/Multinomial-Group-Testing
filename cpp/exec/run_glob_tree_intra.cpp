@@ -1,8 +1,6 @@
 #include "core.hpp"
-#include "global_tree_intra.hpp"
 #include "product_lattice.hpp"
-#include "product_lattice_dilution.hpp"
-#include "product_lattice_non_dilution.hpp"
+#include "tree.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -33,11 +31,11 @@ int main(int argc, char *argv[])
     Tree::search_depth(search_depth);
     Tree::dilution(dilution);
 
-    std::chrono::nanoseconds halving_times[subjs + 1]{std::chrono::nanoseconds::zero()};
+    std::chrono::nanoseconds BBPA_times[subjs + 1]{std::chrono::nanoseconds::zero()};
 
     auto start_tree_construction = std::chrono::high_resolution_clock::now();
 
-    Global_tree_intra *tree = new Global_tree_intra(p, -1, -1, 1, 0, halving_times);
+    Global_tree_intra *tree = new Global_tree_intra(p, -1, -1, 1, 0, BBPA_times);
 
     auto stop_tree_construction = std::chrono::high_resolution_clock::now();
 
@@ -96,8 +94,8 @@ int main(int argc, char *argv[])
               << std::endl;
     for (int i = 0; i < subjs + 1; i++)
     {
-        std::cout << "Halving Time for lattice model size " << i << "," << halving_times[i].count() / 1e9 << " Second." << std::endl;
-        total_MPI_time += halving_times[i];
+        std::cout << "Halving Time for lattice model size " << i << "," << BBPA_times[i].count() / 1e9 << " Second." << std::endl;
+        total_MPI_time += BBPA_times[i];
     }
     std::cout << "Total Halving time," << total_MPI_time.count() / 1e9 << " Second." << std::endl;
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(start_tree_construction - start_lattice_model_construction);

@@ -1,10 +1,9 @@
-#include "product_lattice_mp.hpp"
-#include "BBPA_unroll.hpp"
+#include "product_lattice.hpp"
 
-double *Product_lattice_mp::temp_post_prob_holder = nullptr;
-MPI_Win Product_lattice_mp::win;
+double *Product_lattice_dist::temp_post_prob_holder = nullptr;
+MPI_Win Product_lattice_dist::win;
 
-Product_lattice_mp::Product_lattice_mp(int subjs, int variants, double *pi0)
+Product_lattice_dist::Product_lattice_dist(int subjs, int variants, double *pi0)
 {
 	_curr_subjs = subjs;
 	_orig_subjs = subjs;
@@ -15,7 +14,7 @@ Product_lattice_mp::Product_lattice_mp(int subjs, int variants, double *pi0)
 }
 
 // For debugging purpose
-double Product_lattice_mp::posterior_prob(bin_enc state) const
+double Product_lattice_dist::posterior_prob(bin_enc state) const
 {
 	double ret = -1.0;
 	int target_rank = state_to_rank(state);
@@ -26,7 +25,7 @@ double Product_lattice_mp::posterior_prob(bin_enc state) const
 	return ret;
 }
 
-void Product_lattice_mp::prior_probs(double *pi0)
+void Product_lattice_dist::prior_probs(double *pi0)
 {
 	for (int i = 0; i < total_states_per_rank(); i++)
 	{
@@ -34,7 +33,7 @@ void Product_lattice_mp::prior_probs(double *pi0)
 	}
 }
 
-void Product_lattice_mp::update_metadata(double thres_up, double thres_lo)
+void Product_lattice_dist::update_metadata(double thres_up, double thres_lo)
 {
 	for (int i = 0; i < curr_atoms(); i++)
 	{
@@ -50,7 +49,7 @@ void Product_lattice_mp::update_metadata(double thres_up, double thres_lo)
 	}
 }
 
-bool Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double thres_lo)
+bool Product_lattice_dist::update_metadata_with_shrinking(double thres_up, double thres_lo)
 {
 	bin_enc clas_atoms = (_pos_clas_atoms | _neg_clas_atoms); // same size as orig layout
 	bin_enc curr_clas_atoms = 0;							  // same size as curr layout
@@ -178,12 +177,12 @@ bool Product_lattice_mp::update_metadata_with_shrinking(double thres_up, double 
 			_curr_subjs = _orig_subjs - __builtin_popcount(_clas_subjs);
 		}
 	}
-	return true; // signal MP-DP conversion
+		return true; // signal MP-DP conversion
 	}
 	return false; // no classified subjects so no shrinking
 }
 
-void Product_lattice_mp::shrinking(bin_enc curr_clas_atoms)
+void Product_lattice_dist::shrinking(bin_enc curr_clas_atoms)
 {
 	int reduce_count = __builtin_popcount(curr_clas_atoms);
 	int base_count = curr_atoms() - reduce_count;
@@ -225,7 +224,7 @@ void Product_lattice_mp::shrinking(bin_enc curr_clas_atoms)
 }
 
 // Exhaustive traversal is faster than active generation for atoms
-double Product_lattice_mp::get_atom_prob_mass(bin_enc atom) const
+double Product_lattice_dist::get_atom_prob_mass(bin_enc atom) const
 {
 	double ret = 0.0;
 	// #pragma omp parallel for reduction(+ : ret)
@@ -240,7 +239,7 @@ double Product_lattice_mp::get_atom_prob_mass(bin_enc atom) const
 	return ret;
 }
 
-void Product_lattice_mp::update_probs(bin_enc experiment, bin_enc response, double **dilution)
+void Product_lattice_dist::update_probs(bin_enc experiment, bin_enc response, double **dilution)
 {
 	double *ret = new double[total_states_per_rank()];
 	double denominator = 0.0;
@@ -261,7 +260,7 @@ void Product_lattice_mp::update_probs(bin_enc experiment, bin_enc response, doub
 	ret = nullptr;
 }
 
-void Product_lattice_mp::update_probs_in_place(bin_enc experiment, bin_enc response, double **dilution)
+void Product_lattice_dist::update_probs_in_place(bin_enc experiment, bin_enc response, double **dilution)
 {
 	double denominator = 0.0;
 	// #pragma omp parallel for schedule(static) reduction(+ : denominator)
@@ -279,17 +278,20 @@ void Product_lattice_mp::update_probs_in_place(bin_enc experiment, bin_enc respo
 	}
 }
 
-bin_enc Product_lattice_mp::halving(double prob) const
+bin_enc Product_lattice_dist::BBPA(double prob) const
 {
+#ifdef ENABLE_SIMD
 	/** Enable vectorization, since we currently target 512 bit register width,
 	 *  the minimum number of subject we can accept is sqrt(512 / 8 / sizeof(bin_enc) ),
 	 *  thus the minimum lattice size it can accpet is 2^(sqrt(512 / 8 / sizeof(bin_enc)) * _variants)
-	*/
-	// return std::pow(64 / sizeof(bin_enc), _variants) <= total_states() ? halving_mpi_vectorize(prob) : halving_hybrid(prob);
-	return halving_hybrid(prob);
+	 */
+	return std::pow(64 / sizeof(bin_enc), _variants) <= total_states() ? BBPA_disti(prob) : BBPA_hybrid(prob);
+#else
+	return BBPA_mpi_omp(prob);
+#endif
 }
 
-bin_enc Product_lattice_mp::halving_mpi(double prob) const
+bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 {
 	int partition_id = 0;
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
@@ -311,7 +313,11 @@ bin_enc Product_lattice_mp::halving_mpi(double prob) const
 				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
 				partition_id |= ((1 << variant) & (((experiment & (offset_to_state(s_iter) >> (variant * _curr_subjs))) - experiment) >> 31));
 			}
-			// BBPA_UNROLL(2, partition_id, experiment, s_iter, _curr_subjs)
+			// #ifdef NUM_VARIANTS
+			// 			BBPA_UNROLL(NUM_VARIANTS, partition_id, experiment, s_iter, _curr_subjs)
+			// #else
+			// 			BBPA_UNROLL(2, partition_id, experiment, s_iter, _curr_subjs)
+			// #endif
 			partition_mass[experiment * (1 << _variants) + partition_id] += _post_probs[s_iter];
 			partition_id = 0;
 		}
@@ -337,9 +343,10 @@ bin_enc Product_lattice_mp::halving_mpi(double prob) const
 	return candidate;
 }
 
+#ifdef ENABLE_SIMD
 /** SIMD using vector type
-    MP-DP need to switch based on number of states, see bin_enc halving(prob) */
-bin_enc Product_lattice_mp::halving_mpi_vectorize(double prob) const
+	MP-DP need to switch based on number of states, see bin_enc BBPA(prob) */
+bin_enc Product_lattice_dist::BBPA_disti_simd(double prob) const
 {
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
 	double partition_mass[partition_size]{0.0};
@@ -371,6 +378,11 @@ bin_enc Product_lattice_mp::halving_mpi_vectorize(double prob) const
 			// partition_id |= (2 & (((ex & (offset_to_state(s_iter) >> _curr_subjs)) - ex) >> 31));
 
 			// BBPA_UNROLL(2, partition_id, ex, s_iter, _curr_subjs)
+#ifdef NUM_VARIANTS
+			BBPA_UNROLL(NUM_VARIANTS, partition_id, ex, s_iter, _curr_subjs)
+#else
+			BBPA_UNROLL(2, partition_id, ex, s_iter, _curr_subjs)
+#endif
 			partition_id += ex * (1 << _variants);
 			for (int i = 0; i < 16; i++)
 			{
@@ -401,10 +413,11 @@ bin_enc Product_lattice_mp::halving_mpi_vectorize(double prob) const
 
 	return candidate;
 }
+#endif
 
-bin_enc Product_lattice_mp::halving_hybrid(double prob) const
+bin_enc Product_lattice_dist::BBPA_mpi_omp(double prob) const
 {
-	Halving_res halving_res;
+	BBPA_res res;
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
 	double partition_mass[partition_size]{0.0};
 
@@ -427,15 +440,19 @@ bin_enc Product_lattice_mp::halving_hybrid(double prob) const
 			// 	// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
 			// 	partition_id |= ((1 << variant) & (((experiment & (offset_to_state(s_iter) >> (variant * _curr_subjs))) - experiment) >> 31));
 			// }
+#ifdef NUM_VARIANTS
+			BBPA_UNROLL(NUM_VARIANTS, partition_id, experiment, s_iter, _curr_subjs)
+#else
 			BBPA_UNROLL(2, partition_id, experiment, s_iter, _curr_subjs)
+#endif
 			partition_mass[experiment * (1 << _variants) + partition_id] += _post_probs[s_iter];
 			partition_id = 0;
 		}
 	}
 	MPI_Allreduce(MPI_IN_PLACE, partition_mass, partition_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-#pragma omp declare reduction(Halving_Min:Halving_res : Halving_res::halving_min(omp_out, omp_in)) initializer(omp_priv = Halving_res())
-#pragma omp parallel for schedule(static) reduction(Halving_Min : halving_res)
+#pragma omp declare reduction(BBPA_Min:BBPA_res : BBPA_res::BBPA_min(omp_out, omp_in)) initializer(omp_priv = BBPA_res())
+#pragma omp parallel for schedule(static) reduction(BBPA_Min : res)
 	for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 	{
 		double temp = 0.0;
@@ -443,24 +460,24 @@ bin_enc Product_lattice_mp::halving_hybrid(double prob) const
 		{
 			temp += std::abs(partition_mass[experiment * (1 << _variants) + i] - prob);
 		}
-		if (temp < halving_res.min)
+		if (temp < res.min)
 		{
-			halving_res.min = temp;
-			halving_res.candidate = experiment;
+			res.min = temp;
+			res.candidate = experiment;
 		}
 		temp = 0.0;
 	}
-	MPI_Allreduce(MPI_IN_PLACE, &halving_res.candidate, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
-	return halving_res.candidate;
+	MPI_Allreduce(MPI_IN_PLACE, &res.candidate, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+	return res.candidate;
 }
 
-void Product_lattice_mp::MPI_Product_lattice_Initialize(int atoms, int variants)
+void Product_lattice_dist::MPI_Product_lattice_Initialize(int atoms, int variants)
 {
 	temp_post_prob_holder = new double[(1 << (atoms * variants)) / world_size];
 	MPI_Win_create(temp_post_prob_holder, sizeof(double) * (1 << (atoms * variants)) / world_size, sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &win);
 }
 
-void Product_lattice_mp::MPI_Product_lattice_Free()
+void Product_lattice_dist::MPI_Product_lattice_Free()
 {
 	MPI_Win_free(&win);
 	delete[] temp_post_prob_holder;

@@ -1,8 +1,8 @@
-#include "global_partial_tree.hpp"
+#include "tree.hpp"
 
 Global_partial_tree::Global_partial_tree(const Tree &other, bool deep) : Distributed_tree(other, false)
 {
-    _halving = dynamic_cast<const Global_partial_tree &>(other)._halving;
+    _BBPA = dynamic_cast<const Global_partial_tree &>(other)._BBPA;
     if (deep)
     {
         if (other.children() != nullptr)
@@ -23,8 +23,8 @@ void Global_partial_tree::eval(Tree *node, Product_lattice *orig_lattice, bin_en
         if (node->children() == nullptr) // no child is explored, allocate children and perform computation
         {
             node->children(1 << node->variants());
-            bin_enc halving = node->lattice()->halving(1.0 / (1 << node->variants()));
-            bin_enc ex = node->true_ex(halving);
+            bin_enc BBPA = node->lattice()->BBPA(1.0 / (1 << node->variants()));
+            bin_enc ex = node->true_ex(BBPA);
 
             for (int re = 0; re < (1 << node->variants()); re++)
             {
@@ -33,25 +33,25 @@ void Global_partial_tree::eval(Tree *node, Product_lattice *orig_lattice, bin_en
                 if (re == (1 << variants()) - 1 && node->curr_stage() != 0) // reuse _post_probs in child to save memory
                 {
                     node->lattice()->posterior_probs(nullptr); // detach _post_probs from current lattice
-                    p->update_probs_in_place(halving, re, _dilution);
+                    p->update_probs_in_place(BBPA, re, _dilution);
                 }
                 else
-                    p->update_probs(halving, re, _dilution);
+                    p->update_probs(BBPA, re, _dilution);
                 if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
                     p = p->convert_parallelism();
-                node->children()[re] = new Global_partial_tree(p, halving, ex, re, node->curr_stage() + 1, child_prob);
+                node->children()[re] = new Global_partial_tree(p, BBPA, ex, re, node->curr_stage() + 1, child_prob);
                 eval(node->children()[re], orig_lattice, true_state);
             }
         }
         else // test selection has been performed, children is (partially) initialized
         {
-            // find halving and ex
-            bin_enc halving = -1, ex = -1;
+            // find BBPA and ex
+            bin_enc BBPA = -1, ex = -1;
             for (int re = 0; re < (1 << node->variants()); re++)
             {
                 if (node->children()[re] != nullptr)
                 {
-                    halving = dynamic_cast<Global_partial_tree *>(node->children()[re])->_halving;
+                    BBPA = dynamic_cast<Global_partial_tree *>(node->children()[re])->_BBPA;
                     ex = node->children()[re]->ex();
                     break;
                 }
@@ -64,11 +64,12 @@ void Global_partial_tree::eval(Tree *node, Product_lattice *orig_lattice, bin_en
                 if (re == (1 << variants()) - 1 && node->curr_stage() != 0)          // because of early-stopping, children may be computed out-of-order
                 {                                                                    // reuse _post_probs in child to save memory
                     node->lattice()->posterior_probs(nullptr);                       // detach _post_probs from current lattice
-                    p->update_probs_in_place(halving, re, _dilution);
+                    p->update_probs_in_place(BBPA, re, _dilution);
                 }
                 else
-                    p->update_probs(halving, re, _dilution);
-                p->update_metadata_with_shrinking(_thres_up, _thres_lo);
+                    p->update_probs(BBPA, re, _dilution);
+                if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
+                    p = p->convert_parallelism();
                 node->children()[re]->lattice()->posterior_probs(p->posterior_probs());
                 p->posterior_probs(nullptr);
                 delete p;
@@ -109,18 +110,19 @@ void Global_partial_tree::lazy_eval(Tree *node, Product_lattice *orig_lattice, b
                     // if (backtrack[i + 1]->ex_res() == (1 << variants()) - 1 && i != 0) // this seems evaluate quicker but uses more space
                     // {
                     //     backtrack[i]->lattice()->posterior_probs(nullptr);
-                    //     p->update_probs_in_place(backtrack[i + 1]->_halving, backtrack[i + 1]->_res, _dilution);
+                    //     p->update_probs_in_place(backtrack[i + 1]->_BBPA, backtrack[i + 1]->_res, _dilution);
                     // }
                     if (i != 0)
                     {
                         backtrack[i]->lattice()->posterior_probs(nullptr);
-                        p->update_probs_in_place(backtrack[i + 1]->halving(), backtrack[i + 1]->ex_res(), _dilution);
+                        p->update_probs_in_place(backtrack[i + 1]->BBPA(), backtrack[i + 1]->ex_res(), _dilution);
                     }
                     else
                     {
-                        p->update_probs(backtrack[i + 1]->halving(), backtrack[i + 1]->ex_res(), _dilution);
+                        p->update_probs(backtrack[i + 1]->BBPA(), backtrack[i + 1]->ex_res(), _dilution);
                     }
-                    p->update_metadata_with_shrinking(_thres_up, _thres_lo);
+                    if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
+                        p = p->convert_parallelism();
                     backtrack[i + 1]->lattice()->posterior_probs(p->posterior_probs());
                     p->posterior_probs(nullptr);
                     delete p;
@@ -128,8 +130,8 @@ void Global_partial_tree::lazy_eval(Tree *node, Product_lattice *orig_lattice, b
             }
 
             node->children(1 << node->variants());
-            bin_enc halving = node->lattice()->halving(1.0 / (1 << node->variants()));
-            bin_enc ex = node->true_ex(halving);
+            bin_enc BBPA = node->lattice()->BBPA(1.0 / (1 << node->variants()));
+            bin_enc ex = node->true_ex(BBPA);
 
             for (int re = 0; re < (1 << node->variants()); re++)
             {
@@ -138,19 +140,19 @@ void Global_partial_tree::lazy_eval(Tree *node, Product_lattice *orig_lattice, b
                 if (re == (1 << variants()) - 1 && node->curr_stage() != 0) // reuse _post_probs in child to save memory
                 {
                     node->lattice()->posterior_probs(nullptr); // detach _post_probs from current lattice
-                    p->update_probs_in_place(halving, re, _dilution);
+                    p->update_probs_in_place(BBPA, re, _dilution);
                 }
                 else
-                    p->update_probs(halving, re, _dilution);
+                    p->update_probs(BBPA, re, _dilution);
                 if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
                     p = p->convert_parallelism();
-                node->children()[re] = new Global_partial_tree(p, halving, ex, re, node->curr_stage() + 1, child_prob);
+                node->children()[re] = new Global_partial_tree(p, BBPA, ex, re, node->curr_stage() + 1, child_prob);
                 lazy_eval(node->children()[re], orig_lattice, true_state);
             }
         }
         else // test selection has been performed, children is (partially) initialized
         {
-            // find halving and ex
+            // find BBPA and ex
             bin_enc ex = -1;
             for (int re = 0; re < (1 << node->variants()); re++)
             {
