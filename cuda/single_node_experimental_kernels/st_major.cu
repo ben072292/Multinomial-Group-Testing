@@ -40,7 +40,7 @@ __global__ void set_prior_probs(float *_post_probs)
  *  A100: N = 15, k = 2, prior = 0.1, block 1024: 30.4172 seconds
 */
 template <int N, int k>
-__global__ void halving_target(const float *__restrict__ _post_probs, float *__restrict__ partition_mass)
+__global__ void BBPA_target(const float *__restrict__ _post_probs, float *__restrict__ partition_mass)
 {
     int partition_id = 0;
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -65,7 +65,7 @@ __global__ void halving_target(const float *__restrict__ _post_probs, float *__r
  *  A100: N = 15, k = 2, prior = 0.1 blick 256: 736.655 seconds
 */
 template <int N, int k>
-__global__ void halving_write_aligned(const float *__restrict__ _post_probs, float *__restrict__ partition_mass)
+__global__ void BBPA_write_aligned(const float *__restrict__ _post_probs, float *__restrict__ partition_mass)
 {
     int partition_id = 0;
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -90,7 +90,7 @@ __global__ void halving_write_aligned(const float *__restrict__ _post_probs, flo
  *  N = 15, k = 2, prior = 0.1 block 256: 335.417 seconds
 */
 template <int N, int k>
-__global__ void halving(const float *__restrict__ _post_probs, float *__restrict__ partition_mass)
+__global__ void BBPA(const float *__restrict__ _post_probs, float *__restrict__ partition_mass)
 {
     int partition_id = 0;
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -114,7 +114,7 @@ __global__ void halving(const float *__restrict__ _post_probs, float *__restrict
 
 /** N = 11, k = 2, prior = 0.3, block 256: 0.0725678 seconds*/
 template <int N, int k>
-__global__ void halving_smem_interleave(const float *__restrict__ _post_probs, float *__restrict__ partition_mass)
+__global__ void BBPA_smem_interleave(const float *__restrict__ _post_probs, float *__restrict__ partition_mass)
 {
     __shared__ float block_partition_mass[(1 << N) * (1 << k)];
     if (threadIdx.x == 0)
@@ -150,7 +150,7 @@ __global__ void halving_smem_interleave(const float *__restrict__ _post_probs, f
  *  A100: N = 15, k = 2, prior = 0.3, block 256: 69.4607 seconds
 */
 template <int N, int k, int smem>
-__global__ void halving_smem_interleave(const float *__restrict__ _post_probs, float *__restrict__ partition_mass)
+__global__ void BBPA_smem_interleave(const float *__restrict__ _post_probs, float *__restrict__ partition_mass)
 {
     __shared__ float block_partition_mass[(1 << (smem + k))];
     if (threadIdx.x == 0)
@@ -188,7 +188,7 @@ __global__ void halving_smem_interleave(const float *__restrict__ _post_probs, f
 
 /** N = 11, k = 2, prior = 0.3, block 256, BBPA kernel execution time: 0.829783 seconds*/
 template <int N, int k>
-__global__ void halving_smem(const float *__restrict__ _post_probs, float *partition_mass)
+__global__ void BBPA_smem(const float *__restrict__ _post_probs, float *partition_mass)
 {
     __shared__ float block_partition_mass[(1 << N) * (1 << k)];
     if (threadIdx.x == 0)
@@ -247,26 +247,26 @@ int main()
 
     start = std::chrono::system_clock::now();
 
-    halving_smem_interleave<NUM, K, SMEM><<<gridDims, blockDims>>>(post_probs, partition_mass);
+    BBPA_smem_interleave<NUM, K, SMEM><<<gridDims, blockDims>>>(post_probs, partition_mass);
 
     cudaDeviceSynchronize(); // Wait for the kernel to finish
 
     end = std::chrono::system_clock::now();
     elapsedSeconds = end - start;
 
-    std::cout << "halving_smem_interleave time: " << elapsedSeconds.count() << " seconds" << std::endl;
+    std::cout << "BBPA_smem_interleave time: " << elapsedSeconds.count() << " seconds" << std::endl;
 
 
     // start = std::chrono::system_clock::now();
 
-    // halving_target<NUM, K><<<gridDims, blockDims>>>(post_probs, partition_mass);
+    // BBPA_target<NUM, K><<<gridDims, blockDims>>>(post_probs, partition_mass);
 
     // cudaDeviceSynchronize(); // Wait for the kernel to finish
 
     // end = std::chrono::system_clock::now();
     // elapsedSeconds = end - start;
 
-    // std::cout << "halving_target time: " << elapsedSeconds.count() << " seconds" << std::endl;
+    // std::cout << "BBPA_target time: " << elapsedSeconds.count() << " seconds" << std::endl;
 
 
     // Copy the result back from the GPU

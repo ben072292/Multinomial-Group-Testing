@@ -1,9 +1,6 @@
 #include "core.hpp"
-#include "distributed_tree.hpp"
-#include "halving_res.hpp"
-#include "product_lattice_dilution.hpp"
-#include "product_lattice_non_dilution.hpp"
-#include "tree_symm.hpp"
+#include "product_lattice.hpp"
+#include "tree.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -60,8 +57,6 @@ int main(int argc, char *argv[])
     Tree::thres_branch(thres_branch);
     Tree::search_depth(search_depth);
     Tree::dilution(dilution);
-
-    Halving_res halving_res;
 
     Tree_stat prim(search_depth, 1);
     Tree_stat temp(search_depth, 1);

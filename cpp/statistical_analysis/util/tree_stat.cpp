@@ -1,4 +1,4 @@
-#include "tree_stat.hpp"
+#include "tree.hpp"
 
 void Tree_stat::clear()
 {

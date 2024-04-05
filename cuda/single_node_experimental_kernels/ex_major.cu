@@ -22,7 +22,7 @@ __global__ void set_prior_probs(float *_post_probs)
 
 /** A100: N = 15, k = 2, prior = 0.1: 89.0362 seconds */
 template <int _curr_subjs, int _variants>
-__global__ void halving(const float *_post_probs, float *mins)
+__global__ void BBPA(const float *_post_probs, float *mins)
 {
     int partition_id = 0;
     float partition_mass[1 << _variants];
@@ -83,7 +83,7 @@ int main()
 
     start = std::chrono::system_clock::now();
 
-    halving<curr_subjs, variants><<<gridDims1, blockDims>>>(post_probs, mins);
+    BBPA<curr_subjs, variants><<<gridDims1, blockDims>>>(post_probs, mins);
 
     cudaDeviceSynchronize(); // Wait for the kernel to finish
 

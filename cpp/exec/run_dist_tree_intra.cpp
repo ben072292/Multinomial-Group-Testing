@@ -1,8 +1,6 @@
 #include "core.hpp"
-#include "distributed_tree.hpp"
-#include "halving_res.hpp"
-#include "product_lattice_mp_dilution.hpp"
-#include "product_lattice_mp_non_dilution.hpp"
+#include "product_lattice.hpp"
+#include "tree.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -48,8 +46,6 @@ int main(int argc, char *argv[])
     Tree::thres_branch(thres_branch);
     Tree::search_depth(search_depth);
     Tree::dilution(dilution);
-
-    Halving_res halving_res;
 
     auto start_tree_construction = std::chrono::high_resolution_clock::now();
 

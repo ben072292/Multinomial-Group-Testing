@@ -1,8 +1,6 @@
 #include "core.hpp"
-#include "fusion_tree.hpp"
-#include "halving_res.hpp"
-#include "product_lattice_mp_dilution.hpp"
-#include "product_lattice_mp_non_dilution.hpp"
+#include "product_lattice.hpp"
+#include "tree.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -59,13 +57,13 @@ int main(int argc, char *argv[])
     Product_lattice *p;
     if (type == MP_NON_DILUTION)
     {
-        Product_lattice_mp::MPI_Product_lattice_Initialize(subjs, variants);
-        p = new Product_lattice_mp_non_dilution(subjs, variants, pi0);
+        Product_lattice_dist::MPI_Product_lattice_Initialize(subjs, variants);
+        p = new Product_lattice_dist_non_dilution(subjs, variants, pi0);
     }
     else if (type == MP_DILUTION)
     {
-        Product_lattice_mp::MPI_Product_lattice_Initialize(subjs, variants);
-        p = new Product_lattice_mp_dilution(subjs, variants, pi0);
+        Product_lattice_dist::MPI_Product_lattice_Initialize(subjs, variants);
+        p = new Product_lattice_dist_dilution(subjs, variants, pi0);
     }
     else if (type == DP_NON_DILUTION)
     {
@@ -85,8 +83,6 @@ int main(int argc, char *argv[])
     double **dilution = generate_dilution(subjs, 0.99, 0.005);
 
     Tree::dilution(dilution);
-
-    Halving_res halving_res;
 
     auto start_tree_construction = std::chrono::high_resolution_clock::now();
     /* Fusion tree */
@@ -160,7 +156,7 @@ int main(int argc, char *argv[])
     Product_lattice::MPI_Product_lattice_Free();
     if (type == MP_NON_DILUTION || type == MP_DILUTION)
     {
-        Product_lattice_mp::MPI_Product_lattice_Free();
+        Product_lattice_dist::MPI_Product_lattice_Free();
     }
     Fusion_tree::MPI_Fusion_tree_Free();
 

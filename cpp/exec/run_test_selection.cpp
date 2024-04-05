@@ -1,10 +1,5 @@
 #include "core.hpp"
 #include "product_lattice.hpp"
-#include "product_lattice_dilution.hpp"
-#include "product_lattice_mp.hpp"
-#include "product_lattice_mp_dilution.hpp"
-#include "product_lattice_mp_non_dilution.hpp"
-#include "product_lattice_non_dilution.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -41,9 +36,9 @@ int main(int argc, char *argv[])
     Product_lattice *p;
     auto start_lattice_construction = std::chrono::high_resolution_clock::now();
     if (parallelism_type == MP_NON_DILUTION)
-        p = new Product_lattice_mp_non_dilution(atom, variants, pi0);
+        p = new Product_lattice_dist_non_dilution(atom, variants, pi0);
     else if (parallelism_type == MP_DILUTION)
-        p = new Product_lattice_mp_dilution(atom, variants, pi0);
+        p = new Product_lattice_dist_dilution(atom, variants, pi0);
     else if (parallelism_type == DP_NON_DILUTION)
         p = new Product_lattice_non_dilution(atom, variants, pi0);
     else if (parallelism_type == DP_DILUTION)
@@ -55,9 +50,9 @@ int main(int argc, char *argv[])
     auto start_halving = std::chrono::high_resolution_clock::now();
 
     if (omp_enabled)
-        std::cout << p->halving_hybrid(1.0 / (1 << variants)) << std::endl;
+        p->BBPA_mpi_omp(1.0 / (1 << variants));
     else
-        std::cout << p->halving_mpi(1.0 / (1 << variants)) << std::endl;
+        p->BBPA_mpi(1.0 / (1 << variants));
 
     auto end_halving = std::chrono::high_resolution_clock::now();
 
@@ -73,8 +68,14 @@ int main(int argc, char *argv[])
                   << ".csv";
         freopen(file_name.str().c_str(), "w", stdout);
 
-        std::cout << "Construction Time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end_lattice_construction - start_lattice_construction).count() / 1e9 << "s\n";
-        std::cout << "Halving Time: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end_halving - start_halving).count() / 1e9 << "s\n";
+        std::cout << "N," << atom 
+                  << ",k," << variants 
+                  << ",parallelism," << ((parallelism_type == MP_NON_DILUTION || parallelism_type == MP_DILUTION) ? "distributed" : "replicated") 
+                  << ",dilution," << ((parallelism_type == MP_NON_DILUTION || parallelism_type == DP_NON_DILUTION) ? "no dilution" : "dilution")
+                  << ",OpenMP," << omp_enabled
+                  << std::endl;
+        std::cout << "Model Construction Time," << std::chrono::duration_cast<std::chrono::nanoseconds>(end_lattice_construction - start_lattice_construction).count() / 1e9 << "s\n";
+        std::cout << "BBPA Halving Time," << std::chrono::duration_cast<std::chrono::nanoseconds>(end_halving - start_halving).count() / 1e9 << "s\n";
     }
 
     // Free product lattice MPI env

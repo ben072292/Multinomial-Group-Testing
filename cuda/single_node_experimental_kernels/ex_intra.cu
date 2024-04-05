@@ -40,7 +40,7 @@ __global__ void set_prior_probs(float *_post_probs)
  *  RTX3060: N = 15, k = 2, prior = 0.1: 154.283 seconds
  */
 template <int n, int k, int b>
-__global__ void halving(const float *probs, float *mass)
+__global__ void BBPA(const float *probs, float *mass)
 {
     int laneId = threadIdx.x & 0x1f;
     float r_mass[1 << k];
@@ -102,7 +102,7 @@ int main()
 
     start = std::chrono::system_clock::now();
 
-    halving<N, K, B><<<gridDims1, blockDims>>>(d_probs, d_mass);
+    BBPA<N, K, B><<<gridDims1, blockDims>>>(d_probs, d_mass);
 
     cudaDeviceSynchronize(); // Wait for the kernel to finish
 

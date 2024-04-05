@@ -1,9 +1,6 @@
 #include "core.hpp"
-#include "global_partial_tree.hpp"
-#include "halving_res.hpp"
-#include "product_lattice_mp_dilution.hpp"
-#include "product_lattice_mp_non_dilution.hpp"
-#include "tree_trim.hpp"
+#include "product_lattice.hpp"
+#include "tree.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -62,8 +59,6 @@ int main(int argc, char *argv[])
     Tree::search_depth(search_depth);
     Tree::dilution(dilution);
 
-    Halving_res halving_res;
-
     Tree_stat prim(search_depth, 1);
     Tree_stat temp(search_depth, 1);
 
@@ -71,13 +66,13 @@ int main(int argc, char *argv[])
     Product_lattice *p;
     if (type == MP_NON_DILUTION)
     {
-        Product_lattice_mp::MPI_Product_lattice_Initialize(subjs, variants);
-        p = new Product_lattice_mp_non_dilution(subjs, variants, pi0);
+        Product_lattice_dist::MPI_Product_lattice_Initialize(subjs, variants);
+        p = new Product_lattice_dist_non_dilution(subjs, variants, pi0);
     }
     else if (type == MP_DILUTION)
     {
-        Product_lattice_mp::MPI_Product_lattice_Initialize(subjs, variants);
-        p = new Product_lattice_mp_dilution(subjs, variants, pi0);
+        Product_lattice_dist::MPI_Product_lattice_Initialize(subjs, variants);
+        p = new Product_lattice_dist_dilution(subjs, variants, pi0);
     }
     else
     {
@@ -172,7 +167,7 @@ int main(int argc, char *argv[])
     Product_lattice::MPI_Product_lattice_Free();
     if (type == MP_NON_DILUTION || type == MP_DILUTION)
     {
-        Product_lattice_mp::MPI_Product_lattice_Free();
+        Product_lattice_dist::MPI_Product_lattice_Free();
     }
     Global_partial_tree::MPI_Distributed_tree_Free();
 

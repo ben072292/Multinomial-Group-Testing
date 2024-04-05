@@ -6,14 +6,23 @@
 #include <iostream>
 #include <stdint.h>
 #include <unistd.h>
+#include <climits>
 
 #ifndef N
-#define N 12
+#define N 15
 #endif
 
 #ifndef K
 #define K 2
 #endif
+
+#if (N * K > 30)
+typedef int64_t bin_enc;
+#else
+typedef int bin_enc;
+#endif
+
+constexpr int twiddling_length = sizeof(bin_enc) * CHAR_BIT - 1; 
 
 #ifndef P
 #define P 10
@@ -87,19 +96,19 @@ static void getHostName(char *hostname, int maxlen)
     }
 }
 
-typedef int bin_enc;
-
 __device__ bin_enc offset_to_state(int offset, int rank, int nranks){
-    return (1 << (N * K)) * rank / nranks + offset;
+    return (static_cast<bin_enc>(1) << (N * K)) * rank / nranks + offset;
 }
 
 template <int n, int k, int p>
 __global__ void set_prior_probs(float *_post_probs, int rank, int nranks)
 {
-    const float pi0[30] = {0.01f, 0.02f, 0.03f, 0.04f, 0.05f, 0.06f, 0.07f, 0.08f, 0.09f, 0.1f,
+    const float pi0[50] = {0.01f, 0.02f, 0.03f, 0.04f, 0.05f, 0.06f, 0.07f, 0.08f, 0.09f, 0.1f,
                            0.11f, 0.12f, 0.13f, 0.14f, 0.15f, 0.16f, 0.17f, 0.18f, 0.19f, 0.2f,
-                           0.21f, 0.22f, 0.23f, 0.24f, 0.25f, 0.26f, 0.27f, 0.28f, 0.29f, 0.3f};
-    int s_iter = blockIdx.x * blockDim.x + threadIdx.x;
+                           0.21f, 0.22f, 0.23f, 0.24f, 0.25f, 0.26f, 0.27f, 0.28f, 0.29f, 0.3f,
+                           0.01f, 0.02f, 0.03f, 0.04f, 0.05f, 0.06f, 0.07f, 0.08f, 0.09f, 0.1f,
+                           0.11f, 0.12f, 0.13f, 0.14f, 0.15f, 0.16f, 0.17f, 0.18f, 0.19f, 0.2f};
+    bin_enc s_iter = static_cast<bin_enc>(blockIdx.x) * blockDim.x + threadIdx.x;
     float prob = 1.0f;
     for (int i = 0; i < n * k; i++)
     {
@@ -115,24 +124,24 @@ __global__ void set_prior_probs(float *_post_probs, int rank, int nranks)
  *  RTX3060: N = 15, k = 2, prior = 0.1: 154.283 seconds
  */
 template <int n, int k, int f>
-__global__ void halving(const float *probs, float *mass, int rank, int nranks)
+__global__ void BBPA(const float *probs, float *mass, int rank, int nranks)
 {
     float r_mass[1 << k];
     memset(r_mass, 0, (1 << k) * sizeof(float));
-    int ex = (blockIdx.x * blockDim.x + threadIdx.x) % (1 << n);
-    int iter = (blockIdx.x * blockDim.x + threadIdx.x) / (1 << n);
-    int iters = (1 << (n * k - f)) / nranks;
-    for (int s_iter = 0; s_iter < iters; s_iter++)
+    bin_enc ex = (static_cast<bin_enc>(blockIdx.x) * blockDim.x + threadIdx.x) % (static_cast<bin_enc>(1) << n);
+    bin_enc iter = (static_cast<bin_enc>(blockIdx.x) * blockDim.x + threadIdx.x) / (static_cast<bin_enc>(1) << n);
+    bin_enc iters = (static_cast<bin_enc>(1) << (n * k - f)) / nranks;
+    for (bin_enc s_iter = 0; s_iter < iters; s_iter++)
     {
-        int state = iter * iters + s_iter;
+        bin_enc state = iter * iters + s_iter;
         int partition_id = 0;
 #pragma unroll k
         for (int variant = 0; variant < k; variant++)
         {
-            partition_id |= ((1 << variant) & (((ex & (offset_to_state(state, rank, nranks) >> (variant * n))) - ex) >> 31));
+            partition_id |= ((1 << variant) & (((ex & (offset_to_state(state, rank, nranks) >> (variant * n))) - ex) >> twiddling_length));
         }
-        // partition_id |= (1 & (((ex & state) - ex) >> 31));
-        // partition_id |= (2 & (((ex & (state >> n)) - ex) >> 31));
+        // partition_id |= (1 & (((ex & state) - ex) >> twiddling_length));
+        // partition_id |= (2 & (((ex & (state >> n)) - ex) >> twiddling_length));
         r_mass[partition_id] += probs[state];
     }
 
@@ -174,7 +183,7 @@ int main(int argc, char *argv[])
     cudaStream_t s;
     float *d_probs, *d_mass;
     bin_enc *d_candidate;
-    int numElements = (1 << (N * K)) / nRanks;
+    bin_enc numElements = (static_cast<bin_enc>(1) << (N * K)) / nRanks;
     cudaMalloc((void **)&d_candidate, sizeof(bin_enc));
     dim3 blockDims(B);                                          // Adjust block dimensions as needed
     dim3 gridDims((numElements + blockDims.x - 1) / blockDims.x); // Calculate grid dimensions
@@ -186,8 +195,8 @@ int main(int argc, char *argv[])
 
     // picking a GPU based on localRank, allocate device buffers
     CUDACHECK(cudaSetDevice(localRank));
-    CUDACHECK(cudaMalloc((void **)&d_probs, (1 << (N * K)) * sizeof(float) / nRanks));
-    CUDACHECK(cudaMalloc((void **)&d_mass, (1 << (N + K)) * sizeof(float)));
+    CUDACHECK(cudaMalloc((void **)&d_probs, (static_cast<bin_enc>(1) << (N * K)) * sizeof(float) / nRanks));
+    CUDACHECK(cudaMalloc((void **)&d_mass, (static_cast<bin_enc>(1) << (N + K)) * sizeof(float)));
     // CUDACHECK(cudaMemset(mins, 0, (1 << curr_subjs) * sizeof(float)));
     CUDACHECK(cudaStreamCreate(&s));
 
@@ -212,10 +221,10 @@ int main(int argc, char *argv[])
     if (!myRank)
         std::cout << "Prior kernel execution time: " << elapsedSeconds.count() << " seconds" << std::endl;
 
-    numElements = (1 << (N + F));
+    numElements = (static_cast<bin_enc>(1) << (N + F));
     dim3 gridDims1((numElements + blockDims.x - 1) / blockDims.x); // Calculate grid dimensions
 
-    halving<N, K, F><<<gridDims1, blockDims, 0, s>>>(d_probs, d_mass, myRank, nRanks);
+    BBPA<N, K, F><<<gridDims1, blockDims, 0, s>>>(d_probs, d_mass, myRank, nRanks);
 
     CUDACHECK(cudaStreamSynchronize(s));
 

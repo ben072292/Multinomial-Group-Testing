@@ -1,4 +1,4 @@
-#include "lattice_shrinking.hpp"
+#include "product_lattice.hpp"
 
 bin_enc orig_curr_ind_conv(bin_enc orig_index_pos, bin_enc clas_subjs, int orig_subjs, int variants)
 {
