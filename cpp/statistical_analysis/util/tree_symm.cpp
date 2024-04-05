@@ -1,4 +1,4 @@
-#include "tree_symm.hpp"
+#include "tree.hpp"
 #include <algorithm>
 #include <unordered_map>
 // generate n prime numbers

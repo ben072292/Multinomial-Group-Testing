@@ -1,4 +1,4 @@
-#include "distributed_tree.hpp"
+#include "tree.hpp"
 
 int Distributed_tree::rank = -1;
 int Distributed_tree::world_size = 0;
@@ -6,33 +6,34 @@ Distributed_tree **Distributed_tree::backtrack;
 MPI_Datatype Distributed_tree::tree_stat_type;
 MPI_Op Distributed_tree::tree_stat_op;
 
-Distributed_tree::Distributed_tree(Product_lattice *lattice, bin_enc halving, bin_enc ex, bin_enc res, int curr_stage, double prob) : Tree(lattice, ex, res, curr_stage, prob)
+Distributed_tree::Distributed_tree(Product_lattice *lattice, bin_enc BBPA, bin_enc ex, bin_enc res, int curr_stage, double prob) : Tree(lattice, ex, res, curr_stage, prob)
 {
-    _halving = halving;
+    _BBPA = BBPA;
 }
 
-Distributed_tree::Distributed_tree(Product_lattice *lattice, bin_enc halving, bin_enc ex, bin_enc res, int k, int curr_stage, int expansion_depth) : Distributed_tree(lattice, halving, ex, res, curr_stage, 0.0)
+Distributed_tree::Distributed_tree(Product_lattice *lattice, bin_enc BBPA, bin_enc ex, bin_enc res, int k, int curr_stage, int expansion_depth) : Distributed_tree(lattice, BBPA, ex, res, curr_stage, 0.0)
 {
     if (!_lattice->is_classified() && curr_stage < expansion_depth)
     {
         _children = new Tree *[1 << variants()]
         { nullptr };
-        bin_enc halving = _lattice->halving(1.0 / (1 << variants())); // openmp
-        bin_enc ex = true_ex(halving);                                // full-sized experiment should be generated before posterior probability distribution is updated, because unupdated clas_subj_ should be used to calculate the correct value
+        bin_enc BBPA = _lattice->BBPA(1.0 / (1 << variants())); // openmp
+        bin_enc ex = true_ex(BBPA);                             // full-sized experiment should be generated before posterior probability distribution is updated, because unupdated clas_subj_ should be used to calculate the correct value
         for (bin_enc re = 0; re < (1 << variants()); re++)
         {
             Product_lattice *p = _lattice->clone(SHALLOW_COPY_PROB_DIST);
             if (re != (1 << variants()) - 1 || curr_stage == 0)
             {
-                p->update_probs(halving, re, _dilution);
+                p->update_probs(BBPA, re, _dilution);
             }
             else
             {                                       // reuse post_prob_ array in child to save memory
                 _lattice->posterior_probs(nullptr); // detach post_prob_ from current lattice
-                p->update_probs_in_place(halving, re, _dilution);
+                p->update_probs_in_place(BBPA, re, _dilution);
             }
-            p->update_metadata_with_shrinking(_thres_up, _thres_lo);
-            _children[re] = new Distributed_tree(p, halving, ex, re, k, _curr_stage + 1, expansion_depth);
+            if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
+                p = p->convert_parallelism();
+            _children[re] = new Distributed_tree(p, BBPA, ex, re, k, _curr_stage + 1, expansion_depth);
         }
     }
     else
@@ -43,7 +44,7 @@ Distributed_tree::Distributed_tree(Product_lattice *lattice, bin_enc halving, bi
 
 Distributed_tree::Distributed_tree(const Tree &other, bool deep) : Tree(other, false)
 {
-    _halving = dynamic_cast<const Distributed_tree &>(other)._halving;
+    _BBPA = dynamic_cast<const Distributed_tree &>(other)._BBPA;
     if (deep)
     {
         if (other.children() != nullptr)
@@ -64,8 +65,8 @@ void Distributed_tree::eval(Tree *node, Product_lattice *orig_lattice, bin_enc t
         if (node->children() == nullptr) // no child is explored, allocate children and perform computation
         {
             node->children(1 << node->variants());
-            bin_enc halving = node->lattice()->halving_serial(1.0 / (1 << node->variants()));
-            bin_enc ex = node->true_ex(halving);
+            bin_enc BBPA = node->lattice()->BBPA_serial(1.0 / (1 << node->variants()));
+            bin_enc ex = node->true_ex(BBPA);
 
             for (int re = 0; re < (1 << node->variants()); re++)
             {
@@ -90,29 +91,30 @@ void Distributed_tree::eval(Tree *node, Product_lattice *orig_lattice, bin_enc t
                 if (re == (1 << variants()) - 1 && node->curr_stage() != 0) // reuse _post_probs in child to save memory
                 {
                     node->lattice()->posterior_probs(nullptr); // detach _post_probs from current lattice
-                    p->update_probs_in_place(halving, re, _dilution);
+                    p->update_probs_in_place(BBPA, re, _dilution);
                 }
                 else
-                    p->update_probs(halving, re, _dilution);
-                p->update_metadata_with_shrinking(_thres_up, _thres_lo);
-                node->children()[re] = new Distributed_tree(p, halving, ex, re, node->curr_stage() + 1, child_prob);
+                    p->update_probs(BBPA, re, _dilution);
+                if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
+                    p = p->convert_parallelism();
+                node->children()[re] = new Distributed_tree(p, BBPA, ex, re, node->curr_stage() + 1, child_prob);
                 eval(node->children()[re], orig_lattice, true_state);
             }
         }
         else // test selection has been performed, children is (partially) initialized
         {
-            // find halving and ex
-            bin_enc halving = -1, ex = -1;
+            // find BBPA and ex
+            bin_enc BBPA = -1, ex = -1;
             for (int re = 0; re < (1 << node->variants()); re++)
             {
                 if (node->children()[re] != nullptr)
                 {
-                    halving = dynamic_cast<Distributed_tree *>(node->children()[re])->_halving;
+                    BBPA = dynamic_cast<Distributed_tree *>(node->children()[re])->_BBPA;
                     ex = node->children()[re]->ex();
                     break;
                 }
             }
-            if (halving == -1)
+            if (BBPA == -1)
             {
                 log_error("Logic error");
                 exit(1);
@@ -143,11 +145,12 @@ void Distributed_tree::eval(Tree *node, Product_lattice *orig_lattice, bin_enc t
                     if (re == (1 << variants()) - 1 && node->curr_stage() != 0)          // because of early-stopping, children may be computed out-of-order
                     {                                                                    // reuse _post_probs in child to save memory
                         node->lattice()->posterior_probs(nullptr);                       // detach _post_probs from current lattice
-                        p->update_probs_in_place(halving, re, _dilution);
+                        p->update_probs_in_place(BBPA, re, _dilution);
                     }
                     else
-                        p->update_probs(halving, re, _dilution);
-                    p->update_metadata_with_shrinking(_thres_up, _thres_lo);
+                        p->update_probs(BBPA, re, _dilution);
+                    if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
+                        p = p->convert_parallelism();
                     node->children()[re]->lattice()->posterior_probs(p->posterior_probs());
                     p->posterior_probs(nullptr);
                     delete p;
@@ -189,18 +192,19 @@ void Distributed_tree::lazy_eval(Tree *node, Product_lattice *orig_lattice, bin_
                     // if (backtrack[i + 1]->ex_res() == (1 << variants()) - 1 && i != 0) // this seems evaluate quicker but uses more space
                     // {
                     //     backtrack[i]->lattice()->posterior_probs(nullptr);
-                    //     p->update_probs_in_place(backtrack[i + 1]->_halving, backtrack[i + 1]->_res, _dilution);
+                    //     p->update_probs_in_place(backtrack[i + 1]->_BBPA, backtrack[i + 1]->_res, _dilution);
                     // }
                     if (i != 0)
                     {
                         backtrack[i]->lattice()->posterior_probs(nullptr);
-                        p->update_probs_in_place(backtrack[i + 1]->_halving, backtrack[i + 1]->_res, _dilution);
+                        p->update_probs_in_place(backtrack[i + 1]->_BBPA, backtrack[i + 1]->_res, _dilution);
                     }
                     else
                     {
-                        p->update_probs(backtrack[i + 1]->_halving, backtrack[i + 1]->_res, _dilution);
+                        p->update_probs(backtrack[i + 1]->_BBPA, backtrack[i + 1]->_res, _dilution);
                     }
-                    p->update_metadata_with_shrinking(_thres_up, _thres_lo);
+                    if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
+                        p = p->convert_parallelism();
                     backtrack[i + 1]->lattice()->posterior_probs(p->posterior_probs());
                     p->posterior_probs(nullptr);
                     delete p;
@@ -208,8 +212,8 @@ void Distributed_tree::lazy_eval(Tree *node, Product_lattice *orig_lattice, bin_
             }
 
             node->children(1 << node->variants());
-            bin_enc halving = node->lattice()->halving_serial(1.0 / (1 << node->variants()));
-            bin_enc ex = node->true_ex(halving);
+            bin_enc BBPA = node->lattice()->BBPA_serial(1.0 / (1 << node->variants()));
+            bin_enc ex = node->true_ex(BBPA);
 
             for (int re = 0; re < (1 << node->variants()); re++)
             {
@@ -218,19 +222,19 @@ void Distributed_tree::lazy_eval(Tree *node, Product_lattice *orig_lattice, bin_
                 if (re == (1 << variants()) - 1 && node->curr_stage() != 0) // reuse _post_probs in child to save memory
                 {
                     node->lattice()->posterior_probs(nullptr); // detach _post_probs from current lattice
-                    p->update_probs_in_place(halving, re, _dilution);
+                    p->update_probs_in_place(BBPA, re, _dilution);
                 }
                 else
-                    p->update_probs(halving, re, _dilution);
+                    p->update_probs(BBPA, re, _dilution);
                 if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
                     p = p->convert_parallelism();
-                node->children()[re] = new Distributed_tree(p, halving, ex, re, node->curr_stage() + 1, child_prob);
+                node->children()[re] = new Distributed_tree(p, BBPA, ex, re, node->curr_stage() + 1, child_prob);
                 lazy_eval(node->children()[re], orig_lattice, true_state);
             }
         }
         else // test selection has been performed, children is (partially) initialized
         {
-            // find halving and ex
+            // find BBPA and ex
             bin_enc ex = -1;
             for (int re = 0; re < (1 << node->variants()); re++)
             {

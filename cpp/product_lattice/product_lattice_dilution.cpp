@@ -1,4 +1,4 @@
-#include "product_lattice_dilution.hpp"
+#include "product_lattice.hpp"
 
 double Product_lattice_dilution::response_prob(bin_enc experiment, bin_enc response, bin_enc true_state, double **__restrict__ dilution) const
 {

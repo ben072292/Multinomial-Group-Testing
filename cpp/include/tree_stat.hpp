@@ -1,7 +1,7 @@
 #pragma once
+#include "common.hpp"
 
-#include "core.hpp"
-typedef struct Tree_stat
+struct Tree_stat
 {
 private:
     int _depth, _k, _total_leaves;
@@ -46,4 +46,4 @@ public:
     static void tree_stat_reduce(Tree_stat* in, Tree_stat* inout, int* len, MPI_Datatype *dptr);
     static void create_tree_stat_type(MPI_Datatype *tree_stat_type, int stages, int k);
 
-} Tree_stat;
+};

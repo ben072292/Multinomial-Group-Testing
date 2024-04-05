@@ -1,0 +1,10 @@
+prefix=${bmgt:Prefix}
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: bmgt
+Description: Optimized primitives for collective multi-GPU communication
+Version: ${bmgt:Major}.${bmgt:Minor}.${bmgt:Patch}
+Libs: -L${libdir} -lbmgt
+Cflags: -I${includedir}

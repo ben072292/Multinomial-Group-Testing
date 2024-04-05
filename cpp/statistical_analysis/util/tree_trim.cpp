@@ -1,4 +1,5 @@
-#include "tree_trim.hpp"
+#include "tree.hpp"
+#include <algorithm>
 
 static bool compare_indices(const std::pair<double, int> &a, const std::pair<double, int> &b)
 {
