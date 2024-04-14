@@ -276,6 +276,28 @@ typedef struct BBPA_res
 	}
 } BBPA_res;
 
+#define BBPA_UNROLL_1_INTRINSICS(partition_id, ex, state, curr_subjs) \
+	partition_id = SIMD_OR(partition_id, SIMD_AND(SIMD_SET1(1), SIMD_SRLI(SIMD_SUB(SIMD_AND(ex, SIMD_SET1(offset_to_state(state))), ex), 31))); \
+
+#define BBPA_UNROLL_2_INTRINSICS(partition_id, ex, state, curr_subjs) \
+	BBPA_UNROLL_1_INTRINSICS(partition_id, ex, state, curr_subjs)     \
+	partition_id = SIMD_OR(partition_id, SIMD_AND(SIMD_SET1(2), SIMD_SRLI(SIMD_SUB(SIMD_AND(ex, SIMD_SET1(offset_to_state(state) >> curr_subjs)), ex), 31))); 
+
+#define BBPA_UNROLL_3_INTRINSICS(partition_id, ex, state, curr_subjs) \
+	BBPA_UNROLL_2_INTRINSICS(partition_id, ex, state, curr_subjs)     \
+	partition_id = SIMD_OR(partition_id, SIMD_AND(SIMD_SET1(4), SIMD_SRLI(SIMD_SUB(SIMD_AND(ex, SIMD_SET1(offset_to_state(state) >> (2 * curr_subjs))), ex), 31)));
+
+#define BBPA_UNROLL_4_INTRINSICS(partition_id, ex, state, curr_subjs) \
+	BBPA_UNROLL_3_INTRINSICS(partition_id, ex, state, curr_subjs)     \
+	partition_id = SIMD_OR(partition_id, SIMD_AND(SIMD_SET1(8), SIMD_SRLI(SIMD_SUB(SIMD_AND(ex, SIMD_SET1(offset_to_state(state) >> (3 * curr_subjs))), ex), 31)));
+
+#define BBPA_UNROLL_5_INTRINSICS(partition_id, ex, state, curr_subjs) \
+	BBPA_UNROLL_4_INTRINSICS(partition_id, ex, state, curr_subjs)     \
+	partition_id = SIMD_OR(partition_id, SIMD_AND(SIMD_SET1(16), SIMD_SRLI(SIMD_SUB(SIMD_AND(ex, SIMD_SET1(offset_to_state(state) >> (4 * curr_subjs))), ex), 31)));
+
+#define BBPA_UNROLL_INTRINSICS(times, partition_id, ex, state, curr_subjs) \
+	BBPA_UNROLL_##times##_INTRINSICS(partition_id, ex, state, curr_subjs)
+
 #define BBPA_UNROLL_1(partition_id, ex, state, curr_subjs) \
 	partition_id |= (1 & (((ex & (offset_to_state(state))) - ex) >> 31));
 

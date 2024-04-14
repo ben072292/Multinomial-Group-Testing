@@ -447,20 +447,20 @@ bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
 		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 		{
-			for (int variant = 0; variant < _variants; variant++)
-			{
-				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
-				// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
-				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
-				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
-				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
-				partition_id |= ((1 << variant) & (((experiment & (offset_to_state(s_iter) >> (variant * _curr_subjs))) - experiment) >> 31));
-			}
-			// #ifdef NUM_VARIANTS
-			// 			BBPA_UNROLL(NUM_VARIANTS, partition_id, experiment, s_iter, _curr_subjs)
-			// #else
-			// 			BBPA_UNROLL(2, partition_id, experiment, s_iter, _curr_subjs)
-			// #endif
+// for (int variant = 0; variant < _variants; variant++)
+// {
+// 	// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
+// 	// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
+// 	// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
+// 	// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
+// 	// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
+// 	partition_id |= ((1 << variant) & (((experiment & (offset_to_state(s_iter) >> (variant * _curr_subjs))) - experiment) >> 31));
+// }
+#ifdef NUM_VARIANTS
+			BBPA_UNROLL(NUM_VARIANTS, partition_id, experiment, s_iter, _curr_subjs)
+#else
+			BBPA_UNROLL(2, partition_id, experiment, s_iter, _curr_subjs)
+#endif
 			partition_mass[experiment * (1 << _variants) + partition_id] += _post_probs[s_iter];
 			partition_id = 0;
 		}
@@ -552,17 +552,21 @@ bin_enc Product_lattice_dist::BBPA_mpi_simd(double prob) const
 {
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
 	double partition_mass[partition_size]{0.0};
-	VecIntType ex = SIMD_SET_INC;
-	VecIntType partition_id = SIMD_SET1(0);
+	VecIntType ex = SIMD_SET_INC();
+	VecIntType partition_id = SIMD_SET0();
 
 	// tricky: for each state, check each variant of actively
 	// pooled subjects to see whether they are all 1.
-	for (int s_iter = 0; s_iter < total_states_per_rank(); s_iter++)
+	for (bin_enc s_iter = 0; s_iter < total_states_per_rank(); s_iter++)
 	{
 		// __builtin_prefetch((_post_probs + s_iter + 4), 0, 0);
 		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment += SIMD_WIDTH)
 		{
+#ifdef USE_INTEL_INTRINSICS
+			ex = SIMD_ADD(ex, SIMD_SET1(experiment));
+#else
 			ex += experiment;
+#endif
 
 			// /** No Unrolling*/
 			// for (int variant = 0; variant < _variants; variant++)
@@ -578,13 +582,63 @@ bin_enc Product_lattice_dist::BBPA_mpi_simd(double prob) const
 			/** Example of BBPA_UNROLL(2) */
 			// partition_id |= (1 & (((ex & (offset_to_state(s_iter) >> 0)) - ex) >> 31));
 			// partition_id |= (2 & (((ex & (offset_to_state(s_iter) >> _curr_subjs)) - ex) >> 31));
-
-			// BBPA_UNROLL(2, partition_id, ex, s_iter, _curr_subjs)
+#ifdef USE_INTEL_INTRINSICS
 #ifdef NUM_VARIANTS
-			BBPA_UNROLL(NUM_VARIANTS, partition_id, ex, s_iter, _curr_subjs)
+			BBPA_UNROLL_INTRINSICS(NUM_VARIANTS, partition_id, ex, s_iter, _curr_subjs);
 #else
-			BBPA_UNROLL(2, partition_id, ex, s_iter, _curr_subjs)
+			BBPA_UNROLL_INTRINSICS(2, partition_id, ex, s_iter, _curr_subjs);
 #endif
+#else
+#ifdef NUM_VARIANTS
+			BBPA_UNROLL(NUM_VARIANTS, partition_id, ex, s_iter, _curr_subjs);
+#else
+			BBPA_UNROLL(2, partition_id, ex, s_iter, _curr_subjs);
+#endif
+#endif
+
+#ifdef USE_INTEL_INTRINSICS
+#ifdef NUM_VARIANTS
+			partition_id = SIMD_ADD(partition_id, SIMD_MUL(ex, SIMD_SET1((1 << NUM_VARIANTS))));
+#else
+			partition_id = SIMD_ADD(partition_id, SIMD_MUL(ex, SIMD_SET1(4)));
+#endif
+#if defined(__AVX512F__)
+			/**
+			 * gather scatter seems much slower due to high latency and low throughput
+			 */
+			// __m512d lower_val = _mm512_i32gather_pd(SIMD_LOWER_HALF(partition_id), partition_mass, 8);
+			// lower_val = SIMD_ADD_DOUBLE(lower_val, SIMD_SET1_DOUBLE(_post_probs[s_iter]));
+			// _mm512_i32scatter_pd(partition_mass, SIMD_LOWER_HALF(partition_id), lower_val, 8);
+			// __m512d upper_val = _mm512_i32gather_pd(SIMD_UPPER_HALF(partition_id), partition_mass, 8);
+			// upper_val = SIMD_ADD_DOUBLE(upper_val, SIMD_SET1_DOUBLE(_post_probs[s_iter]));
+			// _mm512_i32scatter_pd(partition_mass, SIMD_UPPER_HALF(partition_id), upper_val, 8);
+			__m256i tmp = _mm512_extracti32x8_epi32(partition_id, 0);
+			for (int i = 0; i < static_cast<int>(SIMD_WIDTH) / 2; i++)
+			{
+				partition_mass[_mm256_extract_epi32(tmp, i)] += _post_probs[s_iter];
+			}
+			tmp = _mm512_extracti32x8_epi32(partition_id, 1);
+			for (int i = 0; i < static_cast<int>(SIMD_WIDTH) / 2; i++)
+			{
+				partition_mass[_mm256_extract_epi32(tmp, i)] += _post_probs[s_iter];
+			}
+#elif defined(__AVX2__)
+			// __m256d lower_val = _mm256_i32gather_pd(SIMD_LOWER_HALF(partition_id), partition_mass, 8);
+			// lower_val = SIMD_ADD_DOUBLE(lower_val, SIMD_SET1_DOUBLE(_post_probs[s_iter]));
+			// _mm256_i32scatter_pd(partition_mass, SIMD_LOWER_HALF(partition_id), lower_val, 8);
+			// __m256d upper_val = _mm256_i32gather_pd(SIMD_UPPER_HALF(partition_id), partition_mass, 8);
+			// upper_val = SIMD_ADD_DOUBLE(upper_val, SIMD_SET1_DOUBLE(_post_probs[s_iter]));
+			// _mm256_i32scatter_pd(partition_mass, SIMD_UPPER_HALF(partition_id), upper_val, 8);
+			for (int i = 0; i < static_cast<int>(SIMD_WIDTH); i++)
+			{
+				partition_mass[_mm256_extract_epi32(partition_id, i)] += _post_probs[s_iter];
+			}
+#else
+#error "Fatal Error!"
+#endif
+			ex = SIMD_SET_INC();
+			partition_id = SIMD_SET0();
+#else
 			partition_id += ex * (1 << _variants);
 			for (int i = 0; i < static_cast<int>(SIMD_WIDTH); i++)
 			{
@@ -592,6 +646,7 @@ bin_enc Product_lattice_dist::BBPA_mpi_simd(double prob) const
 			}
 			ex -= experiment;
 			partition_id *= 0;
+#endif
 		}
 	}
 	MPI_Allreduce(MPI_IN_PLACE, partition_mass, partition_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -600,10 +655,14 @@ bin_enc Product_lattice_dist::BBPA_mpi_simd(double prob) const
 	bin_enc candidate = -1;
 	for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 	{
-		temp += std::abs(partition_mass[experiment * (1 << _variants)] - prob);
-		temp += std::abs(partition_mass[experiment * (1 << _variants) + 1] - prob);
-		temp += std::abs(partition_mass[experiment * (1 << _variants) + 2] - prob);
-		temp += std::abs(partition_mass[experiment * (1 << _variants) + 3] - prob);
+		for (bin_enc i = 0; i < (1 << _variants); i++)
+		{
+			temp += std::abs(partition_mass[experiment * (1 << _variants) + i] - prob);
+		}
+		// temp += std::abs(partition_mass[experiment * (1 << _variants)] - prob);
+		// temp += std::abs(partition_mass[experiment * (1 << _variants) + 1] - prob);
+		// temp += std::abs(partition_mass[experiment * (1 << _variants) + 2] - prob);
+		// temp += std::abs(partition_mass[experiment * (1 << _variants) + 3] - prob);
 
 		if (temp < min)
 		{
@@ -623,39 +682,86 @@ bin_enc Product_lattice_dist::BBPA_mpi_omp_simd(double prob) const
 {
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
 	double partition_mass[partition_size]{0.0};
-	VecIntType ex = SIMD_SET_INC;
-	VecIntType partition_id = SIMD_SET1(0);
+	VecIntType ex = SIMD_SET_INC();
+	VecIntType partition_id = SIMD_SET0();
 
 	// tricky: for each state, check each variant of actively
 	// pooled subjects to see whether they are all 1.
-	for (int s_iter = 0; s_iter < total_states_per_rank(); s_iter++)
+	for (bin_enc s_iter = 0; s_iter < total_states_per_rank(); s_iter++)
 	{
 		// __builtin_prefetch((_post_probs + s_iter + 4), 0, 0);
 		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment += SIMD_WIDTH)
 		{
+#ifdef USE_INTEL_INTRINSICS
+			ex = SIMD_ADD(ex, SIMD_SET1(experiment));
+#else
 			ex += experiment;
+#endif
 
-			/** No Unrolling*/
-			for (int variant = 0; variant < _variants; variant++)
-			{
-				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
-				// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
-				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
-				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
-				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
-				partition_id |= ((1 << variant) & (((ex & (offset_to_state(s_iter) >> (variant * _curr_subjs))) - ex) >> 31));
-			}
+			// /** No Unrolling*/
+			// for (int variant = 0; variant < _variants; variant++)
+			// {
+			// 	// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
+			// 	// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
+			// 	// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
+			// 	// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
+			// 	// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
+			// 	partition_id |= ((1 << variant) & (((ex & (offset_to_state(s_iter) >> (variant * _curr_subjs))) - ex) >> 31));
+			// }
 
 			/** Example of BBPA_UNROLL(2) */
 			// partition_id |= (1 & (((ex & (offset_to_state(s_iter) >> 0)) - ex) >> 31));
 			// partition_id |= (2 & (((ex & (offset_to_state(s_iter) >> _curr_subjs)) - ex) >> 31));
-
-			// BBPA_UNROLL(2, partition_id, ex, s_iter, _curr_subjs)
+#ifdef USE_INTEL_INTRINSICS
 #ifdef NUM_VARIANTS
-			BBPA_UNROLL(NUM_VARIANTS, partition_id, ex, s_iter, _curr_subjs)
+			BBPA_UNROLL_INTRINSICS(NUM_VARIANTS, partition_id, ex, s_iter, _curr_subjs);
 #else
-			BBPA_UNROLL(2, partition_id, ex, s_iter, _curr_subjs)
+			BBPA_UNROLL_INTRINSICS(2, partition_id, ex, s_iter, _curr_subjs);
 #endif
+#else
+#ifdef NUM_VARIANTS
+			BBPA_UNROLL(NUM_VARIANTS, partition_id, ex, s_iter, _curr_subjs);
+#else
+			BBPA_UNROLL(2, partition_id, ex, s_iter, _curr_subjs);
+#endif
+#endif
+
+#ifdef USE_INTEL_INTRINSICS
+			partition_id = SIMD_ADD(partition_id, SIMD_MUL(ex, SIMD_SET1((1 << _variants))));
+#if defined(__AVX512F__)
+			// __m512d lower_val = _mm512_i32gather_pd(SIMD_LOWER_HALF(partition_id), partition_mass, 8);
+			// lower_val = SIMD_ADD_DOUBLE(lower_val, SIMD_SET1_DOUBLE(_post_probs[s_iter]));
+			// _mm512_i32scatter_pd(partition_mass, SIMD_LOWER_HALF(partition_id), lower_val, 8);
+			// __m512d upper_val = _mm512_i32gather_pd(SIMD_UPPER_HALF(partition_id), partition_mass, 8);
+			// upper_val = SIMD_ADD_DOUBLE(upper_val, SIMD_SET1_DOUBLE(_post_probs[s_iter]));
+			// _mm512_i32scatter_pd(partition_mass, SIMD_UPPER_HALF(partition_id), upper_val, 8);
+			__m256i tmp = _mm512_extracti32x8_epi32(partition_id, 0);
+			for (int i = 0; i < static_cast<int>(SIMD_WIDTH) / 2; i++)
+			{
+				partition_mass[_mm256_extract_epi32(tmp, i)] += _post_probs[s_iter];
+			}
+			tmp = _mm512_extracti32x8_epi32(partition_id, 1);
+			for (int i = 0; i < static_cast<int>(SIMD_WIDTH) / 2; i++)
+			{
+				partition_mass[_mm256_extract_epi32(tmp, i)] += _post_probs[s_iter];
+			}
+#elif defined(__AVX2__) // use simd gather
+			// __m256d lower_val = _mm256_i32gather_pd(SIMD_LOWER_HALF(partition_id), partition_mass, 8);
+			// lower_val = SIMD_ADD_DOUBLE(lower_val, SIMD_SET1_DOUBLE(_post_probs[s_iter]));
+			// _mm256_i32scatter_pd(partition_mass, SIMD_LOWER_HALF(partition_id), lower_val, 8);
+			// __m256d upper_val = _mm256_i32gather_pd(SIMD_UPPER_HALF(partition_id), partition_mass, 8);
+			// upper_val = SIMD_ADD_DOUBLE(upper_val, SIMD_SET1_DOUBLE(_post_probs[s_iter]));
+			// _mm256_i32scatter_pd(partition_mass, SIMD_UPPER_HALF(partition_id), upper_val, 8);
+			for (int i = 0; i < static_cast<int>(SIMD_WIDTH); i++)
+			{
+				partition_mass[_mm256_extract_epi32(partition_id, i)] += _post_probs[s_iter];
+			}
+#else
+#error "Fatal Error!"
+#endif
+			ex = SIMD_SET_INC();
+			partition_id = SIMD_SET0();
+#else
 			partition_id += ex * (1 << _variants);
 			for (int i = 0; i < static_cast<int>(SIMD_WIDTH); i++)
 			{
@@ -663,6 +769,7 @@ bin_enc Product_lattice_dist::BBPA_mpi_omp_simd(double prob) const
 			}
 			ex -= experiment;
 			partition_id *= 0;
+#endif
 		}
 	}
 	MPI_Allreduce(MPI_IN_PLACE, partition_mass, partition_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -671,10 +778,14 @@ bin_enc Product_lattice_dist::BBPA_mpi_omp_simd(double prob) const
 	bin_enc candidate = -1;
 	for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 	{
-		temp += std::abs(partition_mass[experiment * (1 << _variants)] - prob);
-		temp += std::abs(partition_mass[experiment * (1 << _variants) + 1] - prob);
-		temp += std::abs(partition_mass[experiment * (1 << _variants) + 2] - prob);
-		temp += std::abs(partition_mass[experiment * (1 << _variants) + 3] - prob);
+		for (bin_enc i = 0; i < (1 << _variants); i++)
+		{
+			temp += std::abs(partition_mass[experiment * (1 << _variants) + i] - prob);
+		}
+		// temp += std::abs(partition_mass[experiment * (1 << _variants)] - prob);
+		// temp += std::abs(partition_mass[experiment * (1 << _variants) + 1] - prob);
+		// temp += std::abs(partition_mass[experiment * (1 << _variants) + 2] - prob);
+		// temp += std::abs(partition_mass[experiment * (1 << _variants) + 3] - prob);
 
 		if (temp < min)
 		{
@@ -683,7 +794,6 @@ bin_enc Product_lattice_dist::BBPA_mpi_omp_simd(double prob) const
 		}
 		temp = 0.0;
 	}
-
 	return candidate;
 }
 #endif

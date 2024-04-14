@@ -84,7 +84,7 @@ include(GNUInstallDirs)
 add_bmgt_library(bmgt_v1 BBPA_V1)
 add_bmgt_library(bmgt_v2 BBPA_V2)
 add_bmgt_library(bmgt_v3 BBPA_V3)
-add_bmgt_library(bmgt ENABLE_SIMD)
+add_bmgt_library(bmgt ENABLE_SIMD USE_INTEL_INTRINSICS)
 
 add_executable(gt_intra
     ${EXAMPLE_SOURCE_DIR}/run_glob_tree_intra.cpp
@@ -256,7 +256,7 @@ target_link_libraries(ts_v3 bmgt_v3_shared)
 target_include_directories(ts_v3 PRIVATE ${CMAKE_BINARY_DIR}/include)
 
 include(InstallRequiredSystemLibraries)
-set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/License.txt")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/license.txt")
 set(CPACK_PACKAGE_VERSION_MAJOR "${BMGT_VERSION_MAJOR}")
 set(CPACK_PACKAGE_VERSION_MINOR "${BMGT_VERSION_MINOR}")
 set(CPACK_SOURCE_GENERATOR "TGZ")
