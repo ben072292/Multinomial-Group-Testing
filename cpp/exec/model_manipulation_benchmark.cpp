@@ -1,6 +1,6 @@
 #include "product_lattice.hpp"
 
-EXPORT void run_test_selection(int argc, char *argv[])
+EXPORT void run_model_manipulation_benchmark(int argc, char *argv[])
 {
     // Initialize the MPI environment
     MPI_Init(&argc, &argv);
@@ -50,38 +50,44 @@ EXPORT void run_test_selection(int argc, char *argv[])
         exit(1);
 
     auto end_lattice_construction = std::chrono::high_resolution_clock::now();
-    auto start_halving = std::chrono::high_resolution_clock::now();
 
-    bin_enc res = -1;
-    res = p->BBPA(1.0 / (1 << variants));
+    auto start_updating = std::chrono::high_resolution_clock::now();
 
-    auto end_halving = std::chrono::high_resolution_clock::now();
+    p->update_probs(1, 3, nullptr);
+
+    auto end_updating = std::chrono::high_resolution_clock::now();
+
+    auto start_classification = std::chrono::high_resolution_clock::now();
+
+    p->update_metadata(0.001, 0.001);
+
+    auto end_classification = std::chrono::high_resolution_clock::now();
 
     if (world_rank == 0)
     {
-        //         std::stringstream file_name;
-        //         file_name << "TestSelection-" << p->type()
-        //                   << "-N=" << subjs
-        //                   << "-k=" << variants
-        //                   << "-Processes=" << world_size
-        // #ifdef ENABLE_OMP
-        //                   << "-Threads=" << omp_get_num_threads()
-        // #endif
-        //                   << "-" << get_curr_time()
-        //                   << ".csv";
-        //         freopen(file_name.str().c_str(), "w", stdout);
+                std::stringstream file_name;
+                file_name << "Model-Manipulation-Benchmark-" << p->type()
+                          << "-N=" << subjs
+                          << "-k=" << variants
+                          << "-Processes=" << world_size
+        #ifdef ENABLE_OMP
+                          << "-Threads=" << omp_get_num_threads()
+        #endif
+                          << "-" << get_curr_time()
+                          << ".csv";
+                freopen(file_name.str().c_str(), "w", stdout);
         std::cout << hardware_config_summary() << std::endl;
         std::cout << "N," << subjs
                   << ",k," << variants
-                  << ",parallelism," << ((parallelism_type == DIST_NON_DILUTION || parallelism_type == DIST_DILUTION) ? "distributed" : "replicated")
-                  << ",dilution," << ((parallelism_type == DIST_NON_DILUTION || parallelism_type == REPL_NON_DILUTION) ? "no dilution" : "dilution")
+                  << ",Model Parallelism:," << ((parallelism_type == DIST_NON_DILUTION || parallelism_type == DIST_DILUTION) ? "distributed" : "replicated")
+                  << ",Use Dilution Effect:," << ((parallelism_type == DIST_NON_DILUTION || parallelism_type == REPL_NON_DILUTION) ? "no dilution" : "dilution")
 #ifdef ENABLE_OMP
                   << ",OpenMP," << "Enabled"
 #endif
                   << std::endl;
         std::cout << "Model Construction Time," << std::chrono::duration_cast<std::chrono::nanoseconds>(end_lattice_construction - start_lattice_construction).count() / 1e9 << "s\n";
-        std::cout << "BBPA Halving Time," << std::chrono::duration_cast<std::chrono::nanoseconds>(end_halving - start_halving).count() / 1e9 << "s\n";
-        std::cout << "Candidate," << res << std::endl;
+        std::cout << "Model Update Time," << std::chrono::duration_cast<std::chrono::nanoseconds>(end_updating - start_updating).count() / 1e9 << "s\n";
+        std::cout << "Model Classification Identification Time," << std::chrono::duration_cast<std::chrono::nanoseconds>(end_classification - start_classification).count() / 1e9 << "s\n";
     }
 
     // Free product lattice MPI env

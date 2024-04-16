@@ -81,8 +81,9 @@ void run_glob_tree(int argc, char *argv[]);
 void run_glob_partial_tree_symm(int argc, char *argv[]);
 void run_glob_partial_tree_trim(int argc, char *argv[]);
 void run_glob_partial_tree_trim_misspec(int argc, char *argv[]);
-void run_test_selection_intra(int argc, char *argv[]);
-void run_test_selection(int argc, char *argv[]);
+void run_model_manipulation_benchmark(int argc, char *argv[]);
+void run_BBPA_benchmark(int argc, char *argv[]);
+void run_BBPA_benchmark_intra(int argc, char *argv[]);
 
 #ifdef __cplusplus
 } // end extern "C"

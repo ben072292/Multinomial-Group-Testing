@@ -1,6 +1,6 @@
 #include "product_lattice.hpp"
 
-EXPORT void run_test_selection_intra(int argc, char *argv[])
+EXPORT void run_BBPA_benchmark_intra(int argc, char *argv[])
 {
 
     // omp_set_num_threads(8);

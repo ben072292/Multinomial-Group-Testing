@@ -84,176 +84,59 @@ include(GNUInstallDirs)
 add_bmgt_library(bmgt_v1 BBPA_V1)
 add_bmgt_library(bmgt_v2 BBPA_V2)
 add_bmgt_library(bmgt_v3 BBPA_V3)
-add_bmgt_library(bmgt ENABLE_SIMD USE_INTEL_INTRINSICS)
+add_bmgt_library(bmgt_v4 ENABLE_SIMD USE_INTEL_INTRINSICS)
+add_bmgt_library(bmgt ENABLE_SIMD USE_INTEL_INTRINSICS ENABLE_OMP)
 
-add_executable(gt_intra
-    ${EXAMPLE_SOURCE_DIR}/run_glob_tree_intra.cpp
-)
+function(create_executable TARGET_NAME SOURCE_FILE LIBRARY_NAME SHOULD_INSTALL)
+    add_executable(${TARGET_NAME} ${SOURCE_FILE})
+    add_dependencies(${TARGET_NAME} ${LIBRARY_NAME})
+    target_link_libraries(${TARGET_NAME} ${LIBRARY_NAME})
+    target_include_directories(${TARGET_NAME} PRIVATE ${CMAKE_BINARY_DIR}/include)
 
-add_executable(gt_intra_dbg
-    ${EXAMPLE_SOURCE_DIR}/run_glob_tree_intra.cpp
-)
+    # Check if the executable should be installed
+    if(SHOULD_INSTALL)
+        install(TARGETS ${TARGET_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    endif()
+endfunction()
 
-add_executable(gt
-    ${EXAMPLE_SOURCE_DIR}/run_glob_tree.cpp
-)
 
-add_executable(ft
-    ${EXAMPLE_SOURCE_DIR}/run_fusion_tree.cpp
-)
+create_executable(gt_intra ${EXAMPLE_SOURCE_DIR}/run_glob_tree_intra.cpp bmgt_shared TRUE)
+create_executable(gt_intra_dbg ${EXAMPLE_SOURCE_DIR}/run_glob_tree_intra.cpp bmgt_shared TRUE)
+create_executable(global_tree ${EXAMPLE_SOURCE_DIR}/run_glob_tree.cpp bmgt_shared TRUE)
+create_executable(fusion_tree ${EXAMPLE_SOURCE_DIR}/run_fusion_tree.cpp bmgt_shared TRUE)
+create_executable(distributed_tree_intra ${EXAMPLE_SOURCE_DIR}/run_dist_tree_intra.cpp bmgt_shared TRUE)
+create_executable(distributed_tree ${EXAMPLE_SOURCE_DIR}/run_dist_tree.cpp bmgt_shared TRUE)
+create_executable(distributed_global_hybrid_tree ${EXAMPLE_SOURCE_DIR}/run_dist_glob_tree.cpp bmgt_shared TRUE)
+create_executable(distributed_global_hybrid_tree_with_trimming ${EXAMPLE_SOURCE_DIR}/run_dist_glob_tree_trim.cpp bmgt_shared TRUE)
+create_executable(distributed_global_hybrid_tree_with_symmetric ${EXAMPLE_SOURCE_DIR}/run_dist_glob_tree_symm.cpp bmgt_shared TRUE)
+create_executable(global_partial_tree_with_trim ${EXAMPLE_SOURCE_DIR}/run_glob_partial_tree_trim.cpp bmgt_shared TRUE)
+create_executable(global_partial_tree_with_symmetric ${EXAMPLE_SOURCE_DIR}/run_glob_partial_tree_symm.cpp bmgt_shared TRUE)
+create_executable(global_partial_tree_with_misspecification_trim ${EXAMPLE_SOURCE_DIR}/run_glob_partial_tree_trim_misspec.cpp bmgt_shared TRUE)
+create_executable(model_manipulation_benchmark ${EXAMPLE_SOURCE_DIR}/run_model_manipulation_benchmark.cpp bmgt_shared TRUE)
+create_executable(BBPA_benchmark_intra ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_shared TRUE)
+create_executable(BBPA_benchmark ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_shared TRUE)
 
-add_executable(dt_intra
-    ${EXAMPLE_SOURCE_DIR}/run_dist_tree_intra.cpp
-)
+# Versions of BBPA benchmarks that link to specific versions of libraries
+create_executable(BBPA_benchmark_intra_op1 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_v1_shared TRUE)
+create_executable(BBPA_benchmark_intra_op2 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_v2_shared TRUE)
+create_executable(BBPA_benchmark_intra_op3 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_v3_shared TRUE)
+create_executable(BBPA_benchmark_intra_op4 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_v4_shared TRUE)
+create_executable(BBPA_benchmark_op1 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_v1_shared TRUE)
+create_executable(BBPA_benchmark_op2 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_v2_shared TRUE)
+create_executable(BBPA_benchmark_op3 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_v3_shared TRUE)
+create_executable(BBPA_benchmark_op4 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_v4_shared TRUE)
 
-add_executable(dt
-    ${EXAMPLE_SOURCE_DIR}/run_dist_tree.cpp
-)
 
-add_executable(dt_gt
-    ${EXAMPLE_SOURCE_DIR}/run_dist_glob_tree.cpp
-)
-
-add_executable(dt_gt_trim
-    ${EXAMPLE_SOURCE_DIR}/run_dist_glob_tree_trim.cpp
-)
-
-add_executable(dt_gt_symm
-    ${EXAMPLE_SOURCE_DIR}/run_dist_glob_tree_symm.cpp
-)
-
-add_executable(gpt_trim
-    ${EXAMPLE_SOURCE_DIR}/run_glob_partial_tree_trim.cpp
-)
-
-add_executable(gpt_symm
-    ${EXAMPLE_SOURCE_DIR}/run_glob_partial_tree_symm.cpp
-)
-
-add_executable(gpt_trim_misspecification
-    ${EXAMPLE_SOURCE_DIR}/run_glob_partial_tree_trim_misspec.cpp
-)
-
-add_executable(ts_intra
-    ${EXAMPLE_SOURCE_DIR}/run_test_selection_intra.cpp
-)
-
-add_executable(ts
-    ${EXAMPLE_SOURCE_DIR}/run_test_selection.cpp
-)
-
-add_executable(ts_intra_v1 ${EXAMPLE_SOURCE_DIR}/run_test_selection_intra.cpp)
-add_executable(ts_intra_v2 ${EXAMPLE_SOURCE_DIR}/run_test_selection_intra.cpp)
-add_executable(ts_intra_v3 ${EXAMPLE_SOURCE_DIR}/run_test_selection_intra.cpp)
-
-add_executable(ts_v1 ${EXAMPLE_SOURCE_DIR}/run_test_selection.cpp)
-add_executable(ts_v2 ${EXAMPLE_SOURCE_DIR}/run_test_selection.cpp)
-add_executable(ts_v3 ${EXAMPLE_SOURCE_DIR}/run_test_selection.cpp)
-
-add_dependencies(gt_intra bmgt_shared)
-add_dependencies(gt_intra_dbg bmgt_shared)
-add_dependencies(gt bmgt_shared)
-add_dependencies(ft bmgt_shared)
-add_dependencies(dt_intra bmgt_shared)
-add_dependencies(dt bmgt_shared)
-add_dependencies(dt_gt bmgt_shared)
-add_dependencies(dt_gt_trim bmgt_shared)
-add_dependencies(dt_gt_symm bmgt_shared)
-add_dependencies(gpt_trim bmgt_shared)
-add_dependencies(gpt_trim_misspecification bmgt_shared)
-add_dependencies(gpt_symm bmgt_shared)
-add_dependencies(ts_intra bmgt_shared)
-add_dependencies(ts bmgt_shared)
-add_dependencies(ts_intra_v1 bmgt_v1_shared)
-add_dependencies(ts_intra_v2 bmgt_v2_shared)
-add_dependencies(ts_intra_v3 bmgt_v3_shared)
-
-add_dependencies(ts_v1 bmgt_v1_shared)
-add_dependencies(ts_v2 bmgt_v2_shared)
-add_dependencies(ts_v3 bmgt_v3_shared)
-
-target_link_libraries(gt_intra bmgt_shared)
-target_include_directories(gt_intra PRIVATE ${CMAKE_BINARY_DIR}/include)
-
-target_link_libraries(gt_intra_dbg
-    bmgt_shared
-)
-
-target_include_directories(gt_intra_dbg PRIVATE ${CMAKE_BINARY_DIR}/include)
-
-target_link_libraries(gt
-    bmgt_shared
-)
-target_include_directories(gt PRIVATE ${CMAKE_BINARY_DIR}/include)
-
-target_link_libraries(ft
-    bmgt_shared
-)
-target_include_directories(ft PRIVATE ${CMAKE_BINARY_DIR}/include)
-
-target_link_libraries(dt_intra
-    bmgt_shared
-)
-target_include_directories(dt_intra PRIVATE ${CMAKE_BINARY_DIR}/include)
-
-target_link_libraries(dt
-    bmgt_shared
-)
-target_include_directories(dt PRIVATE ${CMAKE_BINARY_DIR}/include)
-
-target_link_libraries(dt_gt
-    bmgt_shared
-)
-target_include_directories(dt_gt PRIVATE ${CMAKE_BINARY_DIR}/include)
-
-target_link_libraries(dt_gt_trim
-    bmgt_shared
-)
-target_include_directories(dt_gt_trim PRIVATE ${CMAKE_BINARY_DIR}/include)
-
-target_link_libraries(dt_gt_symm
-    bmgt_shared
-)
-target_include_directories(dt_gt_symm PRIVATE ${CMAKE_BINARY_DIR}/include)
-
-target_link_libraries(gpt_trim
-    bmgt_shared
-)
-target_include_directories(gpt_trim PRIVATE ${CMAKE_BINARY_DIR}/include)
-
-target_link_libraries(gpt_trim_misspecification
-    bmgt_shared
-)
-target_include_directories(gpt_trim_misspecification PRIVATE ${CMAKE_BINARY_DIR}/include)
-
-target_link_libraries(gpt_symm
-    bmgt_shared
-)
-target_include_directories(gpt_symm PRIVATE ${CMAKE_BINARY_DIR}/include)
-
-target_link_libraries(ts_intra
-    bmgt_shared
-)
-target_include_directories(ts_intra PRIVATE ${CMAKE_BINARY_DIR}/include)
-
-target_link_libraries(ts
-    bmgt_shared
-)
-target_include_directories(ts PRIVATE ${CMAKE_BINARY_DIR}/include)
-
-target_link_libraries(ts_intra_v1 bmgt_v1_shared)
-target_include_directories(ts_intra_v1 PRIVATE ${CMAKE_BINARY_DIR}/include)
-target_link_libraries(ts_intra_v2 bmgt_v2_shared)
-target_include_directories(ts_intra_v2 PRIVATE ${CMAKE_BINARY_DIR}/include)
-target_link_libraries(ts_intra_v3 bmgt_v3_shared)
-target_include_directories(ts_intra_v3 PRIVATE ${CMAKE_BINARY_DIR}/include)
-
-target_link_libraries(ts_v1 bmgt_v1_shared)
-target_include_directories(ts_v1 PRIVATE ${CMAKE_BINARY_DIR}/include)
-target_link_libraries(ts_v2 bmgt_v2_shared)
-target_include_directories(ts_v2 PRIVATE ${CMAKE_BINARY_DIR}/include)
-target_link_libraries(ts_v3 bmgt_v3_shared)
-target_include_directories(ts_v3 PRIVATE ${CMAKE_BINARY_DIR}/include)
+# Install executables
+install(TARGETS gt_intra gt_intra_dbg global_tree fusion_tree distributed_tree_intra
+                distributed_tree distributed_global_hybrid_tree
+                distributed_global_hybrid_tree_with_trimming distributed_global_hybrid_tree_with_symmetric
+                global_partial_tree_with_trim global_partial_tree_with_symmetric
+                global_partial_tree_with_misspecification_trim model_manipulation_benchmark
+                BBPA_benchmark_intra BBPA_benchmark BBPA_benchmark_intra_op1
+                BBPA_benchmark_intra_op2 BBPA_benchmark_intra_op3 BBPA_benchmark_op1
+                BBPA_benchmark_op2 BBPA_benchmark_op3
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 include(InstallRequiredSystemLibraries)
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/license.txt")

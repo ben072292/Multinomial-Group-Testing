@@ -1,6 +1,6 @@
 #include "bmgt.h"
 
 int main(int argc, char* argv[]){
-    run_test_selection_intra(argc, argv);
+    run_BBPA_benchmark(argc, argv);
     return 0;
 }

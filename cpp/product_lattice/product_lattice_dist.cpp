@@ -680,6 +680,7 @@ bin_enc Product_lattice_dist::BBPA_mpi_simd(double prob) const
 	MP-DP need to switch based on number of states, see bin_enc BBPA(prob) */
 bin_enc Product_lattice_dist::BBPA_mpi_omp_simd(double prob) const
 {
+	BBPA_res res;
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
 	double partition_mass[partition_size]{0.0};
 	VecIntType ex = SIMD_SET_INC();
@@ -687,6 +688,7 @@ bin_enc Product_lattice_dist::BBPA_mpi_omp_simd(double prob) const
 
 	// tricky: for each state, check each variant of actively
 	// pooled subjects to see whether they are all 1.
+#pragma omp parallel for schedule(static) reduction(+ : partition_mass)
 	for (bin_enc s_iter = 0; s_iter < total_states_per_rank(); s_iter++)
 	{
 		// __builtin_prefetch((_post_probs + s_iter + 4), 0, 0);
@@ -773,28 +775,25 @@ bin_enc Product_lattice_dist::BBPA_mpi_omp_simd(double prob) const
 		}
 	}
 	MPI_Allreduce(MPI_IN_PLACE, partition_mass, partition_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
 	double temp = 0.0;
-	double min = 2.0;
-	bin_enc candidate = -1;
+#pragma omp declare reduction(BBPA_Min:BBPA_res : BBPA_res::BBPA_min(omp_out, omp_in)) initializer(omp_priv = BBPA_res())
+#pragma omp parallel for schedule(static) reduction(BBPA_Min : res)
 	for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 	{
 		for (bin_enc i = 0; i < (1 << _variants); i++)
 		{
 			temp += std::abs(partition_mass[experiment * (1 << _variants) + i] - prob);
 		}
-		// temp += std::abs(partition_mass[experiment * (1 << _variants)] - prob);
-		// temp += std::abs(partition_mass[experiment * (1 << _variants) + 1] - prob);
-		// temp += std::abs(partition_mass[experiment * (1 << _variants) + 2] - prob);
-		// temp += std::abs(partition_mass[experiment * (1 << _variants) + 3] - prob);
-
-		if (temp < min)
+		if (temp < res.min)
 		{
-			min = temp;
-			candidate = experiment;
+			res.min = temp;
+			res.candidate = experiment;
 		}
 		temp = 0.0;
 	}
-	return candidate;
+	MPI_Allreduce(MPI_IN_PLACE, &res.candidate, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+	return res.candidate;
 }
 #endif
 
