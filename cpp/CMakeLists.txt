@@ -126,18 +126,6 @@ create_executable(BBPA_benchmark_op2 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cp
 create_executable(BBPA_benchmark_op3 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_v3_shared TRUE)
 create_executable(BBPA_benchmark_op4 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_v4_shared TRUE)
 
-
-# Install executables
-install(TARGETS gt_intra gt_intra_dbg global_tree fusion_tree distributed_tree_intra
-                distributed_tree distributed_global_hybrid_tree
-                distributed_global_hybrid_tree_with_trimming distributed_global_hybrid_tree_with_symmetric
-                global_partial_tree_with_trim global_partial_tree_with_symmetric
-                global_partial_tree_with_misspecification_trim model_manipulation_benchmark
-                BBPA_benchmark_intra BBPA_benchmark BBPA_benchmark_intra_op1
-                BBPA_benchmark_intra_op2 BBPA_benchmark_intra_op3 BBPA_benchmark_op1
-                BBPA_benchmark_op2 BBPA_benchmark_op3
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-
 include(InstallRequiredSystemLibraries)
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/license.txt")
 set(CPACK_PACKAGE_VERSION_MAJOR "${BMGT_VERSION_MAJOR}")

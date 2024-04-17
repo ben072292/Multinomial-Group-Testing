@@ -32,6 +32,7 @@
 #endif
 #include <sstream>
 #include <string>
+#include <cstring>
 #include <vector>
 #ifdef ENABLE_SIMD
 #if defined USE_INTEL_INTRINSICS && (defined(__SSE2__) || defined(__AVX2__) || defined(__AVX512F__))
@@ -42,6 +43,15 @@
 #ifdef ENABLE_SIMD
 #if defined(__AVX512F__)
 #define SIMD_WIDTH 64 / sizeof(bin_enc)
+inline void *vector_alloc(std::size_t n)
+{
+    void *tmp = 0;
+    if (posix_memalign(&tmp, 64, n))
+    {
+        throw std::bad_alloc();
+    }
+    return tmp;
+}
 #ifndef USE_INTEL_INTRINSICS
 typedef int VecIntType __attribute__((vector_size(16 * sizeof(int))));
 typedef double VecDoubleType __attribute__((vector_size(8 * sizeof(double))));
@@ -57,16 +67,6 @@ typedef double VecDoubleType __attribute__((vector_size(8 * sizeof(double))));
     {                                                        \
         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 \
     }
-
-inline void *vector_alloc(std::size_t n)
-{
-    void *tmp = 0;
-    if (posix_memalign(&tmp, sizeof(VecIntType), n))
-    {
-        throw std::bad_alloc();
-    }
-    return tmp;
-}
 #else
 typedef __m512i VecIntType;
 typedef __m512d VecDoubleType;
@@ -88,6 +88,15 @@ typedef __m512d VecDoubleType;
 
 #elif defined(__AVX2__)
 #define SIMD_WIDTH 32 / sizeof(bin_enc)
+inline void *vector_alloc(std::size_t n)
+{
+    void *tmp = 0;
+    if (posix_memalign(&tmp, 32, n))
+    {
+        throw std::bad_alloc();
+    }
+    return tmp;
+}
 #ifndef USE_INTEL_INTRINSICS
 typedef int VecIntType __attribute__((vector_size(8 * sizeof(int))));
 typedef double VecDoubleType __attribute__((vector_size(4 * sizeof(double))));
@@ -103,15 +112,6 @@ typedef double VecDoubleType __attribute__((vector_size(4 * sizeof(double))));
     {                          \
         0, 1, 2, 3, 4, 5, 6, 7 \
     }
-inline void *vector_alloc(std::size_t n)
-{
-    void *tmp = 0;
-    if (posix_memalign(&tmp, sizeof(VecIntType), n))
-    {
-        throw std::bad_alloc();
-    }
-    return tmp;
-}
 #else
 typedef __m256i VecIntType;
 typedef __m256d VecDoubleType;

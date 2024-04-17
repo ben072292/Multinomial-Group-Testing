@@ -2,6 +2,7 @@
 
 double *Product_lattice_dist::temp_post_prob_holder = nullptr;
 MPI_Win Product_lattice_dist::win;
+double *Product_lattice_dist::partition_mass = nullptr;
 
 Product_lattice_dist::Product_lattice_dist(int subjs, int variants, double *pi0)
 {
@@ -301,7 +302,6 @@ bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 	bool is_complement = false;
 	int partition_id = 0;
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
-	double partition_mass[partition_size]{0.0};
 	for (int experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 	{
 		// tricky: for each state, check each variant of actively
@@ -342,7 +342,7 @@ bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 		}
 		temp = 0.0;
 	}
-
+	memset(reinterpret_cast<void *>(partition_mass), 0x00, partition_size * sizeof(double));
 	return candidate;
 }
 #elif defined(BBPA_V2)
@@ -350,7 +350,6 @@ bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 {
 	int partition_id = 0;
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
-	double partition_mass[partition_size]{0.0};
 	for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 	{
 		// tricky: for each state, check each variant of actively
@@ -386,6 +385,7 @@ bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 		}
 		temp = 0.0;
 	}
+	memset(reinterpret_cast<void *>(partition_mass), 0x00, partition_size * sizeof(double));
 	return candidate;
 }
 #elif defined(BBPA_V3)
@@ -393,7 +393,6 @@ bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 {
 	int partition_id = 0;
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
-	double partition_mass[partition_size]{0.0};
 	for (int experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 	{
 		// tricky: for each state, check each variant of actively
@@ -431,6 +430,7 @@ bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 		}
 		temp = 0.0;
 	}
+	memset(reinterpret_cast<void *>(partition_mass), 0x00, partition_size * sizeof(double));
 	return candidate;
 }
 #else
@@ -438,7 +438,6 @@ bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 {
 	int partition_id = 0;
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
-	double partition_mass[partition_size]{0.0};
 
 	// tricky: for each state, check each variant of actively
 	// pooled subjects to see whether they are all 1.
@@ -482,7 +481,7 @@ bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 		}
 		temp = 0.0;
 	}
-
+	memset(reinterpret_cast<void *>(partition_mass), 0x00, partition_size * sizeof(double));
 	return candidate;
 }
 #endif
@@ -492,9 +491,8 @@ bin_enc Product_lattice_dist::BBPA_mpi_omp(double prob) const
 {
 	BBPA_res res;
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
-	double partition_mass[partition_size]{0.0};
 
-#pragma omp parallel for schedule(static) reduction(+ : partition_mass)
+#pragma omp parallel for schedule(static) reduction(+ : partition_mass[ : partition_size])
 	// tricky: for each state, check each variant of actively
 	// pooled subjects to see whether they are all 1.
 	for (int s_iter = 0; s_iter < total_states_per_rank(); s_iter++)
@@ -541,6 +539,7 @@ bin_enc Product_lattice_dist::BBPA_mpi_omp(double prob) const
 		temp = 0.0;
 	}
 	MPI_Allreduce(MPI_IN_PLACE, &res.candidate, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+	memset(reinterpret_cast<void *>(partition_mass), 0x00, partition_size * sizeof(double));
 	return res.candidate;
 }
 #endif
@@ -551,7 +550,6 @@ bin_enc Product_lattice_dist::BBPA_mpi_omp(double prob) const
 bin_enc Product_lattice_dist::BBPA_mpi_simd(double prob) const
 {
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
-	double partition_mass[partition_size]{0.0};
 	VecIntType ex = SIMD_SET_INC();
 	VecIntType partition_id = SIMD_SET0();
 
@@ -671,6 +669,7 @@ bin_enc Product_lattice_dist::BBPA_mpi_simd(double prob) const
 		}
 		temp = 0.0;
 	}
+	memset(reinterpret_cast<void *>(partition_mass), 0x00, partition_size * sizeof(double));
 	return candidate;
 }
 #endif
@@ -682,13 +681,12 @@ bin_enc Product_lattice_dist::BBPA_mpi_omp_simd(double prob) const
 {
 	BBPA_res res;
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
-	double partition_mass[partition_size]{0.0};
 	VecIntType ex = SIMD_SET_INC();
 	VecIntType partition_id = SIMD_SET0();
 
 	// tricky: for each state, check each variant of actively
 	// pooled subjects to see whether they are all 1.
-#pragma omp parallel for schedule(static) reduction(+ : partition_mass)
+#pragma omp parallel for schedule(static) reduction(+ : partition_mass[ : partition_size])
 	for (bin_enc s_iter = 0; s_iter < total_states_per_rank(); s_iter++)
 	{
 		// __builtin_prefetch((_post_probs + s_iter + 4), 0, 0);
@@ -729,7 +727,11 @@ bin_enc Product_lattice_dist::BBPA_mpi_omp_simd(double prob) const
 #endif
 
 #ifdef USE_INTEL_INTRINSICS
-			partition_id = SIMD_ADD(partition_id, SIMD_MUL(ex, SIMD_SET1((1 << _variants))));
+#ifdef NUM_VARIANTS
+			partition_id = SIMD_ADD(partition_id, SIMD_MUL(ex, SIMD_SET1((1 << NUM_VARIANTS))));
+#else
+			partition_id = SIMD_ADD(partition_id, SIMD_MUL(ex, SIMD_SET1(4)));
+#endif
 #if defined(__AVX512F__)
 			// __m512d lower_val = _mm512_i32gather_pd(SIMD_LOWER_HALF(partition_id), partition_mass, 8);
 			// lower_val = SIMD_ADD_DOUBLE(lower_val, SIMD_SET1_DOUBLE(_post_probs[s_iter]));
@@ -793,6 +795,7 @@ bin_enc Product_lattice_dist::BBPA_mpi_omp_simd(double prob) const
 		temp = 0.0;
 	}
 	MPI_Allreduce(MPI_IN_PLACE, &res.candidate, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+	memset(reinterpret_cast<void *>(partition_mass), 0x00, partition_size * sizeof(double));
 	return res.candidate;
 }
 #endif
@@ -813,6 +816,11 @@ void Product_lattice_dist::MPI_Product_lattice_Initialize(int subjs, int variant
 	}
 	temp_post_prob_holder = new double[(1 << (subjs * variants)) / world_size];
 	MPI_Win_create(temp_post_prob_holder, sizeof(double) * (1 << (subjs * variants)) / world_size, sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &win);
+#ifdef ENABLE_SIMD
+	partition_mass = (double *)vector_alloc((1 << (subjs + variants)) * sizeof(double));
+#else
+	partition_mass = (double *)malloc((1 << (subjs + variants)) * sizeof(double));
+#endif
 }
 
 void Product_lattice_dist::MPI_Product_lattice_Finalize()
@@ -821,4 +829,6 @@ void Product_lattice_dist::MPI_Product_lattice_Finalize()
 	MPI_Win_free(&win);
 	delete[] temp_post_prob_holder;
 	temp_post_prob_holder = nullptr;
+	free(partition_mass);
+	partition_mass = nullptr;
 }

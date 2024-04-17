@@ -124,6 +124,7 @@ class Product_lattice_dist : public virtual Product_lattice
 
 protected:
 	static double *temp_post_prob_holder;
+	static double *partition_mass;
 	static MPI_Win win;
 	inline bin_enc total_states_per_rank() const { return total_states() / world_size; }
 	inline int state_to_offset(bin_enc state) const { return state % total_states_per_rank(); }
