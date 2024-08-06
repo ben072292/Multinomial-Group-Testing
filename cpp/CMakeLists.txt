@@ -81,11 +81,13 @@ endfunction()
 include(GNUInstallDirs)
 
 # Create library targets
-add_bmgt_library(bmgt_v1 BBPA_V1)
-add_bmgt_library(bmgt_v2 BBPA_V2)
-add_bmgt_library(bmgt_v3 BBPA_V3)
+add_bmgt_library(bmgt_baseline BBPA_V1)
+add_bmgt_library(bmgt_v1 BBPA_V2)
+add_bmgt_library(bmgt_v2 BBPA_V3)
+add_bmgt_library(bmgt_v3 BBPA_V4)
 add_bmgt_library(bmgt_v4 ENABLE_SIMD USE_INTEL_INTRINSICS)
-add_bmgt_library(bmgt ENABLE_SIMD USE_INTEL_INTRINSICS ENABLE_OMP)
+add_bmgt_library(bmgt_v5 ENABLE_SIMD USE_INTEL_INTRINSICS ENABLE_OMP)
+add_bmgt_library(bmgt ENABLE_SIMD USE_INTEL_INTRINSICS)
 
 function(create_executable TARGET_NAME SOURCE_FILE LIBRARY_NAME SHOULD_INSTALL)
     add_executable(${TARGET_NAME} ${SOURCE_FILE})
@@ -117,14 +119,19 @@ create_executable(BBPA_benchmark_intra ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_
 create_executable(BBPA_benchmark ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_shared TRUE)
 
 # Versions of BBPA benchmarks that link to specific versions of libraries
+create_executable(BBPA_benchmark_intra_baseline ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_baseline_shared TRUE)
 create_executable(BBPA_benchmark_intra_op1 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_v1_shared TRUE)
 create_executable(BBPA_benchmark_intra_op2 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_v2_shared TRUE)
 create_executable(BBPA_benchmark_intra_op3 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_v3_shared TRUE)
 create_executable(BBPA_benchmark_intra_op4 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_v4_shared TRUE)
+create_executable(BBPA_benchmark_intra_op5 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_v5_shared TRUE)
+create_executable(BBPA_benchmark_baseline ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_baseline_shared TRUE)
+
 create_executable(BBPA_benchmark_op1 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_v1_shared TRUE)
 create_executable(BBPA_benchmark_op2 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_v2_shared TRUE)
 create_executable(BBPA_benchmark_op3 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_v3_shared TRUE)
 create_executable(BBPA_benchmark_op4 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_v4_shared TRUE)
+create_executable(BBPA_benchmark_op5 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_v5_shared TRUE)
 
 include(InstallRequiredSystemLibraries)
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/license.txt")

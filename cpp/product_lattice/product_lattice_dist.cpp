@@ -297,6 +297,7 @@ bin_enc Product_lattice_dist::BBPA(double prob) const
 }
 
 #ifdef BBPA_V1
+// baseline: sample-major model layout, no loop reordering, no bit-twiddling, no vectorization, no openmp
 bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 {
 	bool is_complement = false;
@@ -346,6 +347,8 @@ bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 	return candidate;
 }
 #elif defined(BBPA_V2)
+// optimization 1: sample-major model layout -> attribute-major model layout
+// no loop reordering, no bit-twiddling, no vectorization, no openmp
 bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 {
 	int partition_id = 0;
@@ -389,15 +392,60 @@ bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 	return candidate;
 }
 #elif defined(BBPA_V3)
+// optimization 2: sample-major model layout -> attribute-major model layout, no loop reordering -> loop reodering
+// no bit-twiddling, no vectorization, no openmp
 bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 {
 	int partition_id = 0;
 	int partition_size = (1 << _curr_subjs) * (1 << _variants);
-	for (int experiment = 0; experiment < (1 << _curr_subjs); experiment++)
+	for (int s_iter = 0; s_iter < total_states_per_rank(); s_iter++)
 	{
-		// tricky: for each state, check each variant of actively
-		// pooled subjects to see whether they are all 1.
-		for (int s_iter = 0; s_iter < total_states_per_rank(); s_iter++)
+		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
+		{
+			// __builtin_prefetch((_post_probs + s_iter + 10), 0, 0);
+			for (int variant = 0; variant < _variants; variant++)
+			{
+				if ((experiment & (offset_to_state(s_iter) >> (variant * _curr_subjs))) != experiment)
+				{
+					partition_id |= (1 << variant);
+				}
+			}
+			partition_mass[experiment * (1 << _variants) + partition_id] += _post_probs[s_iter];
+			partition_id = 0;
+		}
+	}
+	MPI_Allreduce(MPI_IN_PLACE, partition_mass, partition_size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+	double temp = 0.0;
+	double min = 2.0;
+	bin_enc candidate = -1;
+	for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
+	{
+		for (int i = 0; i < (1 << _variants); i++)
+		{
+			temp += std::abs(partition_mass[experiment * (1 << _variants) + i] - prob);
+		}
+		if (temp < min)
+		{
+			min = temp;
+			candidate = experiment;
+		}
+		temp = 0.0;
+	}
+	memset(reinterpret_cast<void *>(partition_mass), 0x00, partition_size * sizeof(double));
+	return candidate;
+}
+#elif defined(BBPA_V4)
+// optimization 3: sample-major model layout -> attribute-major model layout, no loop reordering -> loop reodering
+// no bit-twiddling -> bit-twiddling, no vectorization, no openmp
+bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
+{
+	int partition_id = 0;
+	int partition_size = (1 << _curr_subjs) * (1 << _variants);
+	for (int s_iter = 0; s_iter < total_states_per_rank(); s_iter++)
+	{
+		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
+		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 		{
 			// __builtin_prefetch((_post_probs + s_iter + 20), 0, 0);
 			for (int variant = 0; variant < _variants; variant++)
@@ -434,6 +482,8 @@ bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 	return candidate;
 }
 #else
+// optimization 4: sample-major model layout -> attribute-major model layout, no loop reordering -> loop reodering
+// no bit-twiddling -> bit-twiddling, no vectorization -> loop unrolling but still no vectorization, no openmp
 bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 {
 	int partition_id = 0;

@@ -30,19 +30,23 @@ EXPORT void run_BBPA_benchmark(int argc, char *argv[])
 
     Product_lattice *p;
     auto start_lattice_construction = std::chrono::high_resolution_clock::now();
-    if (parallelism_type == DIST_NON_DILUTION){
+    if (parallelism_type == DIST_NON_DILUTION)
+    {
         Product_lattice_dist::MPI_Product_lattice_Initialize(subjs, variants);
         p = new Product_lattice_dist_non_dilution(subjs, variants, pi0);
     }
-    else if (parallelism_type == DIST_DILUTION){
+    else if (parallelism_type == DIST_DILUTION)
+    {
         Product_lattice_dist::MPI_Product_lattice_Initialize(subjs, variants);
         p = new Product_lattice_dist_dilution(subjs, variants, pi0);
     }
-    else if (parallelism_type == REPL_NON_DILUTION){
+    else if (parallelism_type == REPL_NON_DILUTION)
+    {
         Product_lattice::MPI_Product_lattice_Initialize();
         p = new Product_lattice_non_dilution(subjs, variants, pi0);
     }
-    else if (parallelism_type == REPL_DILUTION){
+    else if (parallelism_type == REPL_DILUTION)
+    {
         Product_lattice::MPI_Product_lattice_Initialize();
         p = new Product_lattice_dilution(subjs, variants, pi0);
     }
@@ -59,17 +63,31 @@ EXPORT void run_BBPA_benchmark(int argc, char *argv[])
 
     if (world_rank == 0)
     {
-                std::stringstream file_name;
-                file_name << "BBPA-Benchmark-" << p->type()
-                          << "-N=" << subjs
-                          << "-k=" << variants
-                          << "-Processes=" << world_size
-        #ifdef ENABLE_OMP
-                          << "-Threads=" << omp_get_num_threads()
-        #endif
-                          << "-" << get_curr_time()
-                          << ".csv";
-                freopen(file_name.str().c_str(), "w", stdout);
+        std::stringstream file_name;
+        file_name <<
+#ifdef BBPA_V1
+            "BBPA-Benchmark-Baseline-"
+#elif defined(BBPA_V2)
+            "BBPA-Benchmark-OP1-"
+#elif defined(BBPA_V3)
+            "BBPA-Benchmark-OP2-"
+#elif defined(BBPA_V4)
+            "BBPA-Benchmark-OP3-"
+#elif defined(ENABLE_SIMD)
+            "BBPA-Benchmark-OP4-"
+#elif defined(ENABLE_SIMD) && defined(ENABLE_OMP)
+            "BBPA-Benchmark-OP5-"
+#endif
+                  << p->type()
+                  << "-N=" << subjs
+                  << "-k=" << variants
+                  << "-Processes=" << world_size
+#ifdef ENABLE_OMP
+                  << "-Threads=" << omp_get_num_threads()
+#endif
+                  << "-" << get_curr_time()
+                  << ".csv";
+        freopen(file_name.str().c_str(), "w", stdout);
         std::cout << hardware_config_summary() << std::endl;
         std::cout << "N," << subjs
                   << ",k," << variants
