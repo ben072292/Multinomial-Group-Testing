@@ -1,170 +1,141 @@
 cmake_minimum_required(VERSION 3.10)
-project(Bayesian-Multinomial-Group-Testing)
+project(BMGT VERSION 1.0 DESCRIPTION "Scalable Bayesian Multinomial Group Testing Framework")
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-set(CMAKE_CXX_COMPILER "mpicxx")  # Set the compiler to mpicxx
-set(CMAK_C_COMPILER "mpicc")
+set(CMAKE_CXX_COMPILER "mpicxx") # Set the compiler to mpicxx
+set(CMAKE_C_COMPILER "mpicc") # Corrected typo
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -Wall -fopenmp")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -march=native -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -Wall -fopenmp -fvisibility=hidden")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -march=native -Wall -fvisibility=hidden")
 
-
-set(EXEC_SOURCE_DIR "exec")
-set(ANALYSIS_SOURCE_DIR "statistical_analysis")
-set(LATTICE_SOURCE_DIR "product_lattice")
+set(EXAMPLE_SOURCE_DIR "${PROJECT_SOURCE_DIR}/examples")
+set(EXEC_SOURCE_DIR "${PROJECT_SOURCE_DIR}/exec")
+set(ANALYSIS_SOURCE_DIR "${PROJECT_SOURCE_DIR}/statistical_analysis")
+set(LATTICE_SOURCE_DIR "${PROJECT_SOURCE_DIR}/product_lattice")
 set(TREE_SOURCE_DIR "${ANALYSIS_SOURCE_DIR}/tree")
 set(UTIL_SOURCE_DIR "${ANALYSIS_SOURCE_DIR}/util")
-set(3RD_PARTY_SOURCE_DIR "3rd-party")
-set(LIB_SOURCE_DIR lib) 
+set(3RD_PARTY_SOURCE_DIR "${PROJECT_SOURCE_DIR}/3rd-party")
+set(CMAKE_BINARY_DIR "${PROJECT_SOURCE_DIR}/build")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
-include_directories(include)
-include_directories(${3RD_PARTY_SOURCE_DIR}/include)
+include_directories("${PROJECT_SOURCE_DIR}/include")
+include_directories("${3RD_PARTY_SOURCE_DIR}/include")
 
 # Recursively find all source files in the specified directories
-file(GLOB_RECURSE EXEC_SOURCES "${EXEC_SOURCE_DIR}/*.cpp")
-file(GLOB_RECURSE ANALYSIS_SOURCES "${ANALYSIS_SOURCE_DIR}/*.cpp")
-file(GLOB_RECURSE TREE_SOURCES "${TREE_SOURCE_DIR}/*.cpp")
-file(GLOB_RECURSE UTIL_SOURCES "${UTIL_SOURCE_DIR}/*.cpp")
-file(GLOB_RECURSE LATTICE_SOURCES "${LATTICE_SOURCE_DIR}/*.cpp")
-file(GLOB_RECURSE EXTERNAL_SOURCES "${3RD_PARTY_SOURCE_DIR}/*.c*")
+file(GLOB_RECURSE EXAMPLE_SOURCES "${EXAMPLE_SOURCE_DIR}/*.c*")
+file(GLOB_RECURSE EXEC_SOURCES "${EXEC_SOURCE_DIR}/*.c*")
+file(GLOB_RECURSE ANALYSIS_SOURCES "${ANALYSIS_SOURCE_DIR}/*.c*")
+file(GLOB_RECURSE TREE_SOURCES "${TREE_SOURCE_DIR}/*.c*")
+file(GLOB_RECURSE UTIL_SOURCES "${UTIL_SOURCE_DIR}/*.c*")
+file(GLOB_RECURSE LATTICE_SOURCES "${LATTICE_SOURCE_DIR}/*.c*")
+file(GLOB_RECURSE 3RD_PARTY_SOURCES "${3RD_PARTY_SOURCE_DIR}/*.c*")
 
-add_library(BMGT STATIC
-    ${ANALYSIS_SOURCES}
-    ${TREE_SOURCES}
-    ${UTIL_SOURCES}
-    ${LATTICE_SOURCES}
-    ${EXTERNAL_SOURCES}
-)
+# Define a function to create both shared and static library targets
+function(add_bmgt_library TARGET_NAME)
+    # Shared library
+    add_library(${TARGET_NAME}_shared SHARED
+        ${ANALYSIS_SOURCES}
+        ${TREE_SOURCES}
+        ${UTIL_SOURCES}
+        ${LATTICE_SOURCES}
+        ${3RD_PARTY_SOURCES}
+        ${EXEC_SOURCES}
+    )
 
-# Set the output directory for the library
-set_target_properties(BMGT PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY ${LIB_SOURCE_DIR}
-)
+    # Static library (same target name, but different properties)
+    add_library(${TARGET_NAME}_static STATIC
+        ${ANALYSIS_SOURCES}
+        ${TREE_SOURCES}
+        ${UTIL_SOURCES}
+        ${LATTICE_SOURCES}
+        ${3RD_PARTY_SOURCES}
+        ${EXEC_SOURCES}
+    )
 
-add_executable(gt_intra
-    ${EXEC_SOURCE_DIR}/run_glob_tree_intra.cpp
-)
+    # OPTIONAL: Set output name to differentiate the static library file
+    set_target_properties(${TARGET_NAME}_shared PROPERTIES OUTPUT_NAME ${TARGET_NAME})
+    set_target_properties(${TARGET_NAME}_static PROPERTIES OUTPUT_NAME ${TARGET_NAME})
+    set_target_properties(${TARGET_NAME}_shared PROPERTIES VERSION ${PROJECT_VERSION})
+    set_target_properties(${TARGET_NAME}_shared PROPERTIES SOVERSION ${PROJECT_VERSION_MAJOR})
+    set_target_properties(${TARGET_NAME}_static PROPERTIES VERSION ${PROJECT_VERSION})
+    set_target_properties(${TARGET_NAME}_static PROPERTIES PUBLIC_HEADER ${CMAKE_SOURCE_DIR}/include/bmgt.h)
+    set_target_properties(${TARGET_NAME}_shared PROPERTIES PUBLIC_HEADER ${CMAKE_SOURCE_DIR}/include/bmgt.h)
+    install(TARGETS ${TARGET_NAME}_shared
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    install(TARGETS ${TARGET_NAME}_static
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    install(FILES ${CMAKE_SOURCE_DIR}/bmgt.pc DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig)
 
-add_executable(gt_intra_dbg
-    ${EXEC_SOURCE_DIR}/run_glob_tree_intra.cpp
-)
+    # Apply compile definitions if provided
+    if(ARGN)
+        target_compile_definitions(${TARGET_NAME}_shared PRIVATE ${ARGN})
+        target_compile_definitions(${TARGET_NAME}_static PRIVATE ${ARGN})
+    endif()
+endfunction()
 
-add_executable(gt
-    ${EXEC_SOURCE_DIR}/run_glob_tree.cpp
-)
+include(GNUInstallDirs)
 
-add_executable(ft
-    ${EXEC_SOURCE_DIR}/run_fusion_tree.cpp
-)
+# Create library targets
+add_bmgt_library(bmgt_baseline BBPA_V1)
+add_bmgt_library(bmgt_v1 BBPA_V2)
+add_bmgt_library(bmgt_v2 BBPA_V3)
+add_bmgt_library(bmgt_v3 BBPA_V4)
+add_bmgt_library(bmgt_v4 ENABLE_SIMD USE_INTEL_INTRINSICS)
+add_bmgt_library(bmgt_v5 ENABLE_SIMD USE_INTEL_INTRINSICS ENABLE_OMP)
+add_bmgt_library(bmgt ENABLE_SIMD USE_INTEL_INTRINSICS)
 
-add_executable(dt_intra
-    ${EXEC_SOURCE_DIR}/run_dist_tree_intra.cpp
-)
+function(create_executable TARGET_NAME SOURCE_FILE LIBRARY_NAME SHOULD_INSTALL)
+    add_executable(${TARGET_NAME} ${SOURCE_FILE})
+    add_dependencies(${TARGET_NAME} ${LIBRARY_NAME})
+    target_link_libraries(${TARGET_NAME} ${LIBRARY_NAME})
+    target_include_directories(${TARGET_NAME} PRIVATE ${CMAKE_BINARY_DIR}/include)
 
-add_executable(dt
-    ${EXEC_SOURCE_DIR}/run_dist_tree.cpp
-)
+    # Check if the executable should be installed
+    if(SHOULD_INSTALL)
+        install(TARGETS ${TARGET_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    endif()
+endfunction()
 
-add_executable(dt_gt
-    ${EXEC_SOURCE_DIR}/run_dist_glob_tree.cpp
-)
 
-add_executable(dt_gt_trim
-    ${EXEC_SOURCE_DIR}/run_dist_glob_tree_trim.cpp
-)
+create_executable(gt_intra ${EXAMPLE_SOURCE_DIR}/run_glob_tree_intra.cpp bmgt_shared TRUE)
+create_executable(gt_intra_dbg ${EXAMPLE_SOURCE_DIR}/run_glob_tree_intra.cpp bmgt_shared TRUE)
+create_executable(global_tree ${EXAMPLE_SOURCE_DIR}/run_glob_tree.cpp bmgt_shared TRUE)
+create_executable(fusion_tree ${EXAMPLE_SOURCE_DIR}/run_fusion_tree.cpp bmgt_shared TRUE)
+create_executable(distributed_tree_intra ${EXAMPLE_SOURCE_DIR}/run_dist_tree_intra.cpp bmgt_shared TRUE)
+create_executable(distributed_tree ${EXAMPLE_SOURCE_DIR}/run_dist_tree.cpp bmgt_shared TRUE)
+create_executable(distributed_global_hybrid_tree ${EXAMPLE_SOURCE_DIR}/run_dist_glob_tree.cpp bmgt_shared TRUE)
+create_executable(distributed_global_hybrid_tree_with_trimming ${EXAMPLE_SOURCE_DIR}/run_dist_glob_tree_trim.cpp bmgt_shared TRUE)
+create_executable(distributed_global_hybrid_tree_with_symmetric ${EXAMPLE_SOURCE_DIR}/run_dist_glob_tree_symm.cpp bmgt_shared TRUE)
+create_executable(global_partial_tree_with_trim ${EXAMPLE_SOURCE_DIR}/run_glob_partial_tree_trim.cpp bmgt_shared TRUE)
+create_executable(global_partial_tree_with_symmetric ${EXAMPLE_SOURCE_DIR}/run_glob_partial_tree_symm.cpp bmgt_shared TRUE)
+create_executable(global_partial_tree_with_misspecification_trim ${EXAMPLE_SOURCE_DIR}/run_glob_partial_tree_trim_misspec.cpp bmgt_shared TRUE)
+create_executable(model_manipulation_benchmark ${EXAMPLE_SOURCE_DIR}/run_model_manipulation_benchmark.cpp bmgt_shared TRUE)
+create_executable(BBPA_benchmark_intra ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_shared TRUE)
+create_executable(BBPA_benchmark ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_shared TRUE)
 
-add_executable(dt_gt_symm
-    ${EXEC_SOURCE_DIR}/run_dist_glob_tree_symm.cpp
-)
+# Versions of BBPA benchmarks that link to specific versions of libraries
+create_executable(BBPA_benchmark_intra_baseline ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_baseline_shared TRUE)
+create_executable(BBPA_benchmark_intra_op1 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_v1_shared TRUE)
+create_executable(BBPA_benchmark_intra_op2 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_v2_shared TRUE)
+create_executable(BBPA_benchmark_intra_op3 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_v3_shared TRUE)
+create_executable(BBPA_benchmark_intra_op4 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_v4_shared TRUE)
+create_executable(BBPA_benchmark_intra_op5 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark_intra.cpp bmgt_v5_shared TRUE)
+create_executable(BBPA_benchmark_baseline ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_baseline_shared TRUE)
 
-add_executable(gpt_trim
-    ${EXEC_SOURCE_DIR}/run_global_partial_tree_trim.cpp
-)
+create_executable(BBPA_benchmark_op1 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_v1_shared TRUE)
+create_executable(BBPA_benchmark_op2 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_v2_shared TRUE)
+create_executable(BBPA_benchmark_op3 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_v3_shared TRUE)
+create_executable(BBPA_benchmark_op4 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_v4_shared TRUE)
+create_executable(BBPA_benchmark_op5 ${EXAMPLE_SOURCE_DIR}/run_BBPA_benchmark.cpp bmgt_v5_shared TRUE)
 
-add_executable(gpt_symm
-    ${EXEC_SOURCE_DIR}/run_global_partial_tree_symm.cpp
-)
-
-add_executable(gpt_trim_misspecification
-    ${EXEC_SOURCE_DIR}/run_global_partial_tree_trim_misspecification.cpp
-)
-
-add_executable(ts_intra
-    ${EXEC_SOURCE_DIR}/run_test_selection_intra.cpp
-)
-
-add_executable(ts
-    ${EXEC_SOURCE_DIR}/run_test_selection.cpp
-)
-
-add_dependencies(gt_intra BMGT)
-add_dependencies(gt_intra_dbg BMGT)
-add_dependencies(gt BMGT)
-add_dependencies(ft BMGT)
-add_dependencies(dt_intra BMGT)
-add_dependencies(dt BMGT)
-add_dependencies(dt_gt BMGT)
-add_dependencies(dt_gt_trim BMGT)
-add_dependencies(dt_gt_symm BMGT)
-add_dependencies(gpt_trim BMGT)
-add_dependencies(gpt_trim_misspecification BMGT)
-add_dependencies(gpt_symm BMGT)
-add_dependencies(ts_intra BMGT)
-add_dependencies(ts BMGT)
-
-target_link_libraries(gt_intra
-    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
-)
-
-target_link_libraries(gt_intra_dbg
-    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
-)
-
-target_link_libraries(gt
-    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
-)
-
-target_link_libraries(ft
-    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
-)
-
-target_link_libraries(dt_intra
-    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
-)
-
-target_link_libraries(dt
-    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
-)
-
-target_link_libraries(dt_gt
-    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
-)
-
-target_link_libraries(dt_gt_trim
-    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
-)
-
-target_link_libraries(dt_gt_symm
-    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
-)
-
-target_link_libraries(gpt_trim
-    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
-)
-
-target_link_libraries(gpt_trim_misspecification
-    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
-)
-
-target_link_libraries(gpt_symm
-    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
-)
-
-target_link_libraries(ts_intra
-    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
-)
-
-target_link_libraries(ts
-    ${CMAKE_SOURCE_DIR}/${LIB_SOURCE_DIR}/libBMGT.a
-)
+include(InstallRequiredSystemLibraries)
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/license.txt")
+set(CPACK_PACKAGE_VERSION_MAJOR "${BMGT_VERSION_MAJOR}")
+set(CPACK_PACKAGE_VERSION_MINOR "${BMGT_VERSION_MINOR}")
+set(CPACK_SOURCE_GENERATOR "TGZ")
+include(CPack)

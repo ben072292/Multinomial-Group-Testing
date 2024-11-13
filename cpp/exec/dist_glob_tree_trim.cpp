@@ -1,8 +1,7 @@
-#include "core.hpp"
 #include "product_lattice.hpp"
 #include "tree.hpp"
 
-int main(int argc, char *argv[])
+EXPORT void run_dist_glob_tree_trim(int argc, char* argv[])
 {
     auto start_time = std::chrono::high_resolution_clock::now();
     // Initialize the MPI environment
@@ -65,11 +64,11 @@ int main(int argc, char *argv[])
     int fin = -1; // flag that mark no more worker tasks
 
     Product_lattice *p;
-    if (type == DP_NON_DILUTION)
+    if (type == REPL_NON_DILUTION)
     {
         p = new Product_lattice_non_dilution(subjs, variants, pi0);
     }
-    else if (type == DP_DILUTION)
+    else if (type == REPL_DILUTION)
     {
         p = new Product_lattice_dilution(subjs, variants, pi0);
     }
@@ -171,10 +170,13 @@ int main(int argc, char *argv[])
                   << "-Prior=" << prior
                   << "-Depth=" << search_depth
                   << "-Processes=" << world_size
+#ifdef ENABLE_OMP
                   << "-Threads=" << omp_get_num_threads()
+#endif
                   << "-" << get_curr_time()
                   << ".csv";
         freopen(file_name.str().c_str(), "w", stdout);
+        std::cout << hardware_config_summary() << std::endl;
         std::cout << "N = " << subjs << ", k = " << variants << std::endl;
         std::cout << "Prior: ";
         for (int i = 0; i < p->curr_atoms(); i++)
@@ -205,7 +207,7 @@ int main(int argc, char *argv[])
     delete tree;
 
     // Free product lattice MPI env
-    Product_lattice::MPI_Product_lattice_Free();
+    Product_lattice::MPI_Product_lattice_Finalize();
     Distributed_tree::MPI_Distributed_tree_Free();
 
     // Finalize MPI

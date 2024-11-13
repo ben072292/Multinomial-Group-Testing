@@ -1,32 +1,5 @@
 #pragma once
-#include "core.hpp"
-
-typedef enum copy_op
-{
-	NO_COPY_PROB_DIST,
-	SHALLOW_COPY_PROB_DIST,
-	DEEP_COPY_PROB_DIST
-} copy_op_t;
-
-enum parallelism
-{
-	MODEL_PARALLELISM,
-	DATA_PARALLELISM = 2
-};
-
-enum dilution
-{
-	NON_DILUTION,
-	DILUTION
-};
-
-enum lattice_type // follow old conventions
-{
-	MP_NON_DILUTION = MODEL_PARALLELISM + NON_DILUTION + 1,
-	MP_DILUTION = MODEL_PARALLELISM + DILUTION + 1,
-	DP_NON_DILUTION = DATA_PARALLELISM + NON_DILUTION + 1,
-	DP_DILUTION = DATA_PARALLELISM + DILUTION + 1
-};
+#include "common.hpp"
 
 /*
  * READ BEFORE USE:
@@ -49,11 +22,11 @@ protected:
 
 public:
 	Product_lattice() {}
-	Product_lattice(int n_atom, int n_variant, double *pi0);
-	Product_lattice(const Product_lattice &other, copy_op_t op);
+	Product_lattice(int subjs, int variants, double *pi0);
+	Product_lattice(const Product_lattice &other, lattice_copy_op_t op);
 	virtual ~Product_lattice();
-	virtual Product_lattice *create(int n_atom, int n_variant, double *pi0) const = 0;
-	virtual Product_lattice *clone(copy_op_t op) const = 0;
+	virtual Product_lattice *create(int subjs, int variants, double *pi0) const = 0;
+	virtual Product_lattice *clone(lattice_copy_op_t op) const = 0;
 	inline int curr_subjs() const { return _curr_subjs; }
 	inline static int variants() { return _variants; };
 	inline static double *pi0() { return _pi0; }
@@ -83,39 +56,23 @@ public:
 	virtual double get_prob_mass(bin_enc state) const;
 	virtual double get_atom_prob_mass(bin_enc atom) const;
 	virtual bin_enc BBPA(double prob) const;
-	virtual enum parallelism parallelism() const { return DATA_PARALLELISM; }
-	virtual enum dilution dilution() const { return NON_DILUTION; }
+	virtual lattice_parallelism_t parallelism() const { return REPL_MODEL; }
+	virtual dilution_t dilution() const { return NON_DILUTION; }
 	virtual Product_lattice *convert_parallelism() { return this; }
-
-	/**
-	 * Serial
-	 */
 	virtual bin_enc BBPA_serial(double prob) const;
-
-	/**
-	 * Intra-node using OpenMP
-	 */
+#ifdef ENABLE_OMP
 	virtual bin_enc BBPA_omp(double prob) const;
-
-	/**
-	 * Inter-node using MPI
-	 */
-	virtual bin_enc BBPA_mpi(double prob) const;
-
-	/**
-	 * Inter-node using MPI + OpenMP
-	 */
 	virtual bin_enc BBPA_mpi_omp(double prob) const;
-
+#endif
+	virtual bin_enc BBPA_mpi(double prob) const;
 #ifdef ENABLE_SIMD
-	/**
-	 * Inter-node using MPI + SIMD
-	 */
 	virtual bin_enc BBPA_mpi_simd(double prob) const { throw std::logic_error("BBPA: SIMD not implemented."); }
 #endif
-
+#if defined(ENABLE_OMP) && defined(ENABLE_SIMD)
+	virtual bin_enc BBPA_mpi_omp_simd(double prob) const { throw std::logic_error("BBPA: SIMD not implemented."); }
+#endif
 	static void MPI_Product_lattice_Initialize();
-	static void MPI_Product_lattice_Free();
+	static void MPI_Product_lattice_Finalize();
 };
 
 class Product_lattice_dilution : public virtual Product_lattice
@@ -123,17 +80,17 @@ class Product_lattice_dilution : public virtual Product_lattice
 public:
 	Product_lattice_dilution() {} // default constructor
 
-	Product_lattice_dilution(int n_atom, int n_variant, double *pi0) : Product_lattice(n_atom, n_variant, pi0) {}
+	Product_lattice_dilution(int subjs, int variants, double *pi0) : Product_lattice(subjs, variants, pi0) {}
 
-	Product_lattice_dilution(Product_lattice const &other, copy_op_t op) : Product_lattice(other, op) {}
+	Product_lattice_dilution(Product_lattice const &other, lattice_copy_op_t op) : Product_lattice(other, op) {}
 
-	Product_lattice *create(int n_atom, int n_variant, double *pi0) const override { return new Product_lattice_dilution(n_atom, n_variant, pi0); }
+	Product_lattice *create(int subjs, int variants, double *pi0) const override { return new Product_lattice_dilution(subjs, variants, pi0); }
 
-	Product_lattice *clone(copy_op op) const override { return new Product_lattice_dilution(*this, op); }
+	Product_lattice *clone(lattice_copy_op op) const override { return new Product_lattice_dilution(*this, op); }
 
 	double response_prob(bin_enc experiment, bin_enc response, bin_enc true_state, double **dilution) const override;
 
-	enum dilution dilution() const override { return DILUTION; }
+	dilution_t dilution() const override { return DILUTION; }
 
 	std::string type() const override { return "Replicated-Dilution"; }
 };
@@ -143,13 +100,13 @@ class Product_lattice_non_dilution : public virtual Product_lattice
 public:
 	Product_lattice_non_dilution(){}; // default constructor
 
-	Product_lattice_non_dilution(int n_atom, int n_variant, double *pi0) : Product_lattice(n_atom, n_variant, pi0) {}
+	Product_lattice_non_dilution(int subjs, int variants, double *pi0) : Product_lattice(subjs, variants, pi0) {}
 
-	Product_lattice_non_dilution(Product_lattice const &other, copy_op_t op) : Product_lattice(other, op) {}
+	Product_lattice_non_dilution(Product_lattice const &other, lattice_copy_op_t op) : Product_lattice(other, op) {}
 
-	Product_lattice *create(int n_atom, int n_variant, double *pi0) const override { return new Product_lattice_non_dilution(n_atom, n_variant, pi0); }
+	Product_lattice *create(int subjs, int variants, double *pi0) const override { return new Product_lattice_non_dilution(subjs, variants, pi0); }
 
-	Product_lattice *clone(copy_op_t op) const override { return new Product_lattice_non_dilution(*this, op); }
+	Product_lattice *clone(lattice_copy_op_t op) const override { return new Product_lattice_non_dilution(*this, op); }
 
 	double response_prob(bin_enc experiment, bin_enc response, bin_enc true_state, double **dilution) const override;
 
@@ -167,6 +124,7 @@ class Product_lattice_dist : public virtual Product_lattice
 
 protected:
 	static double *temp_post_prob_holder;
+	static double *partition_mass;
 	static MPI_Win win;
 	inline bin_enc total_states_per_rank() const { return total_states() / world_size; }
 	inline int state_to_offset(bin_enc state) const { return state % total_states_per_rank(); }
@@ -175,8 +133,8 @@ protected:
 
 public:
 	Product_lattice_dist() {} // default constructor
-	Product_lattice_dist(int n_atom, int n_variant, double *pi0);
-	Product_lattice_dist(const Product_lattice &other, copy_op_t op) : Product_lattice(other, op){};
+	Product_lattice_dist(int subjs, int variants, double *pi0);
+	Product_lattice_dist(const Product_lattice &other, lattice_copy_op_t op) : Product_lattice(other, op){};
 	double posterior_prob(bin_enc state) const override;
 	void prior_probs(double *pi0) override;
 	void update_probs(bin_enc experiment, bin_enc response, double **dilution) override;
@@ -187,23 +145,28 @@ public:
 	double get_prob_mass(bin_enc state) const override { throw std::logic_error("Not Implemented."); }
 	double get_atom_prob_mass(bin_enc atom) const override;
 	bin_enc BBPA_serial(double prob) const override { throw std::logic_error("Serial BBPA algorithm is not supported in distributed model."); }
+#ifdef ENABLE_OMP
 	bin_enc BBPA_omp(double prob) const override { throw std::logic_error("OMP BBPA algorithm is not supported in distributed model"); }
-	bin_enc BBPA_mpi(double prob) const override;
 	bin_enc BBPA_mpi_omp(double prob) const override;
+#endif
+	bin_enc BBPA_mpi(double prob) const override;
 #ifdef ENABLE_SIMD
 	bin_enc BBPA_mpi_simd(double prob) const override;
 #endif
+#if defined(ENABLE_OMP) && defined(ENABLE_SIMD)
+	bin_enc BBPA_mpi_omp_simd(double prob) const override;
+#endif
 	bin_enc BBPA(double prob) const override;
-	virtual enum parallelism parallelism() const override { return MODEL_PARALLELISM; }
-	virtual enum dilution dilution() const override { return NON_DILUTION; }
-	static void MPI_Product_lattice_Initialize(int atoms, int variants);
-	static void MPI_Product_lattice_Free();
+	virtual lattice_parallelism_t parallelism() const override { return DIST_MODEL; }
+	virtual dilution_t dilution() const override { return NON_DILUTION; }
+	static void MPI_Product_lattice_Initialize(int subjs, int variants);
+	static void MPI_Product_lattice_Finalize();
 };
 
 class Product_lattice_dist_dilution : public Product_lattice_dist, public Product_lattice_dilution
 {
 public:
-	Product_lattice_dist_dilution(int n_atom, int n_variant, double *pi0) : Product_lattice_dist(n_atom, n_variant, pi0) {}
+	Product_lattice_dist_dilution(int subjs, int variants, double *pi0) : Product_lattice_dist(subjs, variants, pi0) {}
 
 	// Note the copy constructor directly calls the grandparent copy constructor, i.e., Product_lattice(ohter, copy, op)
 	// Quoted from https://www.geeksforgeeks.org/multiple-inheritance-in-c/
@@ -212,11 +175,11 @@ public:
 	// class is called by default even if the parent classes explicitly call parameterized constructor. How to call the
 	// parameterized constructor of the ‘Person’ class? The constructor has to be called in ‘TA’ class. For example, see
 	// the following program. "
-	Product_lattice_dist_dilution(Product_lattice_dist const &other, copy_op_t copy_op) : Product_lattice(other, copy_op) {}
+	Product_lattice_dist_dilution(Product_lattice const &other, lattice_copy_op_t copy_op) : Product_lattice(other, copy_op) {}
 
-	Product_lattice *create(int n_atom, int n_variant, double *pi0) const override { return new Product_lattice_dist_dilution(n_atom, n_variant, pi0); }
+	Product_lattice *create(int subjs, int variants, double *pi0) const override { return new Product_lattice_dist_dilution(subjs, variants, pi0); }
 
-	Product_lattice *clone(copy_op_t op) const override { return new Product_lattice_dist_dilution(*this, op); };
+	Product_lattice *clone(lattice_copy_op_t op) const override { return new Product_lattice_dist_dilution(*this, op); };
 
 	Product_lattice *convert_parallelism() override
 	{
@@ -226,7 +189,7 @@ public:
 		return p;
 	}
 
-	enum dilution dilution() const override { return DILUTION; }
+	dilution_t dilution() const override { return DILUTION; }
 
 	std::string type() const override { return "Distributed-Dilution"; }
 };
@@ -234,7 +197,7 @@ public:
 class Product_lattice_dist_non_dilution : public Product_lattice_dist, public Product_lattice_non_dilution
 {
 public:
-	Product_lattice_dist_non_dilution(int n_atom, int n_variant, double *pi0) : Product_lattice_dist(n_atom, n_variant, pi0) {}
+	Product_lattice_dist_non_dilution(int subjs, int variants, double *pi0) : Product_lattice_dist(subjs, variants, pi0) {}
 
 	// Note the copy constructor directly calls the grandparent copy constructor, i.e., Product_lattice(ohter, copy, op)
 	// Quoted from https://www.geeksforgeeks.org/multiple-inheritance-in-c/
@@ -243,11 +206,11 @@ public:
 	// class is called by default even if the parent classes explicitly call parameterized constructor. How to call the
 	// parameterized constructor of the ‘Person’ class? The constructor has to be called in ‘TA’ class. For example, see
 	// the following program. "
-	Product_lattice_dist_non_dilution(Product_lattice_dist const &other, copy_op_t op) : Product_lattice(other, op) {}
+	Product_lattice_dist_non_dilution(Product_lattice const &other, lattice_copy_op_t op) : Product_lattice(other, op) {}
 
-	Product_lattice *create(int n_atom, int n_variant, double *pi0) const override { return new Product_lattice_dist_non_dilution(n_atom, n_variant, pi0); }
+	Product_lattice *create(int subjs, int variants, double *pi0) const override { return new Product_lattice_dist_non_dilution(subjs, variants, pi0); }
 
-	Product_lattice *clone(copy_op_t op) const override { return new Product_lattice_dist_non_dilution(*this, op); };
+	Product_lattice *clone(lattice_copy_op_t op) const override { return new Product_lattice_dist_non_dilution(*this, op); };
 
 	Product_lattice *convert_parallelism() override
 	{
@@ -314,7 +277,27 @@ typedef struct BBPA_res
 	}
 } BBPA_res;
 
-double **generate_dilution(int n, double alpha, double h);
+#define BBPA_UNROLL_1_INTRINSICS(partition_id, ex, state, curr_subjs) \
+	partition_id = SIMD_OR(partition_id, SIMD_AND(SIMD_SET1(1), SIMD_SRLI(SIMD_SUB(SIMD_AND(ex, SIMD_SET1(offset_to_state(state))), ex), 31))); \
+
+#define BBPA_UNROLL_2_INTRINSICS(partition_id, ex, state, curr_subjs) \
+	BBPA_UNROLL_1_INTRINSICS(partition_id, ex, state, curr_subjs)     \
+	partition_id = SIMD_OR(partition_id, SIMD_AND(SIMD_SET1(2), SIMD_SRLI(SIMD_SUB(SIMD_AND(ex, SIMD_SET1(offset_to_state(state) >> curr_subjs)), ex), 31))); 
+
+#define BBPA_UNROLL_3_INTRINSICS(partition_id, ex, state, curr_subjs) \
+	BBPA_UNROLL_2_INTRINSICS(partition_id, ex, state, curr_subjs)     \
+	partition_id = SIMD_OR(partition_id, SIMD_AND(SIMD_SET1(4), SIMD_SRLI(SIMD_SUB(SIMD_AND(ex, SIMD_SET1(offset_to_state(state) >> (2 * curr_subjs))), ex), 31)));
+
+#define BBPA_UNROLL_4_INTRINSICS(partition_id, ex, state, curr_subjs) \
+	BBPA_UNROLL_3_INTRINSICS(partition_id, ex, state, curr_subjs)     \
+	partition_id = SIMD_OR(partition_id, SIMD_AND(SIMD_SET1(8), SIMD_SRLI(SIMD_SUB(SIMD_AND(ex, SIMD_SET1(offset_to_state(state) >> (3 * curr_subjs))), ex), 31)));
+
+#define BBPA_UNROLL_5_INTRINSICS(partition_id, ex, state, curr_subjs) \
+	BBPA_UNROLL_4_INTRINSICS(partition_id, ex, state, curr_subjs)     \
+	partition_id = SIMD_OR(partition_id, SIMD_AND(SIMD_SET1(16), SIMD_SRLI(SIMD_SUB(SIMD_AND(ex, SIMD_SET1(offset_to_state(state) >> (4 * curr_subjs))), ex), 31)));
+
+#define BBPA_UNROLL_INTRINSICS(times, partition_id, ex, state, curr_subjs) \
+	BBPA_UNROLL_##times##_INTRINSICS(partition_id, ex, state, curr_subjs)
 
 #define BBPA_UNROLL_1(partition_id, ex, state, curr_subjs) \
 	partition_id |= (1 & (((ex & (offset_to_state(state))) - ex) >> 31));

@@ -1,8 +1,7 @@
-#include "core.hpp"
 #include "product_lattice.hpp"
 #include "tree.hpp"
 
-int main(int argc, char *argv[])
+EXPORT void run_glob_partial_tree_trim(int argc, char* argv[])
 {
     auto start_time = std::chrono::high_resolution_clock::now();
     // Initialize the MPI environment
@@ -37,9 +36,6 @@ int main(int argc, char *argv[])
     double thres_branch = 0.001;
 
     // Initialize product lattice MPI env
-    Product_lattice::MPI_Product_lattice_Initialize();
-
-    // Initialize product lattice MPI env
     Global_partial_tree::MPI_Distributed_tree_Initialize(subjs, 1, search_depth);
 
     double pi0[subjs * variants];
@@ -61,12 +57,12 @@ int main(int argc, char *argv[])
 
     auto start_lattice_gen = std::chrono::high_resolution_clock::now();
     Product_lattice *p;
-    if (type == MP_NON_DILUTION)
+    if (type == DIST_NON_DILUTION)
     {
         Product_lattice_dist::MPI_Product_lattice_Initialize(subjs, variants);
         p = new Product_lattice_dist_non_dilution(subjs, variants, pi0);
     }
-    else if (type == MP_DILUTION)
+    else if (type == DIST_DILUTION)
     {
         Product_lattice_dist::MPI_Product_lattice_Initialize(subjs, variants);
         p = new Product_lattice_dist_dilution(subjs, variants, pi0);
@@ -123,10 +119,13 @@ int main(int argc, char *argv[])
                   << "-Prior=" << prior
                   << "-Depth=" << search_depth
                   << "-Processes=" << world_size
+#ifdef ENABLE_OMP
                   << "-Threads=" << omp_get_num_threads()
+#endif
                   << "-" << get_curr_time()
                   << ".csv";
         freopen(file_name.str().c_str(), "w", stdout);
+        std::cout << hardware_config_summary() << std::endl;
         std::cout << "N = " << subjs << ", k = " << variants << std::endl;
         std::cout << "Prior: ";
         for (int i = 0; i < p->curr_atoms(); i++)
@@ -161,11 +160,24 @@ int main(int argc, char *argv[])
     delete tree;
 
     // Free product lattice MPI env
-    Product_lattice::MPI_Product_lattice_Free();
-    if (type == MP_NON_DILUTION || type == MP_DILUTION)
-    {
-        Product_lattice_dist::MPI_Product_lattice_Free();
-    }
+    switch (type)
+	{
+	case DIST_NON_DILUTION:
+		Product_lattice_dist::MPI_Product_lattice_Finalize();
+        break;
+	case DIST_DILUTION:
+		Product_lattice_dist::MPI_Product_lattice_Finalize();
+        break;
+	case REPL_NON_DILUTION:
+		Product_lattice::MPI_Product_lattice_Finalize();
+        break;
+	case REPL_DILUTION:
+		Product_lattice::MPI_Product_lattice_Finalize();
+        break;
+	default:
+		throw std::logic_error("Nonexisting product lattice type! Exiting...");
+		exit(1);
+	}
     Global_partial_tree::MPI_Distributed_tree_Free();
 
     // Finalize MPI

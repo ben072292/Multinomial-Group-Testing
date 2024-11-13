@@ -1,5 +1,4 @@
 #pragma once
-#include "core.hpp"
 #include "product_lattice.hpp"
 #include "tree_perf.hpp"
 #include "tree_stat.hpp"

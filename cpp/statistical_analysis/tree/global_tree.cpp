@@ -72,11 +72,11 @@ Global_tree::Global_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int 
             int new_parallelism = p->parallelism();
             tree_perf->accumulate_count(_lattice->curr_subjs(), p->curr_subjs());
             tree_perf->accumulate_update_time(_lattice->curr_subjs(), p->curr_subjs(), (update_end - update_start));
-            if (old_parallelism == MODEL_PARALLELISM && new_parallelism == MODEL_PARALLELISM)
+            if (old_parallelism == DIST_MODEL && new_parallelism == DIST_MODEL)
                 tree_perf->accumulate_mp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
-            else if (old_parallelism == MODEL_PARALLELISM && new_parallelism == DATA_PARALLELISM)
+            else if (old_parallelism == DIST_MODEL && new_parallelism == REPL_MODEL)
                 tree_perf->accumulate_mp_dp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
-            else if (old_parallelism == DATA_PARALLELISM)
+            else if (old_parallelism == REPL_MODEL)
                 tree_perf->accumulate_dp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
             _children[re] = new Global_tree(p, ex, re, k, _curr_stage + 1, true);
         }

@@ -1,22 +1,22 @@
-#include "core.hpp"
 #include "product_lattice.hpp"
 
-int main(int argc, char *argv[])
+EXPORT void run_BBPA_benchmark_intra(int argc, char *argv[])
 {
 
     // omp_set_num_threads(8);
-    int atom = std::atoi(argv[1]);
+    int subjs = std::atoi(argv[1]);
     int variants = std::atoi(argv[2]);
     double prior = std::atof(argv[3]);
 
-    double pi0[atom * variants];
-    for (int i = 0; i < atom * variants; i++)
+    double pi0[subjs * variants];
+    for (int i = 0; i < subjs * variants; i++)
     {
         pi0[i] = prior;
     }
 
-    Product_lattice *p = new Product_lattice_non_dilution(atom, variants, pi0);
-
+    Product_lattice::MPI_Product_lattice_Initialize();
+    Product_lattice *p = new Product_lattice_non_dilution(subjs, variants, pi0);
+    std::cout << hardware_config_summary() << std::endl;
     auto start = std::chrono::high_resolution_clock::now();
     std::cout << p->BBPA(0.25) << std::endl;
 

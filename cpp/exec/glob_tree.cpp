@@ -1,8 +1,7 @@
-#include "core.hpp"
 #include "product_lattice.hpp"
 #include "tree.hpp"
 
-int main(int argc, char *argv[])
+EXPORT void run_glob_tree(int argc, char* argv[])
 {
     // Initialize the MPI environment
     int provided_thread_level;
@@ -35,16 +34,8 @@ int main(int argc, char *argv[])
     double thres_lo = 0.01;
     double thres_branch = 0.001;
 
-    Tree::thres_up(thres_up);
-    Tree::thres_lo(thres_lo);
-    Tree::thres_branch(thres_branch);
-    Tree::search_depth(search_depth);
-
     // Initialize product lattice MPI env
-    Product_lattice::MPI_Product_lattice_Initialize();
-
-    // Initialize product lattice MPI env
-    Fusion_tree::MPI_Fusion_tree_Initialize(subjs, 1);
+    Global_tree::MPI_Global_tree_Initialize(subjs, 1);
 
     double pi0[subjs * variants];
     for (int i = 0; i < subjs * variants; i++)
@@ -55,22 +46,24 @@ int main(int argc, char *argv[])
     auto start_lattice_model_construction = std::chrono::high_resolution_clock::now();
 
     Product_lattice *p;
-    if (type == MP_NON_DILUTION)
+    if (type == DIST_NON_DILUTION)
     {
         Product_lattice_dist::MPI_Product_lattice_Initialize(subjs, variants);
         p = new Product_lattice_dist_non_dilution(subjs, variants, pi0);
     }
-    else if (type == MP_DILUTION)
+    else if (type == DIST_DILUTION)
     {
         Product_lattice_dist::MPI_Product_lattice_Initialize(subjs, variants);
         p = new Product_lattice_dist_dilution(subjs, variants, pi0);
     }
-    else if (type == DP_NON_DILUTION)
+    else if (type == REPL_NON_DILUTION)
     {
+        Product_lattice::MPI_Product_lattice_Initialize();
         p = new Product_lattice_non_dilution(subjs, variants, pi0);
     }
-    else if (type == DP_DILUTION)
+    else if (type == REPL_DILUTION)
     {
+        Product_lattice::MPI_Product_lattice_Initialize();
         p = new Product_lattice_dilution(subjs, variants, pi0);
     }
     else
@@ -82,11 +75,21 @@ int main(int argc, char *argv[])
 
     double **dilution = generate_dilution(subjs, 0.99, 0.005);
 
+    Tree::thres_up(thres_up);
+    Tree::thres_lo(thres_lo);
+    Tree::thres_branch(thres_branch);
+    Tree::search_depth(search_depth);
     Tree::dilution(dilution);
 
     auto start_tree_construction = std::chrono::high_resolution_clock::now();
     /* Fusion tree */
-    Tree *tree = new Fusion_tree(p, -1, -1, 1, 0, 0.01, 0.0, 1e-6);
+    // Global_tree *tree = new Global_tree(p, -1, -1, 0, 0.01, 0.0, 1e-6);
+
+    /* Global tree without perf */
+    // Global_tree* tree = new Global_tree(p, -1, -1, 0);
+
+    /* Global tree with perf */
+    Tree *tree = new Global_tree(p, -1, -1, 1, 0, true);
 
     auto stop_tree_construction = std::chrono::high_resolution_clock::now();
 
@@ -107,16 +110,19 @@ int main(int argc, char *argv[])
     if (!rank)
     {
         std::stringstream file_name;
-        file_name << "FusionTree-" << p->type()
+        file_name << "GlobalTree-" << p->type()
                   << "-N=" << subjs
                   << "-k=" << variants
                   << "-Prior=" << prior
                   << "-Depth=" << search_depth
                   << "-Processes=" << world_size
+#ifdef ENABLE_OMP
                   << "-Threads=" << omp_get_num_threads()
+#endif
                   << "-" << get_curr_time()
                   << ".csv";
         freopen(file_name.str().c_str(), "w", stdout);
+        std::cout << hardware_config_summary() << std::endl;
         std::cout << "N = " << subjs << ", k = " << variants << std::endl;
         std::cout << "Prior: ";
         for (int i = 0; i < p->curr_atoms(); i++)
@@ -126,18 +132,16 @@ int main(int argc, char *argv[])
         std::cout << "\nNegative classification threshold: " << thres_up << std::endl;
         std::cout << "Positive classification threshold: " << thres_lo << std::endl;
         std::cout << "Branch elimination threshold: " << thres_branch << std::endl;
+
         summ.output_detail();
         auto stop_statistical_analysis = std::chrono::high_resolution_clock::now();
         std::cout << "\n\nPerformance Statistics\n\n";
-
         std::cout << tree->shrinking_stat() << std::endl
                   << std::endl;
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_lattice_model_construction - start_lattice_model_construction);
         std::cout << "Initial Lattice Model Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
-
         Global_tree::tree_perf->output_verbose();
-
         std::cout << "Global Tree Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - stop_tree_construction);
         std::cout << "Statistical Analysis Time: " << duration.count() / 1e6 << "s." << std::endl;
@@ -153,12 +157,25 @@ int main(int argc, char *argv[])
     delete tree;
 
     // Free product lattice MPI env
-    Product_lattice::MPI_Product_lattice_Free();
-    if (type == MP_NON_DILUTION || type == MP_DILUTION)
-    {
-        Product_lattice_dist::MPI_Product_lattice_Free();
-    }
-    Fusion_tree::MPI_Fusion_tree_Free();
+    switch (type)
+	{
+	case DIST_NON_DILUTION:
+		Product_lattice_dist::MPI_Product_lattice_Finalize();
+        break;
+	case DIST_DILUTION:
+		Product_lattice_dist::MPI_Product_lattice_Finalize();
+        break;
+	case REPL_NON_DILUTION:
+		Product_lattice::MPI_Product_lattice_Finalize();
+        break;
+	case REPL_DILUTION:
+		Product_lattice::MPI_Product_lattice_Finalize();
+        break;
+	default:
+		throw std::logic_error("Nonexisting product lattice type! Exiting...");
+		exit(1);
+	}
+    Global_tree::MPI_Global_tree_Free();
 
     // Finalize MPI
     MPI_Finalize();

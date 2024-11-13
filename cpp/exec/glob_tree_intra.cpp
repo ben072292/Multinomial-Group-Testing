@@ -1,8 +1,7 @@
-#include "core.hpp"
 #include "product_lattice.hpp"
 #include "tree.hpp"
 
-int main(int argc, char *argv[])
+EXPORT void run_glob_tree_intra(int argc, char* argv[])
 {
 
     // omp_set_num_threads(8);
@@ -19,6 +18,8 @@ int main(int argc, char *argv[])
     {
         pi0[i] = prior;
     }
+    Product_lattice::MPI_Product_lattice_Initialize();
+
     auto start_lattice_model_construction = std::chrono::high_resolution_clock::now();
 
     Product_lattice *p = new Product_lattice_non_dilution(subjs, variants, pi0);
@@ -57,11 +58,13 @@ int main(int argc, char *argv[])
               << subjs << "-k=" << variants
               << "-Prior=" << prior
               << "-Depth=" << search_depth
+#ifdef ENABLE_OMP
               << "-Threads=" << omp_get_num_threads()
+#endif
               << "-" << get_curr_time()
               << ".csv";
     freopen(file_name.str().c_str(), "w", stdout);
-
+    std::cout << hardware_config_summary() << std::endl;
     std::cout << "N = " << subjs << ", k = " << variants << std::endl;
     std::cout << "Prior: ";
     for (int i = 0; i < p->curr_atoms(); i++)

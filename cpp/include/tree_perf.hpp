@@ -1,6 +1,6 @@
 #pragma once
+#include "common.hpp"
 
-#include "core.hpp"
 class Tree_perf
 {
 private:

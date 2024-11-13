@@ -7,7 +7,7 @@ Global_tree_intra::Global_tree_intra(Product_lattice *lattice, bin_enc ex, bin_e
         _children = new Tree *[1 << variants()]
         { nullptr };
         // int BBPA = lattice->BBPA(1.0 / (1 << lattice->variant()));
-        bin_enc BBPA = lattice->BBPA_omp(1.0 / (1 << variants())); // openmp
+        bin_enc BBPA = lattice->BBPA(1.0 / (1 << variants())); // openmp
         bin_enc ex = true_ex(BBPA);                                // full-sized experiment should be generated before posterior probability distribution is updated, because unupdated clas_subj_ should be used to calculate the correct value
         for (bin_enc re = 0; re < (1 << variants()); re++)
         {
@@ -40,7 +40,7 @@ Global_tree_intra::Global_tree_intra(Product_lattice *lattice, bin_enc ex, bin_e
         _children = new Tree *[1 << variants()]
         { nullptr };
         // int BBPA = lattice->BBPA(1.0 / (1 << lattice->variant()));
-        bin_enc BBPA = lattice->BBPA_omp(1.0 / (1 << variants())); // openmp
+        bin_enc BBPA = lattice->BBPA(1.0 / (1 << variants())); // openmp
         end = std::chrono::high_resolution_clock::now();
         BBPA_times[_lattice->curr_subjs()] += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
         bin_enc ex = true_ex(BBPA); // full-sized experiment should be generated before posterior probability distribution is updated, because unupdated clas_subj_ should be used to calculate the correct value
