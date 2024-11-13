@@ -319,7 +319,7 @@ double Product_lattice::get_atom_prob_mass(bin_enc atom) const
 	return ret;
 }
 
-#ifdef BBPA_V1
+#ifdef BBPA_NAIVE
 /**
  * Implementation V1
  */
@@ -374,7 +374,7 @@ int Product_lattice::BBPA_serial(double prob) const
 	}
 	return candidate;
 }
-#elif defined(BBPA_V2)
+#elif defined(BBPA_OP1)
 /**
  * Implementation V2
  */
@@ -420,7 +420,7 @@ int Product_lattice::BBPA_serial(double prob) const
 	return candidate;
 }
 
-#elif defined(BBPA_V3)
+#elif defined(BBPA_OP2)
 /**
  * Implementation V3
  */

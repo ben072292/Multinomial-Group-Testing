@@ -1,7 +1,7 @@
-#ifndef MGT_CORE_H_
-#define MGT_CORE_H_
+#ifndef BMGT_CORE_H_
+#define BMGT_CORE_H_
 
-#define MGT_API(ret, func, args...)            \
+#define BMGT_API(ret, func, args...)            \
     extern "C"                                 \
         __attribute__((visibility("default"))) \
         ret                                    \

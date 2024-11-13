@@ -1,17 +1,23 @@
 #include "product_lattice.hpp"
 #include "tree.hpp"
 
-EXPORT void run_glob_tree_intra(int argc, char* argv[])
+EXPORT void run_glob_tree_intra(int argc, char *argv[])
 {
+
+    if (argc != 5)
+    {
+        std::cerr << "Usage: " << argv[0] << " <type> <subjs> <variants> <prior> <search_depth>\n";
+        exit(1);
+    }
 
     // omp_set_num_threads(8);
     int subjs = std::atoi(argv[1]);
     int variants = std::atoi(argv[2]);
     double prior = std::atof(argv[3]);
+    int search_depth = std::atoi(argv[4]);
     double thres_up = 0.01;
     double thres_lo = 0.01;
     double thres_branch = 0.001;
-    int search_depth = std::atoi(argv[4]);
 
     double pi0[subjs * variants];
     for (int i = 0; i < subjs * variants; i++)

@@ -5,31 +5,43 @@ EXPORT void run_BBPA_benchmark(int argc, char *argv[])
     // Initialize the MPI environment
     MPI_Init(&argc, &argv);
 
-    // Get the number of processes
+    // Get the number of processes and rank
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-
-    // Get the rank of the process
-    int world_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     // Get the name of the processor
     char processor_name[MPI_MAX_PROCESSOR_NAME];
     int name_len;
     MPI_Get_processor_name(processor_name, &name_len);
 
+    if (argc != 4)
+    {
+        if (rank == 0)
+        {
+            std::cerr << "Usage: " << argv[0] << " <parallelism_type> <subjs> <variants>\n";
+        }
+        MPI_Finalize(); // Finalize MPI before exiting
+        return;
+    }
+
+    // Parse arguments after validating argc
     int parallelism_type = std::atoi(argv[1]);
     int subjs = std::atoi(argv[2]);
     int variants = std::atoi(argv[3]);
 
+    // Prepare variables for processing
     double pi0[subjs * variants];
     for (int i = 0; i < subjs * variants; i++)
     {
         pi0[i] = 0.01;
     }
 
-    Product_lattice *p;
+    Product_lattice *p = nullptr;
     auto start_lattice_construction = std::chrono::high_resolution_clock::now();
+
+    // Choose lattice type based on parallelism_type
     if (parallelism_type == DIST_NON_DILUTION)
     {
         Product_lattice_dist::MPI_Product_lattice_Initialize(subjs, variants);
@@ -51,29 +63,36 @@ EXPORT void run_BBPA_benchmark(int argc, char *argv[])
         p = new Product_lattice_dilution(subjs, variants, pi0);
     }
     else
-        exit(1);
+    {
+        if (rank == 0)
+        {
+            std::cerr << "Error: Invalid parallelism type\n";
+        }
+        MPI_Finalize(); // Finalize MPI before exiting
+        return;
+    }
 
     auto end_lattice_construction = std::chrono::high_resolution_clock::now();
     auto start_halving = std::chrono::high_resolution_clock::now();
 
-    bin_enc res = -1;
-    res = p->BBPA(1.0 / (1 << variants));
-
+    // Run the BBPA method
+    bin_enc res = p->BBPA(1.0 / (1 << variants));
     auto end_halving = std::chrono::high_resolution_clock::now();
 
-    if (world_rank == 0)
+    // Output results if master process
+    if (rank == 0)
     {
         std::stringstream file_name;
         file_name <<
-#ifdef BBPA_V1
+#ifdef BBPA_NAIVE
             "BBPA-Benchmark-Baseline-"
-#elif defined(BBPA_V2)
+#elif defined(BBPA_OP1)
             "BBPA-Benchmark-OP1-"
-#elif defined(BBPA_V3)
+#elif defined(BBPA_OP2)
             "BBPA-Benchmark-OP2-"
-#elif defined(BBPA_V4)
+#elif defined(BBPA_OP3)
             "BBPA-Benchmark-OP3-"
-#elif defined(ENABLE_SIMD)
+#elif defined(ENABLE_SIMD) && !defined(ENABLE_OMP)
             "BBPA-Benchmark-OP4-"
 #elif defined(ENABLE_SIMD) && defined(ENABLE_OMP)
             "BBPA-Benchmark-OP5-"
@@ -97,14 +116,13 @@ EXPORT void run_BBPA_benchmark(int argc, char *argv[])
                   << ",OpenMP," << "Enabled"
 #endif
                   << std::endl;
-        // std::cout << "Model Construction Time," << std::chrono::duration_cast<std::chrono::nanoseconds>(end_lattice_construction - start_lattice_construction).count() / 1e9 << "s\n";
         std::cout << "BBPA Time," << std::chrono::duration_cast<std::chrono::nanoseconds>(end_halving - start_halving).count() / 1e9 << "s\n";
         std::cout << "Candidate," << res << std::endl;
     }
 
-    // Free product lattice MPI env
+    // Free product lattice MPI environment
     Product_lattice::MPI_Product_lattice_Finalize();
 
-    // Finalize the MPI environment.
+    // Finalize the MPI environment
     MPI_Finalize();
 }

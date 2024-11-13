@@ -25,6 +25,16 @@ EXPORT void run_fusion_tree(int argc, char *argv[])
     int name_len;
     MPI_Get_processor_name(processor_name, &name_len);
 
+    if (argc != 6)
+    {
+        if (rank == 0)
+        {
+            std::cerr << "Usage: " << argv[0] << " <type> <subjs> <variants> <prior> <search_depth>\n";
+        }
+        MPI_Finalize(); // Finalize MPI before exiting
+        return;
+    }
+
     int type = std::atoi(argv[1]);
     int subjs = std::atoi(argv[2]);
     int variants = std::atoi(argv[3]);

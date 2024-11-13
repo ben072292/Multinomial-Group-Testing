@@ -296,7 +296,7 @@ bin_enc Product_lattice_dist::BBPA(double prob) const
 #endif
 }
 
-#ifdef BBPA_V1
+#ifdef BBPA_NAIVE
 // baseline: sample-major model layout, no loop reordering, no bit-twiddling, no vectorization, no openmp
 bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 {
@@ -346,7 +346,7 @@ bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 	memset(reinterpret_cast<void *>(partition_mass), 0x00, partition_size * sizeof(double));
 	return candidate;
 }
-#elif defined(BBPA_V2)
+#elif defined(BBPA_OP1)
 // optimization 1: sample-major model layout -> attribute-major model layout
 // no loop reordering, no bit-twiddling, no vectorization, no openmp
 bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
@@ -391,7 +391,7 @@ bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 	memset(reinterpret_cast<void *>(partition_mass), 0x00, partition_size * sizeof(double));
 	return candidate;
 }
-#elif defined(BBPA_V3)
+#elif defined(BBPA_OP2)
 // optimization 2: sample-major model layout -> attribute-major model layout, no loop reordering -> loop reodering
 // no bit-twiddling, no vectorization, no openmp
 bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
@@ -435,7 +435,7 @@ bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
 	memset(reinterpret_cast<void *>(partition_mass), 0x00, partition_size * sizeof(double));
 	return candidate;
 }
-#elif defined(BBPA_V4)
+#elif defined(BBPA_OP3)
 // optimization 3: sample-major model layout -> attribute-major model layout, no loop reordering -> loop reodering
 // no bit-twiddling -> bit-twiddling, no vectorization, no openmp
 bin_enc Product_lattice_dist::BBPA_mpi(double prob) const
