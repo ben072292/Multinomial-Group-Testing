@@ -14,7 +14,6 @@ EXPORT void run_BBPA_benchmark_intra(int argc, char *argv[])
         pi0[i] = prior;
     }
 
-    Product_lattice::MPI_Product_lattice_Initialize();
     Product_lattice *p = new Product_lattice_non_dilution(subjs, variants, pi0);
     std::cout << hardware_config_summary() << std::endl;
     auto start = std::chrono::high_resolution_clock::now();
