@@ -10,13 +10,23 @@ EXPORT void run_model_manipulation_benchmark(int argc, char *argv[])
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
     // Get the rank of the process
-    int world_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     // Get the name of the processor
     char processor_name[MPI_MAX_PROCESSOR_NAME];
     int name_len;
     MPI_Get_processor_name(processor_name, &name_len);
+
+    if (argc != 4)
+    {
+        if (rank == 0)
+        {
+            std::cerr << "Usage: " << argv[0] << " <type> <subjs> <variants>\n";
+        }
+        MPI_Finalize(); // Finalize MPI before exiting
+        return;
+    }
 
     int parallelism_type = std::atoi(argv[1]);
     int subjs = std::atoi(argv[2]);
@@ -63,7 +73,7 @@ EXPORT void run_model_manipulation_benchmark(int argc, char *argv[])
 
     auto end_classification = std::chrono::high_resolution_clock::now();
 
-    if (world_rank == 0)
+    if (rank == 0)
     {
                 std::stringstream file_name;
                 file_name << "Model-Manipulation-Benchmark-" << p->type()

@@ -26,6 +26,16 @@ EXPORT void run_dist_tree(int argc, char* argv[])
     int name_len;
     MPI_Get_processor_name(processor_name, &name_len);
 
+    if (argc != 8)
+    {
+        if (rank == 0)
+        {
+            std::cerr << "Usage: " << argv[0] << " <type> <subjs> <variants> <prior> <global_tree_depth> <search_depth> <workload_granularity>\n";
+        }
+        MPI_Finalize(); // Finalize MPI before exiting
+        return;
+    }
+
     int type = std::atoi(argv[1]);
     int subjs = std::atoi(argv[2]);
     int variants = std::atoi(argv[3]);

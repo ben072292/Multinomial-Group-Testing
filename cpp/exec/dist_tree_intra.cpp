@@ -1,8 +1,15 @@
 #include "product_lattice.hpp"
 #include "tree.hpp"
 
-EXPORT void run_dist_tree_intra(int argc, char* argv[])
+EXPORT void run_dist_tree_intra(int argc, char *argv[])
 {
+
+    if (argc != 6)
+    {
+        std::cerr << "Usage: " << argv[0] << " <type> <subjs> <variants> <prior> <global_tree_depth> <search_depth>\n";
+        exit(1);
+    }
+
     int type = std::atoi(argv[1]);
     int subjs = std::atoi(argv[2]);
     int variants = std::atoi(argv[3]);
@@ -107,23 +114,23 @@ EXPORT void run_dist_tree_intra(int argc, char* argv[])
     std::cout << "Total Time: " << duration.count() / 1e6 << "s." << std::endl;
 
     switch (type)
-	{
-	case DIST_NON_DILUTION:
-		Product_lattice_dist::MPI_Product_lattice_Finalize();
+    {
+    case DIST_NON_DILUTION:
+        Product_lattice_dist::MPI_Product_lattice_Finalize();
         break;
-	case DIST_DILUTION:
-		Product_lattice_dist::MPI_Product_lattice_Finalize();
+    case DIST_DILUTION:
+        Product_lattice_dist::MPI_Product_lattice_Finalize();
         break;
-	case REPL_NON_DILUTION:
-		Product_lattice::MPI_Product_lattice_Finalize();
+    case REPL_NON_DILUTION:
+        Product_lattice::MPI_Product_lattice_Finalize();
         break;
-	case REPL_DILUTION:
-		Product_lattice::MPI_Product_lattice_Finalize();
+    case REPL_DILUTION:
+        Product_lattice::MPI_Product_lattice_Finalize();
         break;
-	default:
-		throw std::logic_error("Nonexisting product lattice type! Exiting...");
-		exit(1);
-	}
+    default:
+        throw std::logic_error("Nonexisting product lattice type! Exiting...");
+        exit(1);
+    }
 
     for (int i = 0; i < subjs; i++)
     {
