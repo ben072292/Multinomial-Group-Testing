@@ -30,7 +30,7 @@ EXPORT void run_dist_glob_tree(int argc, char *argv[])
     {
         if (rank == 0)
         {
-            std::cerr << "Usage: " << argv[0] << " <type> <subjs> <variants> <prior> <global_tree_depth> <search_depth> <workload_granularity>\n";
+            std::cerr << "Usage: " << argv[0] << " <parallelism_type> <subjs> <variants> <prior> <global_tree_depth> <search_depth> <workload_granularity>\n";
         }
         MPI_Finalize(); // Finalize MPI before exiting
         return;
@@ -175,7 +175,7 @@ EXPORT void run_dist_glob_tree(int argc, char *argv[])
                   << "-Depth=" << search_depth
                   << "-Processes=" << world_size
 #ifdef ENABLE_OMP
-                  << "-Threads=" << omp_get_num_threads()
+                  << "-Threads=" << std::stoi(getenv("OMP_NUM_THREADS"))
 #endif
                   << "-" << get_curr_time()
                   << ".csv";

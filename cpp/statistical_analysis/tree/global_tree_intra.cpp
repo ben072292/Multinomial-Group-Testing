@@ -22,7 +22,7 @@ Global_tree_intra::Global_tree_intra(Product_lattice *lattice, bin_enc ex, bin_e
                 p->update_probs_in_place(BBPA, re, _dilution);
             }
             if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
-                p = p->convert_parallelism();
+                p = p->to_local();
             _children[re] = new Global_tree_intra(p, ex, re, k, _curr_stage + 1);
         }
     }
@@ -57,7 +57,7 @@ Global_tree_intra::Global_tree_intra(Product_lattice *lattice, bin_enc ex, bin_e
                 p->update_probs_in_place(BBPA, re, _dilution);
             }
             if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
-                p = p->convert_parallelism();
+                p = p->to_local();
             _children[re] = new Global_tree_intra(p, ex, re, k, _curr_stage + 1, BBPA_times);
         }
     }

@@ -30,7 +30,7 @@ EXPORT void run_glob_partial_tree_trim(int argc, char* argv[])
     {
         if (rank == 0)
         {
-            std::cerr << "Usage: " << argv[0] << " <type> <subjs> <variants> <prior> <search_depth>\n";
+            std::cerr << "Usage: " << argv[0] << " <parallelism_type> <subjs> <variants> <prior> <search_depth>\n";
         }
         MPI_Finalize(); // Finalize MPI before exiting
         return;
@@ -130,7 +130,7 @@ EXPORT void run_glob_partial_tree_trim(int argc, char* argv[])
                   << "-Depth=" << search_depth
                   << "-Processes=" << world_size
 #ifdef ENABLE_OMP
-                  << "-Threads=" << omp_get_num_threads()
+                  << "-Threads=" << std::stoi(getenv("OMP_NUM_THREADS"))
 #endif
                   << "-" << get_curr_time()
                   << ".csv";

@@ -2,6 +2,14 @@ cmake_minimum_required(VERSION 3.10)
 project(BMGT VERSION 1.0 DESCRIPTION "Scalable Bayesian Multinomial Group Testing Framework")
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
+set(BMGT_MAJOR 0)
+set(BMGT_MINOR 0)
+set(BMGT_PATCH 1)
+set(BMGT_SUFFIX "alpha")
+set(BMGT_VERSION_CODE ${BMGT_MAJOR}${BMGT_MINOR}${BMGT_PATCH})
+
+configure_file(${CMAKE_SOURCE_DIR}/include/bmgt.h.in ${CMAKE_BINARY_DIR}/include/bmgt.h @ONLY)
+
 set(CMAKE_CXX_COMPILER "mpicxx")
 set(CMAKE_C_COMPILER "mpicc")
 set(CMAKE_CXX_STANDARD 11)

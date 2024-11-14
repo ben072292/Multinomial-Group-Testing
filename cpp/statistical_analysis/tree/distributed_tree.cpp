@@ -32,7 +32,7 @@ Distributed_tree::Distributed_tree(Product_lattice *lattice, bin_enc BBPA, bin_e
                 p->update_probs_in_place(BBPA, re, _dilution);
             }
             if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
-                p = p->convert_parallelism();
+                p = p->to_local();
             _children[re] = new Distributed_tree(p, BBPA, ex, re, k, _curr_stage + 1, expansion_depth);
         }
     }
@@ -96,7 +96,7 @@ void Distributed_tree::eval(Tree *node, Product_lattice *orig_lattice, bin_enc t
                 else
                     p->update_probs(BBPA, re, _dilution);
                 if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
-                    p = p->convert_parallelism();
+                    p = p->to_local();
                 node->children()[re] = new Distributed_tree(p, BBPA, ex, re, node->curr_stage() + 1, child_prob);
                 eval(node->children()[re], orig_lattice, true_state);
             }
@@ -150,7 +150,7 @@ void Distributed_tree::eval(Tree *node, Product_lattice *orig_lattice, bin_enc t
                     else
                         p->update_probs(BBPA, re, _dilution);
                     if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
-                        p = p->convert_parallelism();
+                        p = p->to_local();
                     node->children()[re]->lattice()->posterior_probs(p->posterior_probs());
                     p->posterior_probs(nullptr);
                     delete p;
@@ -204,7 +204,7 @@ void Distributed_tree::lazy_eval(Tree *node, Product_lattice *orig_lattice, bin_
                         p->update_probs(backtrack[i + 1]->_BBPA, backtrack[i + 1]->_res, _dilution);
                     }
                     if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
-                        p = p->convert_parallelism();
+                        p = p->to_local();
                     backtrack[i + 1]->lattice()->posterior_probs(p->posterior_probs());
                     p->posterior_probs(nullptr);
                     delete p;
@@ -227,7 +227,7 @@ void Distributed_tree::lazy_eval(Tree *node, Product_lattice *orig_lattice, bin_
                 else
                     p->update_probs(BBPA, re, _dilution);
                 if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
-                    p = p->convert_parallelism();
+                    p = p->to_local();
                 node->children()[re] = new Distributed_tree(p, BBPA, ex, re, node->curr_stage() + 1, child_prob);
                 lazy_eval(node->children()[re], orig_lattice, true_state);
             }

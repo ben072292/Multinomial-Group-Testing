@@ -6,7 +6,7 @@ EXPORT void run_dist_tree_intra(int argc, char *argv[])
 
     if (argc != 6)
     {
-        std::cerr << "Usage: " << argv[0] << " <type> <subjs> <variants> <prior> <global_tree_depth> <search_depth>\n";
+        std::cerr << "Usage: " << argv[0] << " <parallelism_type> <subjs> <variants> <prior> <global_tree_depth> <search_depth>\n";
         exit(1);
     }
 
@@ -78,7 +78,7 @@ EXPORT void run_dist_tree_intra(int argc, char *argv[])
               << "-Prior=" << prior
               << "-Depth=" << search_depth
 #ifdef ENABLE_OMP
-              << "-Threads=" << omp_get_num_threads()
+              << "-Threads=" << std::stoi(getenv("OMP_NUM_THREADS"))
 #endif
               << "-" << get_curr_time()
               << ".csv";

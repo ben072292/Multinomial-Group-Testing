@@ -83,26 +83,26 @@ EXPORT void run_BBPA_benchmark(int argc, char *argv[])
     if (rank == 0)
     {
         std::stringstream file_name;
-        file_name <<
+        file_name << "BBPA-Benchmark-"
 #ifdef BBPA_NAIVE
-            "BBPA-Benchmark-Baseline-"
+            << "Baseline-"
 #elif defined(BBPA_OP1)
-            "BBPA-Benchmark-OP1-"
+            << "OP1-"
 #elif defined(BBPA_OP2)
-            "BBPA-Benchmark-OP2-"
-#elif defined(BBPA_OP3)
-            "BBPA-Benchmark-OP3-"
+            << "OP2-"
+// #elif defined(BBPA_OP3)
+//             "BBPA-Benchmark-OP3-"
 #elif defined(ENABLE_SIMD) && !defined(ENABLE_OMP)
-            "BBPA-Benchmark-OP4-"
+            << "OP3-"
 #elif defined(ENABLE_SIMD) && defined(ENABLE_OMP)
-            "BBPA-Benchmark-OP5-"
+            << "OP4-"
 #endif
                   << p->type()
                   << "-N=" << subjs
                   << "-k=" << variants
                   << "-Processes=" << world_size
 #ifdef ENABLE_OMP
-                  << "-Threads=" << omp_get_num_threads()
+                  << "-Threads=" << std::stoi(getenv("OMP_NUM_THREADS"))
 #endif
                   << "-" << get_curr_time()
                   << ".csv";

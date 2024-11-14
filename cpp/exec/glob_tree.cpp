@@ -29,7 +29,7 @@ EXPORT void run_glob_tree(int argc, char* argv[])
     {
         if (rank == 0)
         {
-            std::cerr << "Usage: " << argv[0] << " <type> <subjs> <variants> <prior> <search_depth>\n";
+            std::cerr << "Usage: " << argv[0] << " <parallelism_type> <subjs> <variants> <prior> <search_depth>\n";
         }
         MPI_Finalize(); // Finalize MPI before exiting
         return;
@@ -127,7 +127,7 @@ EXPORT void run_glob_tree(int argc, char* argv[])
                   << "-Depth=" << search_depth
                   << "-Processes=" << world_size
 #ifdef ENABLE_OMP
-                  << "-Threads=" << omp_get_num_threads()
+                  << "-Threads=" << std::stoi(getenv("OMP_NUM_THREADS"))
 #endif
                   << "-" << get_curr_time()
                   << ".csv";
@@ -149,7 +149,7 @@ EXPORT void run_glob_tree(int argc, char* argv[])
         std::cout << tree->shrinking_stat() << std::endl
                   << std::endl;
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_lattice_model_construction - start_lattice_model_construction);
-        std::cout << "Initial Lattice Model Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
+        std::cout << "Initial Lattice Model Construction Time: " << duration.count() / 1e6 << "s." << std::endl << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
         Global_tree::tree_perf->output_verbose();
         std::cout << "Global Tree Construction Time: " << duration.count() / 1e6 << "s." << std::endl;

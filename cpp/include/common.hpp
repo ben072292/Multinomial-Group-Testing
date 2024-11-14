@@ -191,7 +191,8 @@ inline std::string hardware_config_summary()
     std::ostringstream oss;
     oss << "OpenMP is,";
 #ifdef ENABLE_OMP
-    oss << "Enabled,omp_num_threads is set to," << omp_get_num_threads() << std::endl;
+    char* omp_threads = getenv("OMP_NUM_THREADS");
+    oss << "Enabled,omp_num_threads is set to," << std::stoi(omp_threads) << std::endl;
 #else
     oss << "Disabled" << std::endl;
 #endif

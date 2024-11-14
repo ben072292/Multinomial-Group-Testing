@@ -19,3 +19,4 @@ CTestTestfile.cmake
 _deps
 cpp/src/Makefile
 build/
+cpp/include/bmgt.h

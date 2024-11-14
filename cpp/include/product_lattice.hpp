@@ -58,7 +58,7 @@ public:
 	virtual bin_enc BBPA(double prob) const;
 	virtual lattice_parallelism_t parallelism() const { return REPL_MODEL; }
 	virtual dilution_t dilution() const { return NON_DILUTION; }
-	virtual Product_lattice *convert_parallelism() { return this; }
+	virtual Product_lattice *to_local() { return this; }
 	virtual bin_enc BBPA_serial(double prob) const;
 #ifdef ENABLE_OMP
 	virtual bin_enc BBPA_omp(double prob) const;
@@ -181,7 +181,7 @@ public:
 
 	Product_lattice *clone(lattice_copy_op_t op) const override { return new Product_lattice_dist_dilution(*this, op); };
 
-	Product_lattice *convert_parallelism() override
+	Product_lattice *to_local() override
 	{
 		Product_lattice *p = new Product_lattice_dilution(*this, SHALLOW_COPY_PROB_DIST);
 		_post_probs = nullptr;
@@ -212,7 +212,7 @@ public:
 
 	Product_lattice *clone(lattice_copy_op_t op) const override { return new Product_lattice_dist_non_dilution(*this, op); };
 
-	Product_lattice *convert_parallelism() override
+	Product_lattice *to_local() override
 	{
 		Product_lattice *p = new Product_lattice_non_dilution(*this, SHALLOW_COPY_PROB_DIST);
 		_post_probs = nullptr;

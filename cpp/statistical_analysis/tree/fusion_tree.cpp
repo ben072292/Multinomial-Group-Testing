@@ -58,7 +58,7 @@ Fusion_tree::Fusion_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int 
                 auto update_end = std::chrono::high_resolution_clock::now();
                 auto shrink_start = std::chrono::high_resolution_clock::now();
                 if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
-                    p = p->convert_parallelism();
+                    p = p->to_local();
                 auto shrink_end = std::chrono::high_resolution_clock::now();
                 int new_parallelism = p->parallelism();
                 tree_perf->accumulate_count(_lattice->curr_subjs(), p->curr_subjs());

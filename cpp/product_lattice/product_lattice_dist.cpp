@@ -552,20 +552,20 @@ bin_enc Product_lattice_dist::BBPA_mpi_omp(double prob) const
 		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 		{
 			// #pragma GCC_ivdep
-			for (int variant = 0; variant < _variants; variant++)
-			{
-				// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
-				// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
-				// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
-				// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
-				// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
-				partition_id |= ((1 << variant) & (((experiment & (offset_to_state(s_iter) >> (variant * _curr_subjs))) - experiment) >> 31));
-			}
-			// #ifdef NUM_VARIANTS
-			// 			BBPA_UNROLL(NUM_VARIANTS, partition_id, experiment, s_iter, _curr_subjs)
-			// #else
-			// 			BBPA_UNROLL(2, partition_id, experiment, s_iter, _curr_subjs)
-			// #endif
+			// for (int variant = 0; variant < _variants; variant++)
+			// {
+			// 	// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
+			// 	// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
+			// 	// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
+			// 	// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
+			// 	// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
+			// 	partition_id |= ((1 << variant) & (((experiment & (offset_to_state(s_iter) >> (variant * _curr_subjs))) - experiment) >> 31));
+			// }
+			#ifdef NUM_VARIANTS
+						BBPA_UNROLL(NUM_VARIANTS, partition_id, experiment, s_iter, _curr_subjs)
+			#else
+						BBPA_UNROLL(2, partition_id, experiment, s_iter, _curr_subjs)
+			#endif
 			partition_mass[experiment * (1 << _variants) + partition_id] += _post_probs[s_iter];
 			partition_id = 0;
 		}
