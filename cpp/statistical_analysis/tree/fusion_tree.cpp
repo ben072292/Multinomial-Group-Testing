@@ -2,79 +2,143 @@
 
 Fusion_tree **Fusion_tree::sequence_tracer = nullptr;
 
-/**
- * Fusion Tree
- */
-Fusion_tree::Fusion_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double prun_thres_sum, double curr_prun_thres_sum, double prun_thres) : Fusion_tree(lattice, ex, res, curr_stage)
+Fusion_tree::Fusion_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage, double prun_thres_sum, double curr_prun_thres_sum, double prun_thres)
+    : Fusion_tree(lattice, ex, res, curr_stage)
 {
     sequence_tracer[curr_stage] = this;
-    // log_debug("sequence: %d %d %d.", curr_stage, sequence_tracer[curr_stage], sequence_tracer[curr_stage]->ex_res());
-    auto BBPA_start = std::chrono::high_resolution_clock::now(), BBPA_end = BBPA_start;
+
+#ifdef ENABLE_PERF
+    auto BBPA_start = std::chrono::high_resolution_clock::now();
+    auto BBPA_end = BBPA_start;
+#endif
+
     if (!lattice->is_classified() && curr_stage < _search_depth)
     {
-        _children = new Tree *[1 << variants()]
-        { nullptr };
-        bin_enc BBPA = lattice->BBPA(1.0 / (1 << variants())); // remember test selection as BBPA_res will change in depth-frist traversal
+        _children = new Tree *[1 << variants()]{nullptr};
+
+#ifdef ENABLE_PERF
+        bin_enc BBPA = lattice->BBPA(1.0 / (1 << variants()));
         BBPA_end = std::chrono::high_resolution_clock::now();
-        tree_perf->accumulate_BBPA_time(lattice->curr_subjs(), (BBPA_end - BBPA_start));
+        tree_perf->accumulate_BBPA_time(
+            lattice->curr_subjs(),
+            std::chrono::duration_cast<std::chrono::nanoseconds>(BBPA_end - BBPA_start));
+#else
+        bin_enc BBPA = lattice->BBPA(1.0 / (1 << variants()));
+#endif
+
         bin_enc ex = true_ex(BBPA);
+
         for (int re = 0; re < (1 << variants()); re++)
         {
             // Fusion tree pruning process
             double fusion_tree_branch_prob = fusion_branch_prob(ex, re);
             MPI_Allreduce(MPI_IN_PLACE, &fusion_tree_branch_prob, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-            // log_debug("Stage: %d, Prob: %f.", curr_stage, fusion_tree_branch_prob);
-            if (curr_prun_thres_sum < prun_thres_sum && fusion_tree_branch_prob < prun_thres && lattice->curr_atoms() >= lattice->orig_atoms()) // can be pruned through fusion tree
-            {
+
+            if (curr_prun_thres_sum < prun_thres_sum &&
+                fusion_tree_branch_prob < prun_thres &&
+                lattice->curr_atoms() >= lattice->orig_atoms())
+            { // Can be pruned through fusion tree
                 curr_prun_thres_sum += fusion_tree_branch_prob;
+
+#ifdef ENABLE_PERF
                 auto update_start = std::chrono::high_resolution_clock::now();
+#endif
                 Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
+
                 if (re == (1 << variants()) - 1)
-                {                                       // reuse _post_probs in child to save memory
-                    _lattice->posterior_probs(nullptr); // detach _post_probs from current lattice
+                {                                       // Reuse _post_probs in child to save memory
+                    _lattice->posterior_probs(nullptr); // Detach _post_probs from current lattice
                     p->update_probs_in_place(BBPA, re, _dilution);
                 }
                 else
+                {
                     p->update_probs(BBPA, re, _dilution);
-                p->update_metadata(_thres_up, _thres_lo); // no need to shrink as only metadata matters
+                }
+
+                p->update_metadata(_thres_up, _thres_lo); // No need to shrink as only metadata matters
                 delete[] p->posterior_probs();
                 p->posterior_probs(nullptr);
-                _children[re] = new Fusion_tree(p, ex, re, curr_stage);
+
+#ifdef ENABLE_PERF
                 auto update_end = std::chrono::high_resolution_clock::now();
-                tree_perf->accumulate_update_time(_lattice->curr_subjs(), p->curr_subjs(), (update_end - update_start));
+                tree_perf->accumulate_update_time(
+                    _lattice->curr_subjs(), p->curr_subjs(),
+                    (update_end - update_start));
+#endif
+                _children[re] = new Fusion_tree(p, ex, re, curr_stage);
             }
-            else // cannot be pruned
-            {
+            else
+            { // Cannot be pruned
+#ifdef ENABLE_PERF
                 auto update_start = std::chrono::high_resolution_clock::now();
+#endif
                 Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
+
+#ifdef ENABLE_PERF
                 int old_parallelism = p->parallelism();
+#endif
+
                 if (re == (1 << variants()) - 1)
-                {                                       // reuse _post_probs in child to save memory
-                    _lattice->posterior_probs(nullptr); // detach _post_probs from current lattice
+                {                                       // Reuse _post_probs in child to save memory
+                    _lattice->posterior_probs(nullptr); // Detach _post_probs from current lattice
                     p->update_probs_in_place(BBPA, re, _dilution);
                 }
                 else
+                {
                     p->update_probs(BBPA, re, _dilution);
+                }
+
+#ifdef ENABLE_PERF
                 auto update_end = std::chrono::high_resolution_clock::now();
                 auto shrink_start = std::chrono::high_resolution_clock::now();
-                if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
+                auto classification_identification_start = std::chrono::high_resolution_clock::now();
+                auto classification_identification_end = std::chrono::high_resolution_clock::now();
+#endif
+                if (p->update_metadata_with_shrinking(_thres_up, _thres_lo
+#ifdef ENABLE_PERF
+                                                      ,
+                                                      &classification_identification_start,
+                                                      &classification_identification_end
+#endif
+                                                      ))
+                {
                     p = p->to_local();
+                }
+
+#ifdef ENABLE_PERF
                 auto shrink_end = std::chrono::high_resolution_clock::now();
                 int new_parallelism = p->parallelism();
+
                 tree_perf->accumulate_count(_lattice->curr_subjs(), p->curr_subjs());
-                tree_perf->accumulate_update_time(_lattice->curr_subjs(), p->curr_subjs(), (update_end - update_start));
+                tree_perf->accumulate_update_time(
+                    _lattice->curr_subjs(), p->curr_subjs(),
+                    (update_end - update_start));
+
                 if (old_parallelism == DIST_MODEL && new_parallelism == DIST_MODEL)
-                    tree_perf->accumulate_mp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
+                {
+                    tree_perf->accumulate_parallel_shrinking_time(
+                        _lattice->curr_subjs(), p->curr_subjs(),
+                        (shrink_end - shrink_start));
+                }
                 else if (old_parallelism == DIST_MODEL && new_parallelism == REPL_MODEL)
-                    tree_perf->accumulate_mp_dp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
+                {
+                    tree_perf->accumulate_parallel_to_serial_transition_time(
+                        _lattice->curr_subjs(), p->curr_subjs(),
+                        (shrink_end - shrink_start));
+                }
                 else if (old_parallelism == REPL_MODEL)
-                    tree_perf->accumulate_dp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
+                {
+                    tree_perf->accumulate_serial_shrinking_time(
+                        _lattice->curr_subjs(), p->curr_subjs(),
+                        (shrink_end - shrink_start));
+                }
+#endif
                 _children[re] = new Fusion_tree(p, ex, re, k, _curr_stage + 1, prun_thres_sum, curr_prun_thres_sum, prun_thres);
             }
         }
     }
     else
-    { // clean in advance to save memory
+    { // Clean in advance to save memory
         destroy_posterior_probs();
     }
 }
@@ -85,8 +149,7 @@ Fusion_tree::Fusion_tree(const Tree &other, bool deep) : Global_tree(other, fals
     {
         if (other.children() != nullptr)
         {
-            _children = new Tree *[1 << variants()]
-            { nullptr };
+            _children = new Tree *[1 << variants()]{nullptr};
             for (int i = 0; i < (1 << variants()); i++)
             {
                 _children[i] = new Fusion_tree(*(other.children()[i]), deep); // TBD: this downcast is problematic, use virtual clone and create functions

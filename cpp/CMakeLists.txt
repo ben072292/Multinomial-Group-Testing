@@ -14,8 +14,8 @@ set(CMAKE_CXX_COMPILER "mpicxx")
 set(CMAKE_C_COMPILER "mpicc")
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -Wall -fopenmp -fvisibility=hidden")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -march=native -Wall -fvisibility=hidden")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -ffast-math -Wall -fopenmp -fvisibility=hidden")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -march=native -ffast-math -Wall -fvisibility=hidden")
 
 set(EXAMPLE_SOURCE_DIR "${PROJECT_SOURCE_DIR}/examples")
 set(EXEC_SOURCE_DIR "${PROJECT_SOURCE_DIR}/exec")
@@ -41,8 +41,7 @@ file(GLOB_RECURSE UTIL_SOURCES "${UTIL_SOURCE_DIR}/*.c*")
 file(GLOB_RECURSE LATTICE_SOURCES "${LATTICE_SOURCE_DIR}/*.c*")
 file(GLOB_RECURSE 3RD_PARTY_SOURCES "${3RD_PARTY_SOURCE_DIR}/*.c*")
 
-# Define a function to create both shared and static library targets
-function(add_bmgt_library TARGET_NAME)
+function(add_bmgt_library TARGET_NAME TARGET_FLAGS)
     # Shared library
     add_library(${TARGET_NAME}_shared SHARED
         ${ANALYSIS_SOURCES}
@@ -53,7 +52,7 @@ function(add_bmgt_library TARGET_NAME)
         ${EXEC_SOURCES}
     )
 
-    # Static library (same target name, but different properties)
+    # Static library
     add_library(${TARGET_NAME}_static STATIC
         ${ANALYSIS_SOURCES}
         ${TREE_SOURCES}
@@ -63,7 +62,13 @@ function(add_bmgt_library TARGET_NAME)
         ${EXEC_SOURCES}
     )
 
-    # OPTIONAL: Set output name to differentiate the static library file
+    # Set specific compile flags for this target if provided
+    if(TARGET_FLAGS)
+        target_compile_options(${TARGET_NAME}_shared PRIVATE ${TARGET_FLAGS})
+        target_compile_options(${TARGET_NAME}_static PRIVATE ${TARGET_FLAGS})
+    endif()
+
+    # Set output name and properties
     set_target_properties(${TARGET_NAME}_shared PROPERTIES OUTPUT_NAME ${TARGET_NAME})
     set_target_properties(${TARGET_NAME}_static PROPERTIES OUTPUT_NAME ${TARGET_NAME})
     set_target_properties(${TARGET_NAME}_shared PROPERTIES VERSION ${PROJECT_VERSION})
@@ -71,11 +76,13 @@ function(add_bmgt_library TARGET_NAME)
     set_target_properties(${TARGET_NAME}_static PROPERTIES VERSION ${PROJECT_VERSION})
     set_target_properties(${TARGET_NAME}_static PROPERTIES PUBLIC_HEADER ${CMAKE_SOURCE_DIR}/include/bmgt.h)
     set_target_properties(${TARGET_NAME}_shared PROPERTIES PUBLIC_HEADER ${CMAKE_SOURCE_DIR}/include/bmgt.h)
+    
+    # Install targets
     install(TARGETS ${TARGET_NAME}_shared
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
     install(TARGETS ${TARGET_NAME}_static
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
     install(FILES ${CMAKE_SOURCE_DIR}/bmgt.pc DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig)
 
@@ -88,13 +95,13 @@ endfunction()
 
 include(GNUInstallDirs)
 
-# Create library targets
-add_bmgt_library(bmgt_baseline BBPA_NAIVE)
-add_bmgt_library(bmgt_op1 BBPA_OP1)
-add_bmgt_library(bmgt_op2 BBPA_OP2)
-add_bmgt_library(bmgt_op3 ENABLE_SIMD USE_INTEL_INTRINSICS)
-add_bmgt_library(bmgt_op4 ENABLE_SIMD USE_INTEL_INTRINSICS ENABLE_OMP)
-add_bmgt_library(bmgt ENABLE_SIMD USE_INTEL_INTRINSICS)
+# Create libraries with specific optimization levels
+add_bmgt_library(bmgt_baseline "-O0" BBPA_NAIVE)      # No optimization
+add_bmgt_library(bmgt_op1 "-O0" BBPA_OP1)             # No optimization
+add_bmgt_library(bmgt_op2 "" BBPA_OP2)                # Default flags (-O3)
+add_bmgt_library(bmgt_op3 "" ENABLE_SIMD USE_INTEL_INTRINSICS) # Default flags (-O3)
+add_bmgt_library(bmgt_op4 "" ENABLE_SIMD USE_INTEL_INTRINSICS ENABLE_OMP) # Default flags (-O3)
+add_bmgt_library(bmgt "" ENABLE_SIMD USE_INTEL_INTRINSICS ENABLE_PERF)      # Default flags (-O3)
 
 function(create_executable TARGET_NAME SOURCE_FILE LIBRARY_NAME SHOULD_INSTALL)
     add_executable(${TARGET_NAME} ${SOURCE_FILE})

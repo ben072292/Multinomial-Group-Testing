@@ -169,7 +169,12 @@ void Product_lattice::update_metadata(double thres_up, double thres_lo)
 	}
 }
 
-bool Product_lattice::update_metadata_with_shrinking(double thres_up, double thres_lo)
+bool Product_lattice::update_metadata_with_shrinking(double thres_up, double thres_lo
+#ifdef ENABLE_PERF
+													 ,
+													 std::chrono::time_point<std::chrono::high_resolution_clock> *classification_identification_start, std::chrono::time_point<std::chrono::high_resolution_clock> *classification_identification_end
+#endif
+)
 {
 	bin_enc clas_atoms = (_pos_clas_atoms | _neg_clas_atoms); // same size as orig layout
 	bin_enc curr_clas_atoms = 0;							  // same size as curr layout
@@ -177,6 +182,9 @@ bool Product_lattice::update_metadata_with_shrinking(double thres_up, double thr
 	bin_enc new_pos_clas_atoms = 0;
 	bin_enc new_neg_clas_atoms = 0;
 
+#ifdef ENABLE_PERF
+	*classification_identification_start = std::chrono::high_resolution_clock::now();
+#endif
 	// #pragma omp parallel for schedule(dynamic) reduction(+ : new_curr_clas_atoms, new_pos_clas_atoms, new_neg_clas_atoms)
 	for (int i = 0; i < _orig_subjs * _variants; i++)
 	{
@@ -201,6 +209,9 @@ bool Product_lattice::update_metadata_with_shrinking(double thres_up, double thr
 			}
 		}
 	}
+#ifdef ENABLE_PERF
+	*classification_identification_end = std::chrono::high_resolution_clock::now();
+#endif
 	curr_clas_atoms = new_curr_clas_atoms;
 	_pos_clas_atoms |= new_pos_clas_atoms;
 	_neg_clas_atoms |= new_neg_clas_atoms;

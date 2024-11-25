@@ -84,8 +84,6 @@ public:
     Global_tree() : Global_tree_intra() {}
     Global_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int curr_stage) : Global_tree_intra(lattice, ex, res, curr_stage) {}
     Global_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage);
-    // Recoding total mpi time
-    Global_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage, bool perf);
     Global_tree(const Tree &other, bool deep);
     virtual std::string type() override { return "Global Tree"; }
 

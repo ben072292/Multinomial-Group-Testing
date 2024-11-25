@@ -1,7 +1,7 @@
 #include "product_lattice.hpp"
 #include "tree.hpp"
 
-EXPORT void run_glob_tree(int argc, char* argv[])
+EXPORT void run_glob_tree(int argc, char *argv[])
 {
     // Initialize the MPI environment
     int provided_thread_level;
@@ -99,7 +99,7 @@ EXPORT void run_glob_tree(int argc, char* argv[])
     // Global_tree* tree = new Global_tree(p, -1, -1, 0);
 
     /* Global tree with perf */
-    Tree *tree = new Global_tree(p, -1, -1, 1, 0, true);
+    Tree *tree = new Global_tree(p, -1, -1, 1, 0);
 
     auto stop_tree_construction = std::chrono::high_resolution_clock::now();
 
@@ -149,14 +149,17 @@ EXPORT void run_glob_tree(int argc, char* argv[])
         std::cout << tree->shrinking_stat() << std::endl
                   << std::endl;
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_lattice_model_construction - start_lattice_model_construction);
-        std::cout << "Initial Lattice Model Construction Time: " << duration.count() / 1e6 << "s." << std::endl << std::endl;
+        std::cout << "Initial Lattice Model Construction Time," << duration.count() / 1e6 << "s" << std::endl
+                  << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
-        Global_tree::tree_perf->output_verbose();
-        std::cout << "Global Tree Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
+#ifdef ENABLE_PERF
+        Global_tree::tree_perf->output_perf_stat();
+#endif
+        std::cout << "Global Tree Construction Time," << duration.count() / 1e6 << "s" << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - stop_tree_construction);
-        std::cout << "Statistical Analysis Time: " << duration.count() / 1e6 << "s." << std::endl;
+        std::cout << "Statistical Analysis Time," << duration.count() / 1e6 << "s" << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - start_lattice_model_construction);
-        std::cout << "Total Time: " << duration.count() / 1e6 << "s." << std::endl;
+        std::cout << "Total Time," << duration.count() / 1e6 << "s" << std::endl;
     }
 
     for (int i = 0; i < subjs; i++)
@@ -168,23 +171,23 @@ EXPORT void run_glob_tree(int argc, char* argv[])
 
     // Free product lattice MPI env
     switch (type)
-	{
-	case DIST_NON_DILUTION:
-		Product_lattice_dist::MPI_Product_lattice_Finalize();
+    {
+    case DIST_NON_DILUTION:
+        Product_lattice_dist::MPI_Product_lattice_Finalize();
         break;
-	case DIST_DILUTION:
-		Product_lattice_dist::MPI_Product_lattice_Finalize();
+    case DIST_DILUTION:
+        Product_lattice_dist::MPI_Product_lattice_Finalize();
         break;
-	case REPL_NON_DILUTION:
-		Product_lattice::MPI_Product_lattice_Finalize();
+    case REPL_NON_DILUTION:
+        Product_lattice::MPI_Product_lattice_Finalize();
         break;
-	case REPL_DILUTION:
-		Product_lattice::MPI_Product_lattice_Finalize();
+    case REPL_DILUTION:
+        Product_lattice::MPI_Product_lattice_Finalize();
         break;
-	default:
-		throw std::logic_error("Nonexisting product lattice type! Exiting...");
-		exit(1);
-	}
+    default:
+        throw std::logic_error("Nonexisting product lattice type! Exiting...");
+        exit(1);
+    }
     Global_tree::MPI_Global_tree_Free();
 
     // Finalize MPI

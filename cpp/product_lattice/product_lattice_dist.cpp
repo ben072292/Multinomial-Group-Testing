@@ -50,10 +50,19 @@ void Product_lattice_dist::update_metadata(double thres_up, double thres_lo)
 	}
 }
 
-bool Product_lattice_dist::update_metadata_with_shrinking(double thres_up, double thres_lo)
+bool Product_lattice_dist::update_metadata_with_shrinking(double thres_up, double thres_lo
+#ifdef ENABLE_PERF
+														  ,
+														  std::chrono::time_point<std::chrono::high_resolution_clock> *classification_identification_start, std::chrono::time_point<std::chrono::high_resolution_clock> *classification_identification_end
+#endif
+)
 {
 	bin_enc clas_atoms = (_pos_clas_atoms | _neg_clas_atoms); // same size as orig layout
-	bin_enc curr_clas_atoms = 0;							  // same size as curr layout
+	bin_enc curr_clas_atoms = 0;
+#ifdef ENABLE_PERF
+	*classification_identification_start = std::chrono::high_resolution_clock::now();
+#endif
+	// same size as curr layout
 	for (int i = 0; i < _orig_subjs * _variants; i++)
 	{
 		bin_enc orig_index = (1 << i);													 // binary index in decimal for original layout
@@ -77,6 +86,9 @@ bool Product_lattice_dist::update_metadata_with_shrinking(double thres_up, doubl
 			}
 		}
 	}
+#ifdef ENABLE_PERF
+	*classification_identification_end = std::chrono::high_resolution_clock::now();
+#endif
 	curr_clas_atoms = curr_shrinkable_atoms(curr_clas_atoms, _curr_subjs, _variants);
 
 	const int target_subj_size = _orig_subjs - __builtin_popcount(update_clas_subj(_pos_clas_atoms | _neg_clas_atoms, _orig_subjs, _variants));
@@ -89,17 +101,17 @@ bool Product_lattice_dist::update_metadata_with_shrinking(double thres_up, doubl
 		_post_probs = nullptr;
 		return false;
 	}
-	// if MP is achievable, i.e., each process has at least 1 state to work, performing MP shrinking
+	// if parallel shrinking is achievable, i.e., each process has at least 1 state to work, performing parallel shrinking
 	if (curr_clas_atoms && target_prob_size >= world_size)
 	{
 		shrinking(curr_clas_atoms);
 		return false;
 	}
-	// if MP is not achievable, first shrinking the lattice model to the minimum achievable size of MP
-	// then perform MP-DP conversion, improving performance and scalability than directly performing MP-DP conversion
+	// if parallel shrinking is not achievable, first shrinking the lattice model to the minimum achievable size of MP
+	// then perform parallel to serial model conversion, improving performance and scalability than directly performing paralel to serial model conversion
 	else if (curr_clas_atoms && target_prob_size < world_size)
 	{
-		// Stage 1: MP shrinking to the minimum achievable size
+		// Stage 1: parallel shrinking to the minimum achievable size
 		// Stage 1.1: preparation on _pos_clas_atoms and _neg_clas_atoms
 		const int true_pos_clas_atoms = _pos_clas_atoms;
 		const int true_neg_clas_atoms = _neg_clas_atoms;
@@ -125,7 +137,7 @@ bool Product_lattice_dist::update_metadata_with_shrinking(double thres_up, doubl
 		_pos_clas_atoms = clas_atoms;
 		_neg_clas_atoms = clas_atoms;
 
-		// Stage 1.2: shrinking
+		// Stage 1.2: parallel shrinking
 		curr_clas_atoms = 0;
 		for (int i = 0; i < _orig_subjs * _variants; i++)
 		{
@@ -137,7 +149,7 @@ bool Product_lattice_dist::update_metadata_with_shrinking(double thres_up, doubl
 		curr_clas_atoms = curr_shrinkable_atoms(curr_clas_atoms, _curr_subjs, _variants);
 		shrinking(curr_clas_atoms);
 
-		// Stage 2: real MP-DP conversion
+		// Stage 2: parallel to serial shrinking conversion
 		// Stage 2.1: Preparation (revert true classification profile)
 		_pos_clas_atoms = true_pos_clas_atoms;
 		_neg_clas_atoms = true_neg_clas_atoms;
@@ -154,7 +166,7 @@ bool Product_lattice_dist::update_metadata_with_shrinking(double thres_up, doubl
 
 	stage_2_2:
 	{
-		// Stage 2.2: real MP-DP conversion (The old MP-DP)
+		// Stage 2.2: parallel to serial shrinking conversion (The old P-S)
 		double *candidate_post_probs;
 		if (rank == 0)
 			candidate_post_probs = new double[(1 << curr_atoms())]{0.0};
@@ -165,7 +177,7 @@ bool Product_lattice_dist::update_metadata_with_shrinking(double thres_up, doubl
 		{
 			double *temp = _post_probs;
 			_post_probs = candidate_post_probs;
-			Product_lattice::shrinking(curr_clas_atoms);
+			Product_lattice::shrinking(curr_clas_atoms); // serial shrinking
 			_post_probs = temp;
 		}
 		MPI_Bcast(candidate_post_probs, target_prob_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -178,11 +190,16 @@ bool Product_lattice_dist::update_metadata_with_shrinking(double thres_up, doubl
 			_curr_subjs = _orig_subjs - __builtin_popcount(_clas_subjs);
 		}
 	}
-		return true; // signal MP-DP conversion
+		return true; // signal parallel to serial shrinking is performed
 	}
 	return false; // no classified subjects so no shrinking
 }
 
+/**
+ * @brief parallel shrinking
+ *
+ * @param curr_clas_atoms
+ */
 void Product_lattice_dist::shrinking(bin_enc curr_clas_atoms)
 {
 	int reduce_count = __builtin_popcount(curr_clas_atoms);
@@ -551,21 +568,21 @@ bin_enc Product_lattice_dist::BBPA_mpi_omp(double prob) const
 		// __builtin_prefetch((post_probs_ + s_iter + 20), 0, 0);
 		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment++)
 		{
-			// #pragma GCC_ivdep
-			// for (int variant = 0; variant < _variants; variant++)
-			// {
-			// 	// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
-			// 	// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
-			// 	// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
-			// 	// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
-			// 	// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
-			// 	partition_id |= ((1 << variant) & (((experiment & (offset_to_state(s_iter) >> (variant * _curr_subjs))) - experiment) >> 31));
-			// }
-			#ifdef NUM_VARIANTS
-						BBPA_UNROLL(NUM_VARIANTS, partition_id, experiment, s_iter, _curr_subjs)
-			#else
-						BBPA_UNROLL(2, partition_id, experiment, s_iter, _curr_subjs)
-			#endif
+// #pragma GCC_ivdep
+// for (int variant = 0; variant < _variants; variant++)
+// {
+// 	// https://graphics.stanford.edu/~seander/bithacks.html#HasLessInWord
+// 	// evaluates to sign = v >> 31 for 32-bit integers. This is one operation faster than the obvious way,
+// 	// sign = -(v < 0). This trick works because when signed integers are shifted right, the value of the
+// 	// far left bit is copied to the other bits. The far left bit is 1 when the value is negative and 0
+// 	// otherwise; all 1 bits gives -1. Unfortunately, this behavior is architecture-specific.
+// 	partition_id |= ((1 << variant) & (((experiment & (offset_to_state(s_iter) >> (variant * _curr_subjs))) - experiment) >> 31));
+// }
+#ifdef NUM_VARIANTS
+			BBPA_UNROLL(NUM_VARIANTS, partition_id, experiment, s_iter, _curr_subjs)
+#else
+			BBPA_UNROLL(2, partition_id, experiment, s_iter, _curr_subjs)
+#endif
 			partition_mass[experiment * (1 << _variants) + partition_id] += _post_probs[s_iter];
 			partition_id = 0;
 		}
@@ -730,15 +747,15 @@ bin_enc Product_lattice_dist::BBPA_mpi_simd(double prob) const
 bin_enc Product_lattice_dist::BBPA_mpi_omp_simd(double prob) const
 {
 	BBPA_res res;
-	int partition_size = (1 << _curr_subjs) * (1 << _variants);
-	VecIntType ex = SIMD_SET_INC();
-	VecIntType partition_id = SIMD_SET0();
+	const int partition_size = (1 << _curr_subjs) * (1 << _variants);
 
 	// tricky: for each state, check each variant of actively
 	// pooled subjects to see whether they are all 1.
 #pragma omp parallel for schedule(static) reduction(+ : partition_mass[ : partition_size])
 	for (bin_enc s_iter = 0; s_iter < total_states_per_rank(); s_iter++)
 	{
+		VecIntType ex = SIMD_SET_INC();
+		VecIntType partition_id = SIMD_SET0();
 		// __builtin_prefetch((_post_probs + s_iter + 4), 0, 0);
 		for (bin_enc experiment = 0; experiment < (1 << _curr_subjs); experiment += SIMD_WIDTH)
 		{

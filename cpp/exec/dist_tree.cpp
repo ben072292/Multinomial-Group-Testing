@@ -184,10 +184,10 @@ EXPORT void run_dist_tree(int argc, char* argv[])
         summ.output_detail();
         auto stop_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
-        std::cout << "Distributed Tree Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
-        std::cout << "Statistical Analysis Time: " << duration.count() / 1e6 << "s." << std::endl;
+        std::cout << "Distributed Tree Construction Time," << duration.count() / 1e6 << "s" << std::endl;
+        std::cout << "Statistical Analysis Time," << duration.count() / 1e6 << "s" << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_time - start_time);
-        std::cout << "Total Time: " << duration.count() / 1e6 << "s." << std::endl;
+        std::cout << "Total Time," << duration.count() / 1e6 << "s" << std::endl;
     }
 
     for (int i = 0; i < subjs; i++)

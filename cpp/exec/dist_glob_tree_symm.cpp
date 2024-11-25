@@ -207,12 +207,12 @@ EXPORT void run_dist_glob_tree_symm(int argc, char* argv[])
                   << std::endl;
 
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_glob_tree - start_glob_tree);
-        std::cout << "Global Tree Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
+        std::cout << "Global Tree Construction Time," << duration.count() / 1e6 << "s" << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_evaluation - start_evaluation);
-        std::cout << "Distributed Tree Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
-        std::cout << "Statistical Analysis Time: " << duration.count() / 1e6 << "s." << std::endl;
+        std::cout << "Distributed Tree Construction Time," << duration.count() / 1e6 << "s" << std::endl;
+        std::cout << "Statistical Analysis Time," << duration.count() / 1e6 << "s" << std::endl;
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_time - start_time);
-        std::cout << "Total Time: " << duration.count() / 1e6 << "s." << std::endl;
+        std::cout << "Total Time," << duration.count() / 1e6 << "s" << std::endl;
     }
 
     for (int i = 0; i < subjs; i++)

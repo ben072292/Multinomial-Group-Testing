@@ -51,13 +51,23 @@ public:
 	virtual double response_prob(bin_enc experiment, bin_enc response, bin_enc true_state, double **dilution) const = 0;
 	virtual std::string type() const = 0;
 	virtual void update_metadata(double thres_up, double thres_lo);
-	virtual bool update_metadata_with_shrinking(double thres_up, double thres_lo);
+	virtual bool update_metadata_with_shrinking(double thres_up, double thres_lo
+#ifdef ENABLE_PERF
+																 ,
+																 std::chrono::time_point<std::chrono::high_resolution_clock> *classification_identification_start, std::chrono::time_point<std::chrono::high_resolution_clock> *classification_identification_end
+#endif
+	);
 	virtual void shrinking(int curr_clas_atoms);
 	virtual double get_prob_mass(bin_enc state) const;
 	virtual double get_atom_prob_mass(bin_enc atom) const;
 	virtual bin_enc BBPA(double prob) const;
 	virtual lattice_parallelism_t parallelism() const { return REPL_MODEL; }
 	virtual dilution_t dilution() const { return NON_DILUTION; }
+	/**
+	 * @brief convert from distributed model to local model
+	 *
+	 * @return Product_lattice*
+	 */
 	virtual Product_lattice *to_local() { return this; }
 	virtual bin_enc BBPA_serial(double prob) const;
 #ifdef ENABLE_OMP
@@ -98,7 +108,7 @@ public:
 class Product_lattice_non_dilution : public virtual Product_lattice
 {
 public:
-	Product_lattice_non_dilution(){}; // default constructor
+	Product_lattice_non_dilution() {}; // default constructor
 
 	Product_lattice_non_dilution(int subjs, int variants, double *pi0) : Product_lattice(subjs, variants, pi0) {}
 
@@ -134,13 +144,18 @@ protected:
 public:
 	Product_lattice_dist() {} // default constructor
 	Product_lattice_dist(int subjs, int variants, double *pi0);
-	Product_lattice_dist(const Product_lattice &other, lattice_copy_op_t op) : Product_lattice(other, op){};
+	Product_lattice_dist(const Product_lattice &other, lattice_copy_op_t op) : Product_lattice(other, op) {};
 	double posterior_prob(bin_enc state) const override;
 	void prior_probs(double *pi0) override;
 	void update_probs(bin_enc experiment, bin_enc response, double **dilution) override;
 	void update_probs_in_place(bin_enc experiment, bin_enc response, double **dilution) override;
 	void update_metadata(double thres_up, double thres_lo) override;
-	bool update_metadata_with_shrinking(double thres_up, double thres_lo) override;
+	bool update_metadata_with_shrinking(double thres_up, double thres_lo
+#ifdef ENABLE_PERF
+													 ,
+													 std::chrono::time_point<std::chrono::high_resolution_clock> *classification_identification_start, std::chrono::time_point<std::chrono::high_resolution_clock> *classification_identification_end
+#endif
+) override;
 	void shrinking(int curr_clas_atoms) override;
 	double get_prob_mass(bin_enc state) const override { throw std::logic_error("Not Implemented."); }
 	double get_atom_prob_mass(bin_enc atom) const override;
@@ -278,11 +293,11 @@ typedef struct BBPA_res
 } BBPA_res;
 
 #define BBPA_UNROLL_1_INTRINSICS(partition_id, ex, state, curr_subjs) \
-	partition_id = SIMD_OR(partition_id, SIMD_AND(SIMD_SET1(1), SIMD_SRLI(SIMD_SUB(SIMD_AND(ex, SIMD_SET1(offset_to_state(state))), ex), 31))); \
+	partition_id = SIMD_OR(partition_id, SIMD_AND(SIMD_SET1(1), SIMD_SRLI(SIMD_SUB(SIMD_AND(ex, SIMD_SET1(offset_to_state(state))), ex), 31)));
 
 #define BBPA_UNROLL_2_INTRINSICS(partition_id, ex, state, curr_subjs) \
 	BBPA_UNROLL_1_INTRINSICS(partition_id, ex, state, curr_subjs)     \
-	partition_id = SIMD_OR(partition_id, SIMD_AND(SIMD_SET1(2), SIMD_SRLI(SIMD_SUB(SIMD_AND(ex, SIMD_SET1(offset_to_state(state) >> curr_subjs)), ex), 31))); 
+	partition_id = SIMD_OR(partition_id, SIMD_AND(SIMD_SET1(2), SIMD_SRLI(SIMD_SUB(SIMD_AND(ex, SIMD_SET1(offset_to_state(state) >> curr_subjs)), ex), 31)));
 
 #define BBPA_UNROLL_3_INTRINSICS(partition_id, ex, state, curr_subjs) \
 	BBPA_UNROLL_2_INTRINSICS(partition_id, ex, state, curr_subjs)     \

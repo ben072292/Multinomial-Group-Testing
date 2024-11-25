@@ -6,83 +6,107 @@ Tree_perf *Global_tree::tree_perf;
 MPI_Datatype Global_tree::tree_stat_type;
 MPI_Op Global_tree::tree_stat_op;
 
-/**
- * Single tree without perf
- */
-Global_tree::Global_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage) : Global_tree(lattice, ex, res, curr_stage)
+Global_tree::Global_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage)
+    : Global_tree(lattice, ex, res, curr_stage)
 {
+#ifdef ENABLE_PERF
+    auto BBPA_start = std::chrono::high_resolution_clock::now();
+    auto BBPA_end = BBPA_start;
+#endif
+
     if (!lattice->is_classified() && curr_stage < _search_depth)
     {
-        _children = new Tree *[1 << variants()]
-        { nullptr };
+        _children = new Tree *[1 << variants()]{nullptr};
+
+#ifdef ENABLE_PERF
         bin_enc BBPA = lattice->BBPA(1.0 / (1 << variants()));
+        BBPA_end = std::chrono::high_resolution_clock::now();
+        tree_perf->accumulate_BBPA_time(
+            lattice->curr_subjs(),
+            std::chrono::duration_cast<std::chrono::nanoseconds>(BBPA_end - BBPA_start));
+#else
+        bin_enc BBPA = lattice->BBPA(1.0 / (1 << variants()));
+#endif
+
         bin_enc ex = true_ex(BBPA);
+
         for (int re = 0; re < (1 << variants()); re++)
         {
+#ifdef ENABLE_PERF
+            auto update_start = std::chrono::high_resolution_clock::now();
+#endif
             Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
+
+#ifdef ENABLE_PERF
+            int old_parallelism = p->parallelism();
+#endif
+
             if (re == (1 << variants()) - 1)
-            {                                       // reuse _post_probs in child to save memory
-                _lattice->posterior_probs(nullptr); // detach _post_probs from current lattice
+            {
+                _lattice->posterior_probs(nullptr); // Detach _post_probs from current lattice
                 p->update_probs_in_place(BBPA, re, _dilution);
             }
             else
+            {
                 p->update_probs(BBPA, re, _dilution);
-            if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
+            }
+
+#ifdef ENABLE_PERF
+            auto update_end = std::chrono::high_resolution_clock::now();
+            auto shrink_start = std::chrono::high_resolution_clock::now();
+            auto classification_identification_start = std::chrono::high_resolution_clock::now();
+            auto classification_identification_end = std::chrono::high_resolution_clock::now();
+#endif
+            if (p->update_metadata_with_shrinking(_thres_up, _thres_lo
+            #ifdef ENABLE_PERF
+, &classification_identification_start, &classification_identification_end
+            #endif
+            ))
+            {
                 p = p->to_local();
+            }
+#ifdef ENABLE_PERF
+            auto shrink_end = std::chrono::high_resolution_clock::now();
+            int new_parallelism = p->parallelism();
+
+            tree_perf->accumulate_count(_lattice->curr_subjs(), p->curr_subjs());
+            tree_perf->accumulate_update_time(
+                _lattice->curr_subjs(),
+                p->curr_subjs(),
+                (update_end - update_start));
+
+            tree_perf->accumulate_classification_identification_time(
+                _lattice->curr_subjs(),
+                p->curr_subjs(),
+                (classification_identification_end - classification_identification_start));
+
+            if (old_parallelism == DIST_MODEL && new_parallelism == DIST_MODEL)
+            {
+                tree_perf->accumulate_parallel_shrinking_time(
+                    _lattice->curr_subjs(),
+                    p->curr_subjs(),
+                    (shrink_end - shrink_start));
+            }
+            else if (old_parallelism == DIST_MODEL && new_parallelism == REPL_MODEL)
+            {
+                tree_perf->accumulate_parallel_to_serial_transition_time(
+                    _lattice->curr_subjs(),
+                    p->curr_subjs(),
+                    (shrink_end - shrink_start));
+            }
+            else if (old_parallelism == REPL_MODEL)
+            {
+                tree_perf->accumulate_serial_shrinking_time(
+                    _lattice->curr_subjs(),
+                    p->curr_subjs(),
+                    (shrink_end - shrink_start));
+            }
+#endif
             _children[re] = new Global_tree(p, ex, re, k, _curr_stage + 1);
         }
     }
     else
-    { // clean in advance to save memory
-        destroy_posterior_probs();
-    }
-}
-
-/**
- * Single tree with Perf
- */
-Global_tree::Global_tree(Product_lattice *lattice, bin_enc ex, bin_enc res, int k, int curr_stage, bool perf) : Global_tree(lattice, ex, res, curr_stage)
-{
-    auto BBPA_start = std::chrono::high_resolution_clock::now(), BBPA_end = BBPA_start;
-    if (!lattice->is_classified() && curr_stage < _search_depth)
-    {
-        _children = new Tree *[1 << variants()]
-        { nullptr };
-        bin_enc BBPA = lattice->BBPA(1.0 / (1 << variants())); // remember test selection as BBPA_res will change in depth-frist traversal
-        BBPA_end = std::chrono::high_resolution_clock::now();
-        tree_perf->accumulate_BBPA_time(lattice->curr_subjs(), std::chrono::duration_cast<std::chrono::nanoseconds>(BBPA_end - BBPA_start));
-        bin_enc ex = true_ex(BBPA);
-        for (int re = 0; re < (1 << variants()); re++)
-        {
-            auto update_start = std::chrono::high_resolution_clock::now();
-            Product_lattice *p = lattice->clone(SHALLOW_COPY_PROB_DIST);
-            int old_parallelism = p->parallelism();
-            if (re == (1 << variants()) - 1)
-            {                                       // reuse _post_probs in child to save memory
-                _lattice->posterior_probs(nullptr); // detach _post_probs from current lattice
-                p->update_probs_in_place(BBPA, re, _dilution);
-            }
-            else
-                p->update_probs(BBPA, re, _dilution);
-            auto update_end = std::chrono::high_resolution_clock::now();
-            auto shrink_start = std::chrono::high_resolution_clock::now();
-            if (p->update_metadata_with_shrinking(_thres_up, _thres_lo))
-                p = p->to_local();
-            auto shrink_end = std::chrono::high_resolution_clock::now();
-            int new_parallelism = p->parallelism();
-            tree_perf->accumulate_count(_lattice->curr_subjs(), p->curr_subjs());
-            tree_perf->accumulate_update_time(_lattice->curr_subjs(), p->curr_subjs(), (update_end - update_start));
-            if (old_parallelism == DIST_MODEL && new_parallelism == DIST_MODEL)
-                tree_perf->accumulate_mp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
-            else if (old_parallelism == DIST_MODEL && new_parallelism == REPL_MODEL)
-                tree_perf->accumulate_mp_dp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
-            else if (old_parallelism == REPL_MODEL)
-                tree_perf->accumulate_dp_time(_lattice->curr_subjs(), p->curr_subjs(), (shrink_end - shrink_start));
-            _children[re] = new Global_tree(p, ex, re, k, _curr_stage + 1, true);
-        }
-    }
-    else
-    { // clean in advance to save memory
+    { // Clean in advance to save memory
         destroy_posterior_probs();
     }
 }
@@ -93,8 +117,7 @@ Global_tree::Global_tree(const Tree &other, bool deep) : Global_tree_intra(other
     {
         if (other.children() != nullptr)
         {
-            _children = new Tree *[1 << variants()]
-            { nullptr };
+            _children = new Tree *[1 << variants()]{nullptr};
             for (int i = 0; i < (1 << variants()); i++)
             {
                 _children[i] = new Global_tree(*(other.children()[i]), deep); // TBD: this downcast is problematic, use virtual clone and create functions

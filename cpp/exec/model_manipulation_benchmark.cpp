@@ -96,7 +96,7 @@ EXPORT void run_model_manipulation_benchmark(int argc, char *argv[])
 
     for (int i = 0; i < iters; i++)
     {
-        p->update_metadata(0.001, 0.001);
+        p->get_atom_prob_mass(1);
     }
 
     auto end_classification = std::chrono::high_resolution_clock::now();
@@ -107,7 +107,6 @@ EXPORT void run_model_manipulation_benchmark(int argc, char *argv[])
         file_name << "Model-Manipulation-Benchmark-" << p->type()
                   << "-N=" << subjs
                   << "-k=" << variants
-                  << "-i=" << iters
                   << "-Processes=" << world_size
 #ifdef ENABLE_OMP
                   << "-Threads=" << std::stoi(getenv("OMP_NUM_THREADS"))
@@ -123,10 +122,11 @@ EXPORT void run_model_manipulation_benchmark(int argc, char *argv[])
 #ifdef ENABLE_OMP
                   << ",OpenMP," << "Enabled"
 #endif
+                  << ",Iterations," << iters
                   << std::endl;
-        std::cout << "Model Construction Time," << std::chrono::duration_cast<std::chrono::nanoseconds>(end_lattice_construction - start_lattice_construction).count() / 1e9 << "s\n";
-        std::cout << "Model Update Time," << std::chrono::duration_cast<std::chrono::nanoseconds>(end_updating - start_updating).count() / 1e9 << "s\n";
-        std::cout << "Model Classification Identification Time," << std::chrono::duration_cast<std::chrono::nanoseconds>(end_classification - start_classification).count() / 1e9 << "s\n";
+        std::cout << "Model Construction Time," << std::chrono::duration_cast<std::chrono::nanoseconds>(end_lattice_construction - start_lattice_construction).count() / 1e9 / iters << "s\n";
+        std::cout << "Model Update Time," << std::chrono::duration_cast<std::chrono::nanoseconds>(end_updating - start_updating).count() / 1e9 / iters << "s\n";
+        std::cout << "Model Classification Identification Time," << std::chrono::duration_cast<std::chrono::nanoseconds>(end_classification - start_classification).count() / 1e9 / iters << "s\n";
     }
 
     // Free product lattice MPI env

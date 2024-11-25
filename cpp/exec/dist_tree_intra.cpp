@@ -104,14 +104,14 @@ EXPORT void run_dist_tree_intra(int argc, char *argv[])
               << std::endl;
 
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_lattice_model_construction - start_lattice_model_construction);
-    std::cout << "Initial Lattice Model Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
+    std::cout << "Initial Lattice Model Construction Time," << duration.count() / 1e6 << "s" << std::endl;
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
 
-    std::cout << "Distributed Tree Construction Time: " << duration.count() / 1e6 << "s." << std::endl;
+    std::cout << "Distributed Tree Construction Time," << duration.count() / 1e6 << "s" << std::endl;
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - stop_tree_construction);
-    std::cout << "Statistical Analysis Time: " << duration.count() / 1e6 << "s." << std::endl;
+    std::cout << "Statistical Analysis Time," << duration.count() / 1e6 << "s" << std::endl;
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - start_lattice_model_construction);
-    std::cout << "Total Time: " << duration.count() / 1e6 << "s." << std::endl;
+    std::cout << "Total Time," << duration.count() / 1e6 << "s" << std::endl;
 
     switch (type)
     {

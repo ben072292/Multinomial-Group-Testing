@@ -108,12 +108,12 @@ EXPORT void run_glob_tree_intra(int argc, char *argv[])
     }
     std::cout << "Total Halving time," << total_MPI_time.count() / 1e9 << " Second." << std::endl;
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(start_tree_construction - start_lattice_model_construction);
-    std::cout << "Initial Lattice Model Construction Time: " << duration.count() / 1e6 << " Second." << std::endl;
+    std::cout << "Initial Lattice Model Construction Time," << duration.count() / 1e6 << " Second." << std::endl;
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_tree_construction - start_tree_construction);
-    std::cout << "Global Tree Construction Time: " << duration.count() / 1e6 << " Second." << std::endl;
+    std::cout << "Global Tree Construction Time," << duration.count() / 1e6 << " Second." << std::endl;
     std::cout << "Non Halving Time in Tree Construction: " << (stop_tree_construction - start_tree_construction - total_MPI_time).count() / 1e9 << " Second" << std::endl;
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - stop_tree_construction);
-    std::cout << "Statistical Analysis Time: " << duration.count() / 1e6 << " Second." << std::endl;
+    std::cout << "Statistical Analysis Time," << duration.count() / 1e6 << " Second." << std::endl;
     duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_statistical_analysis - start_lattice_model_construction);
-    std::cout << "Total Time: " << duration.count() / 1e6 << " Second." << std::endl;
+    std::cout << "Total Time," << duration.count() / 1e6 << " Second." << std::endl;
 }

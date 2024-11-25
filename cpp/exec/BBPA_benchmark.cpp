@@ -39,7 +39,7 @@ EXPORT void run_BBPA_benchmark(int argc, char *argv[])
     }
 
     Product_lattice *p = nullptr;
-    auto start_lattice_construction = std::chrono::high_resolution_clock::now();
+    // auto start_lattice_construction = std::chrono::high_resolution_clock::now();
 
     // Choose lattice type based on parallelism_type
     if (parallelism_type == DIST_NON_DILUTION)
@@ -72,7 +72,7 @@ EXPORT void run_BBPA_benchmark(int argc, char *argv[])
         return;
     }
 
-    auto end_lattice_construction = std::chrono::high_resolution_clock::now();
+    // auto end_lattice_construction = std::chrono::high_resolution_clock::now();
     auto start_halving = std::chrono::high_resolution_clock::now();
 
     // Run the BBPA method
