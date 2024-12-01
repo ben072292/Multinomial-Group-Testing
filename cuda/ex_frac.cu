@@ -121,7 +121,7 @@ __global__ void set_prior_probs(float *_post_probs, int rank, int nranks)
 }
 
 /** A100: N = 15, k = 2, prior = 0.1: 46.9054 seconds
- *  RTX3060: N = 15, k = 2, prior = 0.1: 154.283 seconds
+ *  RTX3060: N = 15, k = 2, prior = 0.1: 140.283 seconds
  */
 template <int n, int k, int f>
 __global__ void BBPA(const float *probs, float *mass, int rank, int nranks)

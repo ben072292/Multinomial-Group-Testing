@@ -50,7 +50,7 @@ __global__ void BBPA(const float *probs, float *mass)
     {
         int state = threadIdx.x * (1 << (n * k - b)) + s_iter;
         int partition_id = 0;
-        #pragma unroll k
+        // #pragma unroll k
         for (int variant = 0; variant < k; variant++)
         {
             partition_id |= ((1 << variant) & (((ex & (state >> (variant * n))) - ex) >> 31));
